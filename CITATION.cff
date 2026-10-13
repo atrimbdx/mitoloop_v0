@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: mitoloop_v0
+message: >-
+  If you use this software, please cite it as below, together with the data
+  resources and methods listed in the README.
+type: software
+authors:
+  - family-names: Trimouille
+    given-names: Aurélien
+repository-code: "https://github.com/atrimbdx/mitoloop_v0"
+abstract: >-
+  A pipeline combining GTEx cis-eQTLs, ENCODE-rE2G element-gene links and
+  ENCODE intact Hi-C maps to describe the regulatory landscape of
+  nuclear-encoded mitochondrial genes: eQTL effect sizes and TSS distances
+  against matched controls, replicability of element-gene links across
+  biosamples, promoter loops called on virtual 4C profiles, and the relation
+  between loop strength and mitochondrial DNA copy number across tissues.
+keywords:
+  - mitochondria
+  - Hi-C
+  - virtual 4C
+  - chromatin loops
+  - enhancer
+  - ENCODE
+  - GTEx
+license: MIT
+version: 0.1.0

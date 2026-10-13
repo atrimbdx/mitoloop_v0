@@ -1,0 +1,15 @@
+name: mitoloop_v0-r
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base>=4.2
+  - r-data.table
+  - r-isotone           # used by peakC
+  - r-catools           # used by peakC
+  - r-remotes
+  - bioconductor-limma  # v4c_loops.R assoc
+  - bioconductor-deseq2 # v4c_loops.R deseq
+  - r-ashr              # v4c_loops.R deseq
+# peakC is distributed on GitHub; after creating the environment:
+#   Rscript -e 'remotes::install_github("deWitLab/peakC")'

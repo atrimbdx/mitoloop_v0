@@ -1,0 +1,56 @@
+experiment	state	label	path	format	genome	resolution
+# ---------------------------------------------------------------------------
+# One line per library, tab separated. Lines starting with '#' are ignored by
+# v4c_pairs.py. The paths below are placeholders.
+#
+#   state       plus  = the state with the higher mitochondrial content
+#               minus = the other state of the same experiment
+#               (other labels: --plus-state / --minus-state)
+#   label       unique, becomes the npz and tsv.gz file name
+#   path        a local file, or an http(s) URL for .hic
+#   format      hic | cool | mcool
+#   genome      must match a --gtf entry given to `extract`
+#   resolution  bin size in bp, must exist in the file
+#
+# Candidate public datasets, two states of one cell type each. Accessions are
+# not filled in: take the processed matrices distributed with each study, or
+# the corresponding entries of the 4DN data portal or of ENCODE.
+#
+# myogenesis   Doynova MD et al. 2017. Linkages between changes in the 3D
+#              organization of the genome and transcription during myotube
+#              differentiation in vitro. Skeletal Muscle 7:5.
+#              doi:10.1186/s13395-017-0122-1. Human myoblasts and myotubes.
+# mouse_myo    Zhang N et al. 2020. Muscle progenitor specification and
+#              myogenic differentiation are associated with changes in
+#              chromatin topology. Nature Communications 11:6222.
+#              doi:10.1038/s41467-020-19999-w. Mouse iPax7 progenitors (+Dox)
+#              against myocytes (-Dox); in situ Hi-C and promoter capture Hi-C.
+# cardio       Bertero A et al. 2019. Dynamics of genome reorganization during
+#              human cardiogenesis reveal an RBM20-dependent splicing factory.
+#              Nature Communications 10:1538. doi:10.1038/s41467-019-09483-5.
+#              Human iPSC against cardiomyocytes.
+# macrophage   Phanstiel DH et al. 2017. Static and dynamic DNA loops form
+#              AP-1-bound activation hubs during macrophage development.
+#              Molecular Cell 67:1037-1048. doi:10.1016/j.molcel.2017.08.006.
+#              THP-1 monocytes against PMA-differentiated macrophages.
+# tcell        Zhang G et al. 2023. Multi-omic analysis reveals dynamic changes
+#              of three-dimensional chromatin architecture during T cell
+#              differentiation. Communications Biology 6:773.
+#              doi:10.1038/s42003-023-05141-1. Mostly mouse naive CD4+ T cells
+#              against differentiated Th1 and Th17 cells.
+# adipo        He M et al. 2018. Genome-wide chromatin structure changes during
+#              adipogenesis and myogenesis. International Journal of
+#              Biological Sciences 14:1571-1585. doi:10.7150/ijbs.25328.
+#              Mouse 3T3-L1 preadipocytes against adipocytes (and C2C12
+#              myoblasts against myotubes).
+# ---------------------------------------------------------------------------
+myogenesis	minus	myoblast_r1	data/pairs/myoblast_r1.mcool	mcool	hg19	10000
+myogenesis	plus	myotube_r1	data/pairs/myotube_r1.mcool	mcool	hg19	10000
+cardio	minus	ipsc_r1	data/pairs/ipsc_r1.hic	hic	hg38	10000
+cardio	plus	cm_r1	data/pairs/cm_r1.hic	hic	hg38	10000
+macrophage	minus	thp1_mono_r1	data/pairs/thp1_mono.hic	hic	hg19	10000
+macrophage	plus	thp1_macro_r1	data/pairs/thp1_macro.hic	hic	hg19	10000
+tcell	minus	tcell_rest_r1	data/pairs/tcell_rest.mcool	mcool	hg38	10000
+tcell	plus	tcell_act_r1	data/pairs/tcell_act.mcool	mcool	hg38	10000
+mouse_myo	minus	ipax7_dox_r1	data/pairs/ipax7_dox.mcool	mcool	mm10	10000
+mouse_myo	plus	ipax7_nodox_r1	data/pairs/ipax7_nodox.mcool	mcool	mm10	10000

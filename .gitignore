@@ -1,0 +1,30 @@
+# input data, never committed
+data/
+*.hic
+*.cool
+*.mcool
+*.gct.gz
+*.gtf.gz
+*.bed.gz
+*.npz
+
+# outputs
+results/
+figures/
+logs/
+
+# user tables
+genes.txt
+controls.txt
+tissues.tsv
+config/pairs.tsv
+
+# python and R
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.Rhistory
+.RData
+
+# system
+.DS_Store

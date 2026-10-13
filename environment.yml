@@ -1,0 +1,20 @@
+name: mitoloop_v0
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - h5py
+  - cooler            # .cool / .mcool
+  - requests          # gtex_eqtl.py fetch
+  - python-pptx       # svg_to_pptx.py
+  - libcurl           # hic-straw is built from source
+  - cxx-compiler
+  - pybind11
+  - pip
+  - pip:
+      - hic-straw     # .hic, local file or URL

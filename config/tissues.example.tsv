@@ -1,0 +1,4 @@
+accession	term_name	gtex_tissue	mtcn	s3_url	download_url	path
+LIBRARY_A1	gastrocnemius medialis	Muscle - Skeletal	1000	https://example.org/LIBRARY_A1.hic		
+LIBRARY_A2	gastrocnemius medialis	Muscle - Skeletal	1000			data/hic/LIBRARY_A2.hic
+LIBRARY_B1	heart left ventricle	Heart - Left Ventricle	2000			data/hic/LIBRARY_B1.mcool
