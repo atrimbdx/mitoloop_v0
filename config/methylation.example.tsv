@@ -1,0 +1,6 @@
+sample	group	path	format	gtex_tissue
+MUSCLE_A	skeletal muscle	data/meth/MUSCLE_A.bedMethyl.gz	bedmethyl	Muscle - Skeletal
+MUSCLE_B	skeletal muscle	data/meth/MUSCLE_B.bedMethyl.gz	bedmethyl	Muscle - Skeletal
+HEART_A	heart left ventricle	data/meth/HEART_A.bedMethyl.gz	bedmethyl	Heart - Left Ventricle
+LIVER_A	liver	data/meth/LIVER_A.cov.gz	bismark	Liver
+MYOBLAST_A	myoblast	data/meth/MYOBLAST_A.bedGraph.gz	bedgraph	

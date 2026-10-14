@@ -15,6 +15,17 @@ muscle:
   peakC, keep those confirmed from both anchors, and relate their strength to
   the mitochondrial DNA copy number (mtCN) of each tissue.
 
+Two modules extend it:
+
+- **promoter features**: sequence (CpG content, promoter class, motifs of
+  NRF1, ERR, GABPA and other factors), bidirectional promoters,
+  promoter-promoter loops, and DNA methylation of the promoters and of the
+  replicable elements from public whole-genome bisulfite data;
+- **WGS annotation**: a region set built from the outputs above and the
+  rare variants of unsolved genomes that fall in it, ranked by frequency,
+  scores and genetic model (second coding hit in trans, homozygous,
+  de novo, structural variants), to prepare the cohort analysis.
+
 The gene set is an input (for instance the union of MitoCarta3.0 and of the
 PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 `make_controls.py` can draw.
@@ -32,6 +43,8 @@ PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 | `scripts/locus_figure.py` | Python | one locus: rotated Hi-C map, loop arcs, gene track, virtual 4C profile with the called loops |
 | `scripts/folding_figure.py` | Python | schematic chromatin folding of a locus drawn from the called loops |
 | `scripts/svg_to_pptx.py` | Python | convert a matplotlib SVG into editable PowerPoint shapes |
+| `scripts/promoter_features.py` | Python | promoter sequence, motifs, bidirectional pairs, promoter-promoter loops and DNA methylation (promoters and elements) against controls; methylation against GTEx expression |
+| `scripts/vcf_annotate.py` | Python | `regions`: annotated BED of promoters, UTRs, coding exons, elements, loop anchors and other BEDs per gene; `annotate`: rare variants of WGS VCFs in these regions with frequency, scores, parental origin or phase, second hits and tiers |
 | `scripts/v4c_pairs.py`, `scripts/v4c_pairs.R` | Python, R | optional module: loops at mitochondrial promoters in two metabolic states of one cell type |
 | `config/` | | example library tables |
 | `slurm/` | | job templates for SLURM clusters |
@@ -66,6 +79,12 @@ Python scripts run in `mitoloop_v0`, R scripts in `mitoloop_v0-r`.
 | ENCODE registry of candidate cis-regulatory elements (cCREs), BED | `re2g_panel.py` | SCREEN, <https://screen.wenglab.org> |
 | ENCODE intact Hi-C maps of human tissues, `.hic` | `v4c_pipeline.py`, `locus_figure.py` | ENCODE portal |
 | mtDNA copy number per GTEx tissue | `v4c_loops.R` (through the library table) | Rath et al. 2024, Datasets S1 to S4 |
+| Genome sequence (GRCh38 FASTA) and CpG islands (`cpgIslandExt`) | `promoter_features.py` | UCSC, <https://hgdownload.soe.ucsc.edu/goldenPath/hg38/> |
+| Whole-genome bisulfite methylation (bedMethyl, Bismark coverage or bedGraph) of tissues and cell types | `promoter_features.py` (through `--meth-table`) | ENCODE portal (WGBS); Roadmap Epigenomics; Loyfer et al. 2023 atlas, GEO GSE186458 |
+| WGS VCFs (small variants, structural variants) and PED | `vcf_annotate.py` | diagnostic cohort |
+| Variant scores: CADD, ReMM, AlphaGenome or any per-position table | `vcf_annotate.py` | <https://cadd.gs.washington.edu/download>; ReMM (Smedley et al. 2016); AlphaGenome variant scoring exported to a table |
+| gnomAD sites VCFs | `vcf_annotate.py` | <https://gnomad.broadinstitute.org/downloads> |
+| Mode of inheritance per gene | `vcf_annotate.py` | PanelApp panel download, or a two-column table |
 
 ### Library table
 
@@ -242,7 +261,63 @@ from `loops.tsv`, even when it is visible on the map. To include the other
 genes of a locus as viewpoints, run steps 4 and 5 with a gene list holding
 them.
 
-### 9. Optional: two metabolic states of one cell type
+### 9. Promoter features and DNA methylation
+
+```bash
+python3 scripts/promoter_features.py --gtf data/gencode.gtf.gz \
+    --genes genes.txt --controls controls.txt \
+    --fasta data/GRCh38.fa --cpg-islands data/cpgIslandExt.txt.gz \
+    --loops results/loops/loops.tsv \
+    --meth-table config/methylation.tsv \
+    --elements results/re2g/re2g_elements.tsv --min-prevalence 51 \
+    --tpm data/gtex_median_tpm.gct.gz --focus "muscle" \
+    --out results/promoters
+```
+
+`config/methylation.example.tsv` shows the methylation table (one row per
+file: sample, group, path, optional format and GTEx tissue; its paths are
+placeholders). Every feature is compared between the gene set and the
+controls, by a Fisher or Mann-Whitney test and by a permutation of the set
+labels within promoter classes (HCP, ICP, LCP), which separates a motif
+enrichment from the CpG richness of the promoters. `--controls-all` takes
+every other protein-coding gene as control. Only the CpGs inside the
+promoters and elements are kept from each methylation file.
+
+### 10. Annotation of WGS variants
+
+```bash
+# regions attributed to each gene of the set
+python3 scripts/vcf_annotate.py regions --gtf data/gencode.gtf.gz \
+    --genes genes.txt --elements results/re2g/re2g_elements.tsv \
+    --min-prevalence 51 --loops results/loops/loops.tsv \
+    --called-in "psoas muscle|gastrocnemius" \
+    --bed chic=results/chic/other_ends.bed --out results/wgs/regions.bed
+
+# normalised, multi-allelic records split
+bcftools norm -m -any -f data/GRCh38.fa cohort.vcf.gz -Oz -o cohort.norm.vcf.gz
+
+python3 scripts/vcf_annotate.py annotate --vcf cohort.norm.vcf.gz \
+    --vcf cohort.sv.vcf.gz --ped cohort.ped \
+    --regions results/wgs/regions.bed --inheritance panelapp_mito.tsv \
+    --gnomad "data/gnomad/gnomad.genomes.v4.1.sites.chr{chrom}.vcf.bgz" \
+    --score CADD=data/cadd/whole_genome_SNVs.tsv.gz:PHRED \
+    --score ReMM=data/ReMM.v0.4.hg38.tsv.gz \
+    --min-score CADD=15 --min-score ReMM=0.9 --pass-only \
+    --out results/wgs/annot
+```
+
+`--bed` adds any other region set with the gene in its fourth column
+(capture Hi-C or Micro-C interactions, elements validated by perturbation);
+rows without a gene go to the genes of the set within `--window`. Score
+tables indexed with tabix are looked up by position; plain ones are read
+once. Frequencies and scores already annotated by VEP (`CSQ`) are read with
+`--af-keys` and `--info-score`. Each regulatory variant receives a tier
+(1: homozygous, hemizygous, in trans of a rare coding variant or of
+another regulatory variant, de novo in a dominant gene; 2: partner of
+unknown phase, de novo, dominant gene; 3: cis, single heterozygous); the
+method is described in the header of the script.
+
+### 11. Optional: two metabolic states of one cell type
 
 ```bash
 cp config/pairs.example.tsv config/pairs.tsv     # then edit the paths
@@ -311,8 +386,17 @@ Data resources and annotation
 - Rath SP, Gupta R, Todres E, et al. 2024. Mitochondrial genome copy number variation across tissues in mice and humans. *Proceedings of the National Academy of Sciences USA* 121:e2402291121. doi:10.1073/pnas.2402291121
 - Seal RL, Braschi B, Gray K, et al. 2023. Genenames.org: the HGNC resources in 2023. *Nucleic Acids Research* 51:D1003-D1009. doi:10.1093/nar/gkac888
 
+- Chen S, Francioli LC, Goodrich JK, et al. 2024. A genomic mutational constraint map using variation in 76,156 human genomes (gnomAD). *Nature* 625:92-100. doi:10.1038/s41586-023-06045-0
+- Loyfer N, Magenheim J, Peretz A, et al. 2023. A DNA methylation atlas of normal human cell types. *Nature* 613:355-364. doi:10.1038/s41586-022-05580-6
+- Roadmap Epigenomics Consortium. 2015. Integrative analysis of 111 reference human epigenomes. *Nature* 518:317-330. doi:10.1038/nature14248
+
 Methods
 
+- Gardiner-Garden M, Frommer M. 1987. CpG islands in vertebrate genomes. *Journal of Molecular Biology* 196:261-282. doi:10.1016/0022-2836(87)90689-9
+- Rentzsch P, Witten D, Cooper GM, et al. 2019. CADD: predicting the deleteriousness of variants throughout the human genome. *Nucleic Acids Research* 47:D886-D894. doi:10.1093/nar/gky1016
+- Smedley D, Schubach M, Jacobsen JOB, et al. 2016. A whole-genome analysis framework for effective identification of pathogenic regulatory variants in Mendelian disease. *American Journal of Human Genetics* 99:595-606. doi:10.1016/j.ajhg.2016.07.005
+- Trinklein ND, Aldred SF, Hartman SJ, et al. 2004. An abundance of bidirectional promoters in the human genome. *Genome Research* 14:62-66. doi:10.1101/gr.1982804
+- Weber M, Hellmann I, Stadler MB, et al. 2007. Distribution, silencing potential and evolutionary impact of promoter DNA methylation in the human genome. *Nature Genetics* 39:457-466. doi:10.1038/ng1990
 - Bianchi V, Geeven G, Tucker N, et al. 2019. Detailed regulatory interaction map of the human heart facilitates gene discovery for cardiovascular disease (peakHiC). *bioRxiv*. doi:10.1101/705715
 - Breitling R, Armengaud P, Amtmann A, Herzyk P. 2004. Rank products: a simple, yet powerful, new method to detect differentially regulated genes in replicated microarray experiments. *FEBS Letters* 573:83-92. doi:10.1016/j.febslet.2004.07.055
 - Cohen J. 1988. *Statistical Power Analysis for the Behavioral Sciences*, 2nd edition. Lawrence Erlbaum Associates.
@@ -333,6 +417,8 @@ Methods
 
 Software
 
+- Danecek P, Bonfield JK, Liddle J, et al. 2021. Twelve years of SAMtools and BCFtools. *GigaScience* 10:giab008. doi:10.1093/gigascience/giab008
+- McLaren W, Gil L, Hunt SE, et al. 2016. The Ensembl Variant Effect Predictor. *Genome Biology* 17:122. doi:10.1186/s13059-016-0974-4
 - Abdennur N, Mirny LA. 2020. Cooler: scalable storage for Hi-C data and other genomically labeled arrays. *Bioinformatics* 36:311-316. doi:10.1093/bioinformatics/btz540
 - Durand NC, Shamim MS, Machol I, et al. 2016. Juicer provides a one-click system for analyzing loop-resolution Hi-C experiments. *Cell Systems* 3:95-98. doi:10.1016/j.cels.2016.07.002
 - Hunter JD. 2007. Matplotlib: a 2D graphics environment. *Computing in Science and Engineering* 9:90-95. doi:10.1109/MCSE.2007.55
