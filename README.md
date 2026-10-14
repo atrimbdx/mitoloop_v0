@@ -15,8 +15,14 @@ muscle:
   peakC, keep those confirmed from both anchors, and relate their strength to
   the mitochondrial DNA copy number (mtCN) of each tissue.
 
-Two modules extend it:
+Three modules extend it:
 
+- **mitochondrial regulome**: the layer on which each gene acts, from the
+  MitoCarta3.0 MitoPathways (inferred from Gene Ontology for the genes
+  MitoCarta does not hold, mtDNA kept as its own layer), a score per gene
+  and mode of regulation (transcription first), and the regulatory
+  architecture of the most transcriptionally controlled genes against the
+  others;
 - **promoter features**: sequence (CpG content, promoter class, motifs of
   NRF1, ERR, GABPA and other factors), bidirectional promoters,
   promoter-promoter loops, and DNA methylation of the promoters and of the
@@ -44,6 +50,7 @@ PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 | `scripts/folding_figure.py` | Python | schematic chromatin folding of a locus drawn from the called loops |
 | `scripts/svg_to_pptx.py` | Python | convert a matplotlib SVG into editable PowerPoint shapes |
 | `scripts/promoter_features.py` | Python | promoter sequence, motifs, bidirectional pairs, promoter-promoter loops and DNA methylation (promoters and elements) against controls; methylation against GTEx expression |
+| `scripts/regulome.py` | Python | `pathways`: MitoPathways layer per gene, inferred from GO where MitoCarta has none; `modes`: score per gene and mode of regulation from expression data; `compare`: promoters, elements, loops and methylation along the score |
 | `scripts/vcf_annotate.py` | Python | `regions`: annotated BED of promoters, UTRs, coding exons, elements, loop anchors and other BEDs per gene; `annotate`: rare variants of WGS VCFs in these regions with frequency, scores, parental origin or phase, second hits and tiers |
 | `scripts/v4c_pairs.py`, `scripts/v4c_pairs.R` | Python, R | optional module: loops at mitochondrial promoters in two metabolic states of one cell type |
 | `config/` | | example library tables |
@@ -85,6 +92,10 @@ Python scripts run in `mitoloop_v0`, R scripts in `mitoloop_v0-r`.
 | Variant scores: CADD, ReMM, AlphaGenome or any per-position table | `vcf_annotate.py` | <https://cadd.gs.washington.edu/download>; ReMM (Smedley et al. 2016); AlphaGenome variant scoring exported to a table |
 | gnomAD sites VCFs | `vcf_annotate.py` | <https://gnomad.broadinstitute.org/downloads> |
 | Mode of inheritance per gene | `vcf_annotate.py` | PanelApp panel download, or a two-column table |
+| MitoCarta3.0 with MitoPathways (`Human.MitoCarta3.0.xls`, or its sheets A and C as TSV) | `regulome.py pathways` | <https://www.broadinstitute.org/mitocarta> |
+| Gene Ontology annotations and ontology (`goa_human.gaf.gz`, `go-basic.obo`) | `regulome.py pathways` | <https://geneontology.org/docs/download-go-annotations/> |
+| Protein abundance across GTEx tissues | `regulome.py modes` | Jiang et al. 2020, supplementary tables |
+| Variance of genetic effects on expression (Vg) | `regulome.py modes` | ANEVA, Mohammadi et al. 2019 |
 
 ### Library table
 
@@ -317,7 +328,42 @@ another regulatory variant, de novo in a dominant gene; 2: partner of
 unknown phase, de novo, dominant gene; 3: cis, single heterozygous); the
 method is described in the header of the script.
 
-### 11. Optional: two metabolic states of one cell type
+### 11. Mitochondrial regulome
+
+```bash
+# layer on which each gene acts (MitoPathways, GO inference elsewhere)
+python3 scripts/regulome.py pathways --mitocarta data/Human.MitoCarta3.0.xls \
+    --genes genes.txt --gaf data/goa_human.gaf.gz --obo data/go-basic.obo \
+    --gtf data/gencode.gtf.gz --out results/regulome
+
+# score of transcriptional control, from expression data only
+python3 scripts/regulome.py modes --gtf data/gencode.gtf.gz \
+    --genes results/regulome/pathways.tsv --tpm data/gtex_median_tpm.gct.gz \
+    --protein data/jiang2020_protein.tsv --tissue-map config/protein_tissues.tsv \
+    --eqtl data/GTEx_Analysis_v8_eQTL_independent.tar \
+    --tissue Muscle_Skeletal --vg data/aneva_vg.tsv --out results/regulome
+
+# promoters, elements, loops and methylation along that score
+python3 scripts/regulome.py compare --modes results/regulome/modes.tsv \
+    --layer transcription --pathways results/regulome/pathways.tsv \
+    --promoters results/promoters/promoter_features.tsv \
+    --methylation results/promoters/methylation_by_group.tsv \
+    --re2g results/re2g/re2g_per_gene.tsv --loops results/loops/loops.tsv \
+    --assoc results/loops/assoc_loops.tsv --out results/regulome
+```
+
+The functional layers are the sections of the MitoPathways hierarchy, with
+"Mitochondrial central dogma" reported as the `mtDNA` layer. A gene of the
+set without MitoPathway takes the sections of its nearest MitoCarta genes
+in Gene Ontology (simGIC); `loo.tsv` and `calibration.tsv` give how often
+this is right on MitoCarta genes themselves. The transcription score uses
+only expression data (variation between tissues, eQTL, Vg, protein against
+mRNA), each indicator ranked within bins of expression level, so that the
+comparison with regulatory elements is not circular. Other modes of
+regulation are added with `--indicator LAYER:NAME=PATH[:COLUMN][:-]`.
+`.xls` files need `xlrd`.
+
+### 12. Optional: two metabolic states of one cell type
 
 ```bash
 cp config/pairs.example.tsv config/pairs.tsv     # then edit the paths
@@ -390,8 +436,14 @@ Data resources and annotation
 - Loyfer N, Magenheim J, Peretz A, et al. 2023. A DNA methylation atlas of normal human cell types. *Nature* 613:355-364. doi:10.1038/s41586-022-05580-6
 - Roadmap Epigenomics Consortium. 2015. Integrative analysis of 111 reference human epigenomes. *Nature* 518:317-330. doi:10.1038/nature14248
 
+- Jiang L, Wang M, Lin S, et al. 2020. A quantitative proteome map of the human body. *Cell* 183:269-283. doi:10.1016/j.cell.2020.08.036
+- Gene Ontology Consortium. 2023. The Gene Ontology knowledgebase in 2023. *Genetics* 224:iyad031. doi:10.1093/genetics/iyad031
+
 Methods
 
+- Mohammadi P, Castel SE, Cummings BB, et al. 2019. Genetic regulatory variation in populations informs transcriptome analysis in rare disease. *Science* 366:351-356. doi:10.1126/science.aay0256
+- Pesquita C, Faria D, Bastos H, et al. 2008. Metrics for GO based protein semantic similarity: a systematic evaluation. *BMC Bioinformatics* 9:S4. doi:10.1186/1471-2105-9-S5-S4
+- Benjamini Y, Hochberg Y. 1995. Controlling the false discovery rate: a practical and powerful approach to multiple testing. *Journal of the Royal Statistical Society B* 57:289-300. doi:10.1111/j.2517-6161.1995.tb02031.x
 - Gardiner-Garden M, Frommer M. 1987. CpG islands in vertebrate genomes. *Journal of Molecular Biology* 196:261-282. doi:10.1016/0022-2836(87)90689-9
 - Rentzsch P, Witten D, Cooper GM, et al. 2019. CADD: predicting the deleteriousness of variants throughout the human genome. *Nucleic Acids Research* 47:D886-D894. doi:10.1093/nar/gky1016
 - Smedley D, Schubach M, Jacobsen JOB, et al. 2016. A whole-genome analysis framework for effective identification of pathogenic regulatory variants in Mendelian disease. *American Journal of Human Genetics* 99:595-606. doi:10.1016/j.ajhg.2016.07.005

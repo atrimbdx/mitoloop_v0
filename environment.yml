@@ -14,6 +14,7 @@ dependencies:
   - python-pptx       # svg_to_pptx.py
   - pysam             # vcf_annotate.py (tabix lookups), promoter_features.py
   - bcftools          # normalisation of the VCFs before vcf_annotate.py
+  - xlrd              # regulome.py, MitoCarta3.0 .xls
   - libcurl           # hic-straw is built from source
   - cxx-compiler
   - pybind11
