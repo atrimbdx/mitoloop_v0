@@ -1,4 +1,0 @@
-complex	file	projection	flip_u	flip_v
-Complex I	data/pdb/5xtd.cif.gz	pca	0	0
-Complex III	data/pdb/5xte.cif.gz	pca	0	0
-Complex IV	data/pdb/5z62.cif.gz	pca	0	0
