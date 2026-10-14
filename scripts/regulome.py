@@ -16,16 +16,17 @@ Purpose
                 this inference is right. The section "Mitochondrial central
                 dogma" (mtDNA maintenance, mtRNA metabolism, translation) is
                 kept as its own layer, mtDNA.
-      modes     a score per gene and mode of regulation, from expression
-                data only. The built-in mode is transcription (L1): how much
-                mRNA varies between tissues and between individuals, and how
-                closely the protein follows the mRNA across tissues; further
+      modes     supporting per-gene indicators, ranked among all
+                protein-coding genes within bins of expression level. The
+                built-in layer, variability, says how much the mRNA varies
+                between tissues and between individuals (tissue sd, eQTL,
+                Vg, protein-mRNA correlation of tissue medians); further
                 modes (splicing, translation, turnover, ...) are added as
-                indicator tables. Every indicator is ranked among all
-                protein-coding genes within bins of expression level.
+                indicator tables. The L1 score of transcriptional control
+                itself is computed by l1_score.py from matched samples.
       compare   the promoters, rE2G elements, loops and methylation of the
-                genes of the set with the highest score of one mode against
-                those with the lowest, and along the score.
+                genes of the set along a score (l1.tsv, or a layer of
+                modes.tsv), and the top against the bottom of it.
 
 Inputs
     pathways
@@ -65,7 +66,10 @@ Inputs
                       per-gene table; '-' reverses the direction (high value
                       = less controlled at that layer).
     compare
-      --modes         modes.tsv; --layer names the score compared.
+      --scores        l1.tsv of l1_score.py (--score-column, default score);
+                      or --modes modes.tsv with --layer. --expression
+                      (modes.tsv) supplies the expression level of the
+                      partial correlations when the score table lacks it.
       --pathways      optional pathways.tsv: the permutation is stratified on
                       the first section of each gene.
       --promoters     promoter_features.tsv (promoter_features.py)
@@ -110,7 +114,7 @@ Method
     precision of the inferred genes. MitoCarta itself used GO among its
     sources, so this estimate is an upper bound.
 
-    Transcription score. Indicators: sd of log2(TPM + 1) across GTEx
+    Variability indicators. sd of log2(TPM + 1) across GTEx
     tissues (tissue_sd), number of independent eQTL signals and largest
     |slope| in --tissue (eqtl_signals, eqtl_effect; genes expressed above
     --min-tpm without a signal count 0), log10 Vg (vg), and the Spearman
@@ -120,8 +124,8 @@ Method
     expression bin (--bins quantile bins of mean log2(TPM + 1)), since
     eQTL power and protein detection grow with expression. The score of a
     layer is the mean of its percentiles over at least --min-indicators of
-    them. The score uses no regulatory-element data, so that `compare` is
-    not circular.
+    them. Neither these indicators nor L1 use regulatory-element data, so
+    that `compare` is not circular.
 
     Comparison. Spearman correlation of each feature with the score over
     the genes of --set; partial correlation on the residuals of the ranks
@@ -145,8 +149,9 @@ Usage
         --tissue Muscle_Skeletal --vg data/aneva_vg.tsv \\
         --out results/regulome
 
-    python3 regulome.py compare --modes results/regulome/modes.tsv \\
-        --layer transcription --pathways results/regulome/pathways.tsv \\
+    python3 regulome.py compare --scores results/l1/l1.tsv \\
+        --expression results/regulome/modes.tsv \\
+        --pathways results/regulome/pathways.tsv \\
         --promoters results/promoters/promoter_features.tsv \\
         --methylation results/promoters/methylation_by_group.tsv \\
         --re2g results/re2g/re2g_per_gene.tsv \\
@@ -770,7 +775,7 @@ def cmd_modes(a) -> None:
         for e, r in rows_of.items():
             expressed[pos[e]] = np.nanmax(M[r, keep_t]) >= a.min_tpm
         sd[~expressed] = np.nan
-        ind["tissue_sd"] = ("transcription", sd, False)
+        ind["tissue_sd"] = ("variability", sd, False)
         print(f"GTEx: {len(rows_of)} genes, {len(keep_t)} tissues")
         tcol = {t: i for i, t in enumerate(tissues)}
 
@@ -799,7 +804,7 @@ def cmd_modes(a) -> None:
                 if ok.sum() >= a.min_tissues and np.ptp(x[ok]) > 0 \
                         and np.ptp(y[ok]) > 0:
                     rho[k] = spearmanr(x[ok], y[ok])[0]
-            ind["mrna_protein_rho"] = ("transcription", rho, False)
+            ind["mrna_protein_rho"] = ("variability", rho, False)
             print(f"protein: {np.sum(~np.isnan(rho))} genes over "
                   f"{len(pairs)} tissues")
 
@@ -825,8 +830,8 @@ def cmd_modes(a) -> None:
                     tested[pos[e]] = True
         nsig[~tested] = np.nan
         eff[~tested] = np.nan
-        ind["eqtl_signals"] = ("transcription", nsig, False)
-        ind["eqtl_effect"] = ("transcription", eff, False)
+        ind["eqtl_signals"] = ("variability", nsig, False)
+        ind["eqtl_effect"] = ("variability", eff, False)
         print(f"eQTL: {int(seen.sum())} genes with a signal, "
               f"{int(tested.sum())} tested")
 
@@ -837,7 +842,7 @@ def cmd_modes(a) -> None:
             k = key_of(g)
             if k is not None and x > 0:
                 v[k] = math.log10(x)
-        ind["vg"] = ("transcription", v, False)
+        ind["vg"] = ("variability", v, False)
 
     for spec in a.indicator or []:
         m = re.match(r"^([^:=]+):([^=]+)=(.+)$", spec)
@@ -948,11 +953,23 @@ def cmd_compare(a) -> None:
     from gtex_eqtl import prob_superiority
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    modes = read_table(a.modes)
-    col = f"score_{a.layer}"
-    if col not in modes[0]:
-        sys.exit(f"{a.modes} has no {col}; layers: " + ", ".join(
-            c[6:] for c in modes[0] if c.startswith("score_")))
+    if a.scores:
+        modes = read_table(a.scores)
+        col = a.score_column
+        if col not in modes[0]:
+            sys.exit(f"{a.scores} has no column {col}")
+    elif a.modes:
+        modes = read_table(a.modes)
+        col = f"score_{a.layer}"
+        if col not in modes[0]:
+            sys.exit(f"{a.modes} has no {col}; layers: " + ", ".join(
+                c[6:] for c in modes[0] if c.startswith("score_")))
+    else:
+        sys.exit("give --scores (l1.tsv of l1_score.py) or --modes")
+    expr_of = {}
+    if a.expression:
+        expr_of = {r["gene"]: r.get("mean_log_expression")
+                   for r in read_table(a.expression)}
     genes, score, expr = [], [], []
     for r in modes:
         if a.set and r.get("set", a.set) != a.set:
@@ -962,7 +979,8 @@ def cmd_compare(a) -> None:
             continue
         genes.append(r["gene"])
         score.append(s)
-        expr.append(to_float(r.get("mean_log_expression")))
+        expr.append(to_float(r.get("mean_log_expression",
+                                   expr_of.get(r["gene"]))))
     score, expr = np.array(score), np.array(expr)
     gi = {g: i for i, g in enumerate(genes)}
     n = len(genes)
@@ -1222,8 +1240,15 @@ def main():
 
     c = sub.add_parser("compare", help="architecture of high- against "
                                        "low-score genes")
-    c.add_argument("--modes", required=True, type=Path)
-    c.add_argument("--layer", default="transcription")
+    c.add_argument("--scores", type=Path,
+                   help="per-gene score table, such as l1.tsv")
+    c.add_argument("--score-column", default="score")
+    c.add_argument("--modes", type=Path,
+                   help="modes.tsv, with --layer, instead of --scores")
+    c.add_argument("--layer", default="variability")
+    c.add_argument("--expression", type=Path,
+                   help="table with gene and mean_log_expression (modes.tsv) "
+                        "when --scores lacks it")
     c.add_argument("--set", default="mito",
                    help="genes compared (set column of modes.tsv); '' for "
                         "all (default %(default)s)")

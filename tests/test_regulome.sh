@@ -77,9 +77,9 @@ import pandas as pd
 m = pd.read_csv("r/modes.tsv", sep="\t").set_index("gene")
 assert (m.set == "mito").sum() == 60
 assert "LNC1" not in m.index
-assert (m.loc[[f"MITOG{i}" for i in range(1, 61)], "n_transcription"] == 5).all()
-hi = m.loc[[f"MITOG{i}" for i in range(1, 21)], "score_transcription"]
-lo = m.loc[[f"MITOG{i}" for i in range(41, 61)], "score_transcription"]
+assert (m.loc[[f"MITOG{i}" for i in range(1, 61)], "n_variability"] == 5).all()
+hi = m.loc[[f"MITOG{i}" for i in range(1, 21)], "score_variability"]
+lo = m.loc[[f"MITOG{i}" for i in range(41, 61)], "score_variability"]
 assert hi.min() > lo.max(), (hi.min(), lo.max())
 assert m.loc["MITOG1", "mrna_protein_rho"] > 0.8
 assert m.loc["MITOG41", "eqtl_signals"] == 0

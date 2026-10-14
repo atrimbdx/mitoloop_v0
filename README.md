@@ -19,10 +19,11 @@ Three modules extend it:
 
 - **mitochondrial regulome**: the layer on which each gene acts, from the
   MitoCarta3.0 MitoPathways (inferred from Gene Ontology for the genes
-  MitoCarta does not hold, mtDNA kept as its own layer), a score per gene
-  and mode of regulation (transcription first), and the regulatory
-  architecture of the most transcriptionally controlled genes against the
-  others;
+  MitoCarta does not hold, mtDNA kept as its own layer), the L1 score of
+  transcriptional control (does the protein follow its mRNA from one
+  tissue to another?) with its validation on independent data, and the
+  regulatory architecture of the most transcriptionally controlled genes
+  against the others;
 - **promoter features**: sequence (CpG content, promoter class, motifs of
   NRF1, ERR, GABPA and other factors), bidirectional promoters,
   promoter-promoter loops, and DNA methylation of the promoters and of the
@@ -51,6 +52,7 @@ PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 | `scripts/svg_to_pptx.py` | Python | convert a matplotlib SVG into editable PowerPoint shapes |
 | `scripts/promoter_features.py` | Python | promoter sequence, motifs, bidirectional pairs, promoter-promoter loops and DNA methylation (promoters and elements) against controls; methylation against GTEx expression |
 | `scripts/regulome.py` | Python | `pathways`: MitoPathways layer per gene, inferred from GO where MitoCarta has none; `modes`: score per gene and mode of regulation from expression data; `compare`: promoters, elements, loops and methylation along the score |
+| `scripts/l1_score.py` | Python | `score`: L1 per gene and per complex from RNA and protein of the same samples, corrected for noise and mitochondrial content; `validate`: agreement with another atlas, published per-gene scores and patient fibroblasts with RNA-seq and proteomics |
 | `scripts/vcf_annotate.py` | Python | `regions`: annotated BED of promoters, UTRs, coding exons, elements, loop anchors and other BEDs per gene; `annotate`: rare variants of WGS VCFs in these regions with frequency, scores, parental origin or phase, second hits and tiers |
 | `scripts/v4c_pairs.py`, `scripts/v4c_pairs.R` | Python, R | optional module: loops at mitochondrial promoters in two metabolic states of one cell type |
 | `config/` | | example library tables |
@@ -96,6 +98,11 @@ Python scripts run in `mitoloop_v0`, R scripts in `mitoloop_v0-r`.
 | Gene Ontology annotations and ontology (`goa_human.gaf.gz`, `go-basic.obo`) | `regulome.py pathways` | <https://geneontology.org/docs/download-go-annotations/> |
 | Protein abundance across GTEx tissues | `regulome.py modes` | Jiang et al. 2020, supplementary tables |
 | Variance of genetic effects on expression (Vg) | `regulome.py modes` | ANEVA, Mohammadi et al. 2019 |
+| GTEx tissue proteome, 201 samples of 32 tissues | `l1_score.py score` | Jiang et al. 2020, PRIDE PXD016999 (raw data); the per-sample abundance table is to be taken from the supplement or reprocessed |
+| GTEx v8 RNA-seq read counts per sample, and sample attributes (ischemic time `SMTSISCH`) | `l1_score.py score` | `gs://adult-gtex/bulk-gex/v8/rna-seq/` (`*_gene_reads.gct.gz`), `gs://adult-gtex/annotations/v8/metadata-files/` |
+| Patient fibroblasts, RNA-seq and TMT proteomics (about 145 individuals) | `l1_score.py validate` | Kopajtich et al. 2021, medRxiv 10.1101/2021.03.09.21253187; Zenodo 10.5281/zenodo.4501904 (`raw_counts.tsv`, `proteomics_not_normalized.tsv`, `proteomics_annotation.tsv`), PRIDE PXD022803 |
+| Per-gene protein buffering of copy number in tumours | `l1_score.py validate` | Gonçalves et al. 2017 (github.com/saezlab/protein_attenuation, `tables/protein_attenuation_table.csv`); Schukken & Sheltzer 2022 (github.com/kschukken/Genome_Research_Protein_Dosage) |
+| Matched RNA, protein and QTLs in iPSC lines | `l1_score.py validate` | Mirauta et al. 2020, eLife (source data of figures 1 and 2), PRIDE PXD010557 |
 
 ### Library table
 
@@ -343,9 +350,26 @@ python3 scripts/regulome.py modes --gtf data/gencode.gtf.gz \
     --eqtl data/GTEx_Analysis_v8_eQTL_independent.tar \
     --tissue Muscle_Skeletal --vg data/aneva_vg.tsv --out results/regulome
 
-# promoters, elements, loops and methylation along that score
-python3 scripts/regulome.py compare --modes results/regulome/modes.tsv \
-    --layer transcription --pathways results/regulome/pathways.tsv \
+# L1: does the protein follow its mRNA across tissues?
+python3 scripts/l1_score.py score --rna data/gtex_jiang_reads.gct.gz \
+    --protein data/jiang2020_protein.tsv --samples data/jiang2020_samples.tsv \
+    --covariates SMTSISCH --gtf data/gencode.gtf.gz \
+    --genes results/regulome/pathways.tsv \
+    --pathways results/regulome/pathways.tsv --out results/l1
+
+# validation on independent data
+python3 scripts/l1_score.py validate --l1 results/l1/l1.tsv \
+    --replicate results/l1_hpa/l1.tsv \
+    --external buffering=data/attenuation.tsv:attenuation:- \
+    --patients-rna data/kopajtich/raw_counts.tsv \
+    --patients-protein data/kopajtich/proteomics_not_normalized.tsv \
+    --patients-samples data/kopajtich/pairs.tsv --gtf data/gencode.gtf.gz \
+    --out results/l1/validation
+
+# promoters, elements, loops and methylation along L1
+python3 scripts/regulome.py compare --scores results/l1/l1.tsv \
+    --expression results/regulome/modes.tsv \
+    --pathways results/regulome/pathways.tsv \
     --promoters results/promoters/promoter_features.tsv \
     --methylation results/promoters/methylation_by_group.tsv \
     --re2g results/re2g/re2g_per_gene.tsv --loops results/loops/loops.tsv \
@@ -356,12 +380,27 @@ The functional layers are the sections of the MitoPathways hierarchy, with
 "Mitochondrial central dogma" reported as the `mtDNA` layer. A gene of the
 set without MitoPathway takes the sections of its nearest MitoCarta genes
 in Gene Ontology (simGIC); `loo.tsv` and `calibration.tsv` give how often
-this is right on MitoCarta genes themselves. The transcription score uses
-only expression data (variation between tissues, eQTL, Vg, protein against
-mRNA), each indicator ranked within bins of expression level, so that the
-comparison with regulatory elements is not circular. Other modes of
-regulation are added with `--indicator LAYER:NAME=PATH[:COLUMN][:-]`.
-`.xls` files need `xlrd`.
+this is right on MitoCarta genes themselves.
+
+L1 is the correlation, across tissues, between the mRNA and the protein of
+a gene measured in the same samples, after three corrections: the
+mtDNA-encoded transcripts are left out of the RNA normalisation, the
+mitochondrial content of each sample is removed for the genes of the set,
+and the correlation is corrected for the measurement noise estimated by
+splitting the samples of each tissue in two. A gene whose mRNA and protein
+both stay flat across tissues is reported as `flat`, not as
+post-transcriptionally controlled. Complexes (the MitoPathways matching
+`--complex-regex`, or `--complexes`) get their own score; a subunit that
+follows its complex in protein more than in mRNA is controlled by
+assembly. `validate` checks L1 against another atlas, published buffering
+scores, expected gene sets and patient fibroblasts: when the mRNA of a gene
+collapses in one individual, the protein should follow for high-L1 genes.
+`pairs.tsv` pairs the RNA and protein sample of each individual and may
+carry the TMT `batch`. External tables are tab-separated with the gene in
+the first column (`attenuation.tsv` above stands for the per-gene table of
+Gonçalves et al. converted from CSV; its column name is to be checked). Neither L1 nor the indicators of `modes` use
+regulatory-element data, so that `compare` is not circular. `.xls` files
+need `xlrd`.
 
 ### 12. Optional: two metabolic states of one cell type
 
@@ -442,6 +481,8 @@ Data resources and annotation
 Methods
 
 - Mohammadi P, Castel SE, Cummings BB, et al. 2019. Genetic regulatory variation in populations informs transcriptome analysis in rare disease. *Science* 366:351-356. doi:10.1126/science.aay0256
+- Franks A, Airoldi E, Slavov N. 2017. Post-transcriptional regulation across human tissues. *PLoS Computational Biology* 13:e1005535. doi:10.1371/journal.pcbi.1005535
+- Upadhya SR, Ryan CJ. 2022. Experimental reproducibility limits the correlation between mRNA and protein abundances in tumor proteomic profiles. *Cell Reports Methods* 2:100288. doi:10.1016/j.crmeth.2022.100288
 - Pesquita C, Faria D, Bastos H, et al. 2008. Metrics for GO based protein semantic similarity: a systematic evaluation. *BMC Bioinformatics* 9:S4. doi:10.1186/1471-2105-9-S5-S4
 - Benjamini Y, Hochberg Y. 1995. Controlling the false discovery rate: a practical and powerful approach to multiple testing. *Journal of the Royal Statistical Society B* 57:289-300. doi:10.1111/j.2517-6161.1995.tb02031.x
 - Gardiner-Garden M, Frommer M. 1987. CpG islands in vertebrate genomes. *Journal of Molecular Biology* 196:261-282. doi:10.1016/0022-2836(87)90689-9
