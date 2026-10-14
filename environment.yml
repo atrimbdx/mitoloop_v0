@@ -12,6 +12,8 @@ dependencies:
   - cooler            # .cool / .mcool
   - requests          # gtex_eqtl.py fetch
   - python-pptx       # svg_to_pptx.py
+  - pysam             # vcf_annotate.py (tabix lookups), promoter_features.py
+  - bcftools          # normalisation of the VCFs before vcf_annotate.py
   - libcurl           # hic-straw is built from source
   - cxx-compiler
   - pybind11
