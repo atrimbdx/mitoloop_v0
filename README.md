@@ -53,8 +53,8 @@ PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 | `scripts/promoter_features.py` | Python | promoter sequence, motifs, bidirectional pairs, promoter-promoter loops and DNA methylation (promoters and elements) against controls; methylation against GTEx expression |
 | `scripts/regulome.py` | Python | `pathways`: MitoPathways layer per gene, inferred from GO where MitoCarta has none; `modes`: score per gene and mode of regulation from expression data; `compare`: promoters, elements, loops and methylation along the score |
 | `scripts/l1_score.py` | Python | `score`: L1 per gene and per complex from RNA and protein of the same samples, corrected for noise and mitochondrial content; `validate`: agreement with another atlas, published per-gene scores and patient fibroblasts with RNA-seq and proteomics |
-| `scripts/mitomap_data.py` | Python | data of the MitoMap viewer: location of each protein (MitoCarta3.0 sub-localisation, HPA, GO), MitoPathways and STRING links, as `mitomap.json` |
-| `app/mitomap.html` | HTML | MitoMap, interactive map of the cell: genes placed where their protein sits, functional links, several locations joined by arrows, zoom, and a score file shown as a colour gradient |
+| `scripts/mitoshow_data.py` | Python | data of the MitoShow viewer: location of each protein (MitoCarta3.0 sub-localisation, HPA, GO, curated places), MitoPathways, subunit positions from PDB structures, and STRING and structure links, as `mitoshow.json` |
+| `app/mitoshow.html` | HTML | MitoShow, interactive map of the cell from compartment to complex: nested regions for every level of a protein's location, OXPHOS complexes on a crista, the mtDNA genome in the nucleoid, functional links, one copy per incompatible place, zoom, and a score file shown as a colour gradient |
 | `scripts/vcf_annotate.py` | Python | `regions`: annotated BED of promoters, UTRs, coding exons, elements, loop anchors and other BEDs per gene; `annotate`: rare variants of WGS VCFs in these regions with frequency, scores, parental origin or phase, second hits and tiers |
 | `scripts/v4c_pairs.py`, `scripts/v4c_pairs.R` | Python, R | optional module: loops at mitochondrial promoters in two metabolic states of one cell type |
 | `config/` | | example library tables |
@@ -96,8 +96,9 @@ Python scripts run in `mitoloop_v0`, R scripts in `mitoloop_v0-r`.
 | Variant scores: CADD, ReMM, AlphaGenome or any per-position table | `vcf_annotate.py` | <https://cadd.gs.washington.edu/download>; ReMM (Smedley et al. 2016); AlphaGenome variant scoring exported to a table |
 | gnomAD sites VCFs | `vcf_annotate.py` | <https://gnomad.broadinstitute.org/downloads> |
 | Mode of inheritance per gene | `vcf_annotate.py` | PanelApp panel download, or a two-column table |
-| Subcellular location of proteins (`subcellular_location.tsv.zip`) | `mitomap_data.py` | Human Protein Atlas, <https://www.proteinatlas.org/about/download> |
-| STRING links and protein names (`9606.protein.links.detailed.v12.0.txt.gz`, `9606.protein.info.v12.0.txt.gz`) | `mitomap_data.py` | <https://string-db.org/cgi/download> |
+| Subcellular location of proteins (`subcellular_location.tsv.zip`) | `mitoshow_data.py` | Human Protein Atlas, <https://www.proteinatlas.org/about/download> |
+| STRING links and protein names (`9606.protein.links.detailed.v12.0.txt.gz`, `9606.protein.info.v12.0.txt.gz`) | `mitoshow_data.py` | <https://string-db.org/cgi/download> |
+| Structures of the respiratory complexes (mmCIF), and HGNC symbols with UniProt accessions | `mitoshow_data.py --structures` | <https://www.rcsb.org>, OPM for membrane-oriented files; <https://www.genenames.org/download/> |
 | MitoCarta3.0 with MitoPathways (`Human.MitoCarta3.0.xls`, or its sheets A and C as TSV) | `regulome.py pathways` | <https://www.broadinstitute.org/mitocarta> |
 | Gene Ontology annotations and ontology (`goa_human.gaf.gz`, `go-basic.obo`) | `regulome.py pathways` | <https://geneontology.org/docs/download-go-annotations/> |
 | Protein abundance across GTEx tissues | `regulome.py modes` | Jiang et al. 2020, supplementary tables |
@@ -406,38 +407,57 @@ Gonçalves et al. converted from CSV; its column name is to be checked). Neither
 regulatory-element data, so that `compare` is not circular. `.xls` files
 need `xlrd`.
 
-### 12. MitoMap, the cell map of the gene set
+### 12. MitoShow, the gene set from compartment to complex
 
 ```bash
-python3 scripts/mitomap_data.py --mitocarta data/Human.MitoCarta3.0.xls \
+python3 scripts/mitoshow_data.py --mitocarta data/Human.MitoCarta3.0.xls \
     --genes genes.txt --pathways results/regulome/pathways.tsv \
     --hpa data/subcellular_location.tsv.zip --gaf data/goa_human.gaf.gz \
+    --extra-locations config/mitoshow_extra.tsv \
+    --structures config/mitoshow_structures.tsv --id-map data/hgnc_complete_set.txt \
     --string-links data/9606.protein.links.detailed.v12.0.txt.gz \
     --string-info data/9606.protein.info.v12.0.txt.gz \
-    --out results/mitomap.json
+    --out results/mitoshow.json
 ```
 
-Open `app/mitomap.html` in a browser (no installation; it opens on a
-demonstration subset) and load `results/mitomap.json` with the Data panel,
-or drop it on the map. Each gene is drawn where its protein sits:
-nucleus, endoplasmic reticulum, cytosol, peroxisome, plasma membrane, and
-in the mitochondrion the outer membrane, the intermembrane space, the inner
-membrane with its cristae, the matrix and the nucleoid; genes of
-MitoCarta with an unspecified membrane or sub-compartment, and genes
-placed nowhere, have their own trays. Within a compartment, genes of one
-MitoPathway sit together. A gene with several locations (MitoCarta plus
-HPA, or `--extra-locations` for curated ones) appears at each, joined by an
-arrow from its main location. Clicking a gene shows its STRING partners,
-coloured by their strongest evidence channel; all links above a threshold
-can be shown, and a MitoPathway highlighted. Zoom keeps labels legible:
-the font grows more slowly than the map, and labels that would overlap at
-a given zoom are drawn as dots until there is room.
+Open `app/mitoshow.html` in a browser (no installation; it opens on a
+demonstration subset) and load `results/mitoshow.json` with the Data panel,
+or drop it on the map.
 
-Scores: load a CSV or TSV with a column of identifiers (symbols, aliases or
-Ensembl ids) and a numeric column; the columns are guessed and can be
-changed. Values are coloured on a sequential scale, or a diverging one
-centred on 0 when they take both signs; repeated identifiers are averaged
-and those absent from the map are listed.
+Every level of a protein's location is a nested region drawn in dashed
+lines: the compartment (nucleus, endoplasmic reticulum, cytosol,
+peroxisome, plasma membrane; in the mitochondrion the outer membrane, the
+intermembrane space, the inner membrane, the matrix), then the MitoPathways
+section, sub-pathway and pathway, and inside a pathway the proteins pulled
+together by their STRING links. Three structures are drawn as such:
+
+- the respiratory chain on a lamellar crista: complexes I, III (dimer) and
+  IV inside the respirasome, complex II, and complex V at the crista tip,
+  each with its subunits placed in its silhouette (schematic topology, or
+  the positions computed from a structure by `--structures`) and its
+  assembly factors in a circle above it; supercomplex factors from the
+  curated table sit above the respirasome;
+- the nucleoid, holding the mtDNA maintenance and transcription machinery,
+  inside the circular mtDNA (revised Cambridge reference sequence: the 37
+  genes at their positions, H- and L-strand genes on two tracks, the
+  D-loop); each mtDNA gene is joined by an arrow to its protein in its
+  complex;
+- the trays of MitoCarta proteins with an unspecified membrane or
+  sub-compartment, and of the genes placed nowhere.
+
+A protein is drawn once per place that cannot be merged with another one:
+each location crossed with each of its MitoPathways (ACAD9 in complex I
+assembly and in fatty acid oxidation; HSPA9 in Fe-S cluster biosynthesis
+and among chaperones), joined by arrows from its first place; clicking a
+place in the side panel moves the view to it. The map is sized by its
+content and is meant to be read zoomed in: labels that would overlap at
+the current zoom are drawn as dots until there is room. Links are coloured
+by their strongest evidence channel, contacts in a structure included.
+Scores load as before (CSV or TSV, sequential or diverging gradient).
+
+`config/mitoshow_extra.tsv` lists curated places with their source;
+`config/mitoshow_structures.example.tsv` lists one structure file per
+complex (the PDB identifiers there are to be checked before use).
 
 ### 13. Optional: two metabolic states of one cell type
 
@@ -487,7 +507,7 @@ Each test builds small synthetic inputs with planted signal, runs the
 scripts end to end and checks their outputs. The `.hic` route is tested when
 `hicstraw`, java and Juicer Tools are available (`JUICER_TOOLS` pointing to
 the jar), and skipped otherwise. The `deseq` subcommand of `v4c_loops.R`
-needs DESeq2 and ashr, which the tests do not require. The MitoMap viewer
+needs DESeq2 and ashr, which the tests do not require. The MitoShow viewer
 is checked in a headless browser when Playwright is installed
 (`pip install playwright`; `CHROME` may point to a Chromium binary), and
 skipped otherwise.

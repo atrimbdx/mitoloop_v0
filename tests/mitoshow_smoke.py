@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-mitomap_smoke.py - load app/mitomap.html in headless Chromium, load a
-mitomap.json and a score table, and check that the page draws without
-errors. Used by tests/test_mitomap.sh when Playwright is installed.
+mitoshow_smoke.py - load app/mitoshow.html in headless Chromium, load a
+mitoshow.json and a score table, and check that the page draws without
+errors. Used by tests/test_mitoshow.sh when Playwright is installed.
 
-Usage: python3 mitomap_smoke.py APP_HTML MITOMAP_JSON SCORES_TSV [CHROME]
+Usage: python3 mitoshow_smoke.py APP_HTML MITOSHOW_JSON SCORES_TSV [CHROME]
 Prints one JSON line with the checked quantities; exits 1 on failure.
 """
 

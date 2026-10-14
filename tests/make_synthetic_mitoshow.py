@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-make_synthetic_mitomap.py - synthetic inputs for mitomap_data.py
+make_synthetic_mitoshow.py - synthetic inputs for mitoshow_data.py
 
 Purpose
     Build MitoCarta-like sheets with the sub-mitochondrial localisations in
@@ -15,7 +15,8 @@ Inputs
 Outputs (in --out)
     mitocarta_A.tsv, mitocarta_C.tsv, genes.txt, hpa.tsv, goa.gaf,
     extra_locations.tsv, string_links.txt.gz (detailed channels),
-    string_info.txt.gz, truth.tsv (gene, expected locations)
+    string_info.txt.gz, structures.tsv, complex.cif (a three-chain mmCIF),
+    hgnc.tsv (symbol, uniprot_ids), truth.tsv (gene, expected locations)
 
 Method
     MitoCarta genes MC1..MC1136: Matrix 525, MIM 340, IMS 50, MOM 110,
@@ -23,8 +24,11 @@ Method
     nucleoid. MC5 is also nuclear and MC6 cytosolic in HPA (Supported);
     MC7 is nuclear in HPA with Uncertain reliability (ignored). PanelApp
     genes PA1..PA110: PA1-60 placed by HPA, PA61-80 by GO only, PA81-110
-    nowhere. MC8 is given the ER by the curated table. STRING links join
-    genes of the same pathway; one link per pair is under --min-string.
+    nowhere. MC8 is given the ER by the curated table, MC9 a nested OXPHOS
+    place. MT-TL1 and MT-TK (PanelApp) have no location. STRING links join
+    genes of the same pathway; one link per pair is under --min-string. The
+    mmCIF places MC530, MC531 and MC532 in "Complex I": the first two in
+    contact, the third 60 A away.
 """
 
 from __future__ import annotations
@@ -91,7 +95,8 @@ def main():
             fh.write(f"{h}\t{leaf}\t"
                      + ", ".join(g for g in mc if pw[g] == j) + "\n")
     pa = [f"PA{i}" for i in range(1, 111)]
-    (out / "genes.txt").write_text("\n".join(pa + ["OLDMC2", "FXN_GAA"])
+    (out / "genes.txt").write_text("\n".join(pa + ["OLDMC2", "FXN_GAA",
+                                                    "MT-TL1", "MT-TK"])
                                    + "\n")
     hpa_locs = ["Nucleoplasm", "Cytosol", "Plasma membrane",
                 "Endoplasmic reticulum", "Mitochondria", "Golgi apparatus"]
@@ -125,7 +130,34 @@ def main():
     for g in pa[80:]:
         truth[g] = "unlocalized"
     (out / "extra_locations.tsv").write_text(
-        "gene\tcompartment\tsource\nMC8\ter\tcurated\n")
+        "gene\tcompartment\tpath\tsource\nMC8\ter\t\tcurated\n"
+        "MC9\toxphos\tSupercomplexes > Respirasome assembly\tpaper\n")
+    # a three-chain structure, entities mapped through UniProt accessions
+    with open(out / "hgnc.tsv", "w") as fh:
+        fh.write("hgnc_id\tsymbol\tuniprot_ids\n")
+        for k, g in enumerate(("MC530", "MC531", "MC532")):
+            fh.write(f"HGNC:{k}\t{g}\tP0000{k}\n")
+    with open(out / "complex.cif", "w") as fh:
+        fh.write("data_SYN\n#\nloop_\n_struct_ref.id\n_struct_ref.db_name\n"
+                 "_struct_ref.db_code\n_struct_ref.pdbx_db_accession\n"
+                 "_struct_ref.entity_id\n")
+        for k in range(3):
+            fh.write(f"{k + 1} UNP X{k}_HUMAN P0000{k} {k + 1}\n")
+        fh.write("#\n_entity.id 1\n_entity.pdbx_description 'a ; quoted'\n#\n")
+        fh.write("loop_\n_atom_site.group_PDB\n_atom_site.id\n"
+                 "_atom_site.label_atom_id\n_atom_site.label_entity_id\n"
+                 "_atom_site.auth_asym_id\n_atom_site.Cartn_x\n"
+                 "_atom_site.Cartn_y\n_atom_site.Cartn_z\n")
+        n = 0
+        for k, (ch, x0) in enumerate((("A", 0.0), ("B", 6.0), ("C", 60.0))):
+            for r in range(20):
+                for atom in ("N", "CA"):
+                    n += 1
+                    fh.write(f"ATOM {n} {atom} {k + 1} {ch} {x0 + r * 0.3:.2f} "
+                             f"{r * 1.5:.2f} {k * 2.0:.2f}\n")
+    (out / "structures.tsv").write_text(
+        "complex\tfile\tprojection\nComplex I\t" + str(out / "complex.cif")
+        + "\tpca\n")
 
     names = mc + pa
     with gzip.open(out / "string_info.txt.gz", "wt") as fh:
