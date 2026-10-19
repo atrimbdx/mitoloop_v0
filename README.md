@@ -53,6 +53,7 @@ PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 | `scripts/promoter_features.py` | Python | promoter sequence, motifs, bidirectional pairs, promoter-promoter loops and DNA methylation (promoters and elements) against controls; methylation against GTEx expression |
 | `scripts/regulome.py` | Python | `pathways`: MitoPathways layer per gene, inferred from GO where MitoCarta has none; `modes`: score per gene and mode of regulation from expression data; `compare`: promoters, elements, loops and methylation along the score |
 | `scripts/l1_score.py` | Python | `score`: L1 per gene and per complex from RNA and protein of the same samples, corrected for noise and mitochondrial content; `validate`: agreement with another atlas, published per-gene scores and patient fibroblasts with RNA-seq and proteomics |
+| `scripts/jiang2020_tables.py` | Python | the per-sample protein and RNA of Jiang et al. 2020 (Tables S2 and S3) as the inputs of `l1_score.py`, and tissue medians for `regulome.py modes` |
 | `scripts/vcf_annotate.py` | Python | `regions`: annotated BED of promoters, UTRs, coding exons, elements, loop anchors and other BEDs per gene; `annotate`: rare variants of WGS VCFs in these regions with frequency, scores, parental origin or phase, second hits and tiers |
 | `scripts/v4c_pairs.py`, `scripts/v4c_pairs.R` | Python, R | optional module: loops at mitochondrial promoters in two metabolic states of one cell type |
 | `config/` | | example library tables |
@@ -96,9 +97,9 @@ Python scripts run in `mitoloop_v0`, R scripts in `mitoloop_v0-r`.
 | Mode of inheritance per gene | `vcf_annotate.py` | PanelApp panel download, or a two-column table |
 | MitoCarta3.0 with MitoPathways (`Human.MitoCarta3.0.xls`, or its sheets A and C as TSV) | `regulome.py pathways` | <https://www.broadinstitute.org/mitocarta> |
 | Gene Ontology annotations and ontology (`goa_human.gaf.gz`, `go-basic.obo`) | `regulome.py pathways` | <https://geneontology.org/docs/download-go-annotations/> |
-| Protein abundance across GTEx tissues | `regulome.py modes` | Jiang et al. 2020, supplementary tables |
+| Protein abundance across GTEx tissues | `regulome.py modes` | Jiang et al. 2020, Table S2 (sheet D, per sample; tissue medians written by `jiang2020_tables.py`) |
 | Variance of genetic effects on expression (Vg) | `regulome.py modes` | ANEVA, Mohammadi et al. 2019 |
-| GTEx tissue proteome, 201 samples of 32 tissues | `l1_score.py score` | Jiang et al. 2020, PRIDE PXD016999 (raw data); the per-sample abundance table is to be taken from the supplement or reprocessed |
+| GTEx tissue proteome, 201 samples of 32 tissues, and the RNA of the same samples | `jiang2020_tables.py`, `l1_score.py score` | Jiang et al. 2020, Table S2 (`mmc3.xlsx`, sheet D: protein, log2) and Table S3 (`mmc4.xlsx`, sheet A: RNA TPM, log scale); PRIDE PXD016999 (raw data) |
 | GTEx v8 RNA-seq read counts per sample, and sample attributes (ischemic time `SMTSISCH`) | `l1_score.py score` | `gs://adult-gtex/bulk-gex/v8/rna-seq/` (`*_gene_reads.gct.gz`), `gs://adult-gtex/annotations/v8/metadata-files/` |
 | Patient fibroblasts, RNA-seq and TMT proteomics (about 145 individuals) | `l1_score.py validate` | Kopajtich et al. 2021, medRxiv 10.1101/2021.03.09.21253187; Zenodo 10.5281/zenodo.4501904 (`raw_counts.tsv`, `proteomics_not_normalized.tsv`, `proteomics_annotation.tsv`), PRIDE PXD022803 |
 | Per-gene protein buffering of copy number in tumours | `l1_score.py validate` | Gonçalves et al. 2017 (github.com/saezlab/protein_attenuation, `tables/protein_attenuation_table.csv`); Schukken & Sheltzer 2022 (github.com/kschukken/Genome_Research_Protein_Dosage) |
@@ -346,13 +347,19 @@ python3 scripts/regulome.py pathways --mitocarta data/Human.MitoCarta3.0.xls \
 # score of transcriptional control, from expression data only
 python3 scripts/regulome.py modes --gtf data/gencode.gtf.gz \
     --genes results/regulome/pathways.tsv --tpm data/gtex_median_tpm.gct.gz \
-    --protein data/jiang2020_protein.tsv --tissue-map config/protein_tissues.tsv \
+    --protein data/jiang2020_protein.tsv \
     --eqtl data/GTEx_Analysis_v8_eQTL_independent.tar \
     --tissue Muscle_Skeletal --vg data/aneva_vg.tsv --out results/regulome
 
+# Jiang 2020 Tables S2 and S3 to per-sample tables (and tissue medians)
+python3 scripts/jiang2020_tables.py --dir data --gtf data/gencode.gtf.gz \
+    --tpm data/gtex_median_tpm.gct.gz \
+    --attributes data/GTEx_v8_SampleAttributesDS.txt --download-attributes
+
 # L1: does the protein follow its mRNA across tissues?
-python3 scripts/l1_score.py score --rna data/gtex_jiang_reads.gct.gz \
-    --protein data/jiang2020_protein.tsv --samples data/jiang2020_samples.tsv \
+python3 scripts/l1_score.py score --rna data/jiang2020_rna_samples.tsv \
+    --rna-units tpm --protein data/jiang2020_protein_samples.tsv \
+    --samples data/jiang2020_samples.tsv \
     --covariates SMTSISCH --gtf data/gencode.gtf.gz \
     --genes results/regulome/pathways.tsv \
     --pathways results/regulome/pathways.tsv --out results/l1
@@ -448,10 +455,13 @@ mkdir -p logs && sbatch slurm/regulome.sbatch   # pathways, controls, modes, pro
 ```
 
 The archive `mitoloop_regulome_<date>.tar.gz` holds the logs and
-`results/` (not the inputs). Without the Jiang 2020 per-sample tables,
-`compare` ranks the genes on the variability score of `modes`; with
-`data/jiang2020_protein.tsv`, `data/jiang2020_samples.tsv` and
-`data/gtex_jiang_reads.gct.gz`, on L1. `config/methylation.tsv`, when
+`results/` (not the inputs). With Tables S2 and S3 of Jiang et al. 2020
+put in `data/` as downloaded (`*mmc3.xlsx`, `*mmc4.xlsx`), `run` converts
+them (`jiang2020_tables.py`; what it recognised in
+`results/jiang2020/conversion.txt`, the sheets in `layout.txt`), adds the
+protein-mRNA correlation across tissues to `modes`, computes L1 and ranks
+the genes on it in `compare`; without them, on the variability score of
+`modes`. `config/methylation.tsv`, when
 present, adds promoter methylation. The steps take about two minutes in
 all, so `bash run_mcia.sh all` can also run on the login node
 (`nohup nice bash run_mcia.sh all > logs/all_login.out 2>&1 &`).

@@ -15,6 +15,7 @@ dependencies:
   - pysam             # vcf_annotate.py (tabix lookups), promoter_features.py
   - bcftools          # normalisation of the VCFs before vcf_annotate.py
   - xlrd              # regulome.py, MitoCarta3.0 .xls
+  - openpyxl          # jiang2020_tables.py, Jiang 2020 .xlsx
   - libcurl           # hic-straw is built from source
   - cxx-compiler
   - pybind11

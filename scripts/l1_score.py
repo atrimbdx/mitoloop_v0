@@ -137,8 +137,9 @@ Method
     of L1).
 
 Usage
-    python3 l1_score.py score --rna data/gtex_jiang_counts.gct.gz \\
-        --protein data/jiang2020_protein.tsv --samples data/jiang2020_samples.tsv \\
+    python3 l1_score.py score --rna data/jiang2020_rna_samples.tsv \\
+        --protein data/jiang2020_protein_samples.tsv \\
+        --samples data/jiang2020_samples.tsv \\
         --covariates SMTSISCH --gtf data/gencode.gtf.gz \\
         --genes results/regulome/pathways.tsv \\
         --pathways results/regulome/pathways.tsv --out results/l1

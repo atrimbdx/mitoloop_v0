@@ -10,10 +10,10 @@
 #              tables are in data/), bundle (tar.gz of logs and results),
 #              or all of them in a row.
 # Inputs       data/ (filled by fetch); optional, put by hand:
-#              data/jiang2020_protein.tsv and config/protein_tissues.tsv
-#              (protein-mRNA correlation in modes), data/aneva_vg.tsv (Vg),
-#              data/gtex_jiang_reads.gct.gz + data/jiang2020_samples.tsv
-#              (L1 score), data/genes_extra.txt (genes added to the set)
+#              data/aneva_vg.tsv (Vg),
+#              data/*mmc3.xlsx + data/*mmc4.xlsx (Tables S2 and S3 of Jiang
+#              et al. 2020: L1 score, converted by jiang2020_tables.py),
+#              data/genes_extra.txt (genes added to the set)
 # Outputs      .venv-regulome/, data/, genes.txt, controls.txt,
 #              results/regulome, results/promoters, results/l1,
 #              mitoloop_regulome_<date>.tar.gz (everything to send back)
@@ -51,7 +51,7 @@ env_info() {
     echo "== python $(command -v python3) $(python3 --version 2>&1)"
     python3 - <<'PY' 2>&1
 import importlib
-for m in ("numpy", "pandas", "scipy", "xlrd", "pysam"):
+for m in ("numpy", "pandas", "scipy", "xlrd", "openpyxl", "pysam"):
     try:
         print(f"== {m} {importlib.import_module(m).__version__}")
     except Exception as e:
@@ -80,7 +80,7 @@ do_setup() {
     "$PY" -m venv .venv-regulome || { echo "venv failed: load a Python >= 3.9 module first (module avail python)"; return 1; }
     activate
     python3 -m pip install --upgrade pip >/dev/null
-    python3 -m pip install numpy pandas scipy xlrd requests pysam
+    python3 -m pip install numpy pandas scipy xlrd openpyxl requests pysam
 }
 
 do_fetch() {
@@ -105,6 +105,9 @@ do_run() {
         echo "   run 'bash run_mcia.sh fetch' on the login node first (see data/MANIFEST.tsv for failed downloads)"
         return 1
     fi
+    # 0. Tables S2 (mmc3) and S3 (mmc4) of Jiang et al. 2020, when put in
+    #    data/: per-sample tables for L1, per-tissue protein for modes
+    do_jiang || rc=1
     # 1. functional layer of each gene (MitoPathways; GO inference elsewhere)
     step pathways python3 scripts/regulome.py pathways --mitocarta "$MITOCARTA" ${MITOPATHWAYS:+--mitopathways "$MITOPATHWAYS"} \
         --genes genes.txt --gaf "$GAF" --obo "$OBO" \
@@ -134,13 +137,21 @@ do_run() {
     [ -s data/cpgIslandExt.txt.gz ] && prom+=(--cpg-islands data/cpgIslandExt.txt.gz)
     [ -s config/methylation.tsv ] && prom+=(--meth-table config/methylation.tsv)
     step promoters python3 scripts/promoter_features.py "${prom[@]}" || rc=1
-    # 5. L1, when the matched RNA and protein of the GTEx tissue proteome are there
+    # 5. L1, when the matched RNA and protein of the GTEx tissue proteome are
+    #    there (Tables S2 and S3 of Jiang et al. 2020, converted above)
     local score=(--modes results/regulome/modes.tsv --layer variability)
-    if [ -s data/jiang2020_samples.tsv ] && [ -s data/gtex_jiang_reads.gct.gz ] && [ -s data/jiang2020_protein.tsv ]; then
-        step l1 python3 scripts/l1_score.py score --rna data/gtex_jiang_reads.gct.gz \
-            --protein data/jiang2020_protein.tsv --samples data/jiang2020_samples.tsv \
-            --gtf "$GTF" --genes results/regulome/pathways.tsv \
-            --pathways results/regulome/pathways.tsv --out results/l1 || rc=1
+    if [ -s data/jiang2020_samples.tsv ] && [ -s data/jiang2020_rna_samples.tsv ] && [ -s data/jiang2020_protein_samples.tsv ]; then
+        local l1=(--rna data/jiang2020_rna_samples.tsv --protein data/jiang2020_protein_samples.tsv
+                  --samples data/jiang2020_samples.tsv --gtf "$GTF"
+                  --genes results/regulome/pathways.tsv
+                  --pathways results/regulome/pathways.tsv --out results/l1)
+        l1+=(--rna-units tpm)
+        [ -s controls.txt ] && l1+=(--controls controls.txt)
+        # ischemic time, when every sample has one (GTEx attributes)
+        awk -F'\t' 'NR == 1 {for (i = 1; i <= NF; i++) if ($i == "SMTSISCH") c = i; next}
+                    !c || $c == "" {bad = 1} END {exit !(c && !bad && NR > 1)}' \
+            data/jiang2020_samples.tsv && l1+=(--covariates SMTSISCH)
+        step l1 python3 scripts/l1_score.py score "${l1[@]}" || rc=1
         if [ -s results/l1/l1.tsv ]; then
             score=(--scores results/l1/l1.tsv)
             local val=(--l1 results/l1/l1.tsv --gtf "$GTF" --out results/l1/validation)
@@ -151,7 +162,7 @@ do_run() {
             step l1_validate python3 scripts/l1_score.py validate "${val[@]}" || rc=1
         fi
     else
-        echo "== L1: data/jiang2020_protein.tsv, data/jiang2020_samples.tsv and data/gtex_jiang_reads.gct.gz not all present: comparison along the variability score of modes"
+        echo "== L1: no Jiang 2020 tables (Tables S2 and S3, *mmc3.xlsx and *mmc4.xlsx, in data/): comparison along the variability score of modes"
     fi
     # 6. promoter architecture along the score
     local cmp=("${score[@]}" --expression results/regulome/modes.tsv
@@ -162,11 +173,30 @@ do_run() {
     return $rc
 }
 
+# Tables S2 and S3 of Jiang et al. 2020 (Cell 183:269), put by hand in data/
+# (or JIANG_DIR), to the three tables of l1_score.py; again when the
+# spreadsheets are newer than the tables
+do_jiang() {
+    local dir="${JIANG_DIR:-data}" s2 s3
+    s2=$(ls "$dir"/*mmc3.xlsx 2>/dev/null | head -1)
+    s3=$(ls "$dir"/*mmc4.xlsx 2>/dev/null | head -1)
+    [ -n "$s2" ] && [ -n "$s3" ] || return 0
+    if [ -s data/jiang2020_samples.tsv ] && [ data/jiang2020_samples.tsv -nt "$s2" ] \
+            && [ data/jiang2020_samples.tsv -nt "$s3" ]; then
+        return 0
+    fi
+    python3 -c 'import openpyxl' 2>/dev/null || python3 -m pip install openpyxl \
+        || { echo "== openpyxl missing: bash run_mcia.sh setup on the login node"; return 1; }
+    step jiang2020 python3 scripts/jiang2020_tables.py --s2 "$s2" --s3 "$s3" --dir "$dir" \
+        --gtf "$GTF" --tpm "$TPM" --attributes data/GTEx_v8_SampleAttributesDS.txt \
+        --download-attributes --out data --report results/jiang2020
+}
+
 # the tests of the scripts used here, on synthetic data: checks the Python
 # environment of the cluster in a few seconds, before the real run
 do_selftest() {
     local rc=0
-    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh; do
+    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh; do
         step selftest bash "$t" || rc=1
     done
     return $rc
