@@ -152,9 +152,17 @@ do_run() {
                     !c || $c == "" {bad = 1} END {exit !(c && !bad && NR > 1)}' \
             data/jiang2020_samples.tsv && l1+=(--covariates SMTSISCH)
         step l1 python3 scripts/l1_score.py score "${l1[@]}" || rc=1
+        # sensitivity: without the mitochondrial content adjustment, which
+        # only the gene set receives
+        step l1_raw python3 scripts/l1_score.py score "${l1[@]/results\/l1/results/l1_raw}" \
+            --no-content-adjustment || rc=1
         if [ -s results/l1/l1.tsv ]; then
             score=(--scores results/l1/l1.tsv)
             local val=(--l1 results/l1/l1.tsv --gtf "$GTF" --out results/l1/validation)
+            [ -s results/l1_raw/l1.tsv ] && val+=(--replicate results/l1_raw/l1.tsv)
+            # protein buffering of copy number in tumours (Goncalves et al.
+            # 2017): buffered proteins should have a low L1
+            [ -s data/attenuation.csv ] && val+=(--external attenuation=data/attenuation.csv:attenuation:-)
             [ -s data/kopajtich/raw_counts.tsv ] && [ -s data/kopajtich/pairs.tsv ] && \
                 val+=(--patients-rna data/kopajtich/raw_counts.tsv
                       --patients-protein data/kopajtich/proteomics_not_normalized.tsv
@@ -208,6 +216,11 @@ do_bundle() {
     local items=(logs)
     for x in genes.txt controls.txt data/MANIFEST.tsv data/panelapp_genes_all.tsv data/genes_renamed.tsv results; do
         [ -e "$x" ] && items+=("$x")
+    done
+    # the converted Jiang 2020 tables (derived, ~15 MB compressed): further
+    # analyses without another run
+    for x in data/jiang2020_samples.tsv data/jiang2020_protein.tsv data/jiang2020_rna_samples.tsv data/jiang2020_protein_samples.tsv; do
+        [ -s "$x" ] && items+=("$x")
     done
     # results only: the inputs stay on the cluster
     tar czf "$f" --exclude='*.part' "${items[@]}"

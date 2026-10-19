@@ -461,7 +461,11 @@ them (`jiang2020_tables.py`; what it recognised in
 `results/jiang2020/conversion.txt`, the sheets in `layout.txt`), adds the
 protein-mRNA correlation across tissues to `modes`, computes L1 and ranks
 the genes on it in `compare`; without them, on the variability score of
-`modes`. `config/methylation.tsv`, when
+`modes`. L1 is also computed without the mitochondrial content adjustment
+(`results/l1_raw`, compared as `replicate` in the validation) and
+validated against the protein buffering of copy number of Gonçalves et
+al. 2017 (`attenuation`, expected negative). The converted tables
+(`data/jiang2020_*.tsv`) go into the archive. `config/methylation.tsv`, when
 present, adds promoter methylation. The steps take about two minutes in
 all, so `bash run_mcia.sh all` can also run on the login node
 (`nohup nice bash run_mcia.sh all > logs/all_login.out 2>&1 &`).

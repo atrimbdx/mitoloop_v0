@@ -210,12 +210,14 @@ def write_tsv(path: Path, rows: list, cols: list) -> None:
 
 
 def read_table(path) -> list:
+    """rows as dicts; tab-separated, or comma-separated for a .csv"""
+    sep = "," if str(path).endswith((".csv", ".csv.gz")) else "\t"
     with opener(path) as fh:
-        head = fh.readline().rstrip("\n").lstrip("#").split("\t")
+        head = fh.readline().rstrip("\n").lstrip("#").split(sep)
         rows = []
         for line in fh:
             if line.strip():
-                f = line.rstrip("\n").split("\t")
+                f = line.rstrip("\n").split(sep)
                 rows.append(dict(zip(head, f + [""] * (len(head) - len(f)))))
     return rows
 
