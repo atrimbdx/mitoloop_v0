@@ -296,6 +296,7 @@ ALIASES = {
     "ATP5G1": ["ATP5MC1"], "ATP5G2": ["ATP5MC2"], "ATP5G3": ["ATP5MC3"],
     "ATP5S": ["DMAC2L"], "ATP5SL": ["DMAC2"], "ATPIF1": ["ATP5IF1"],
     "USMG5": ["ATP5MK", "ATP5MD"], "C14orf2": ["ATP5MJ", "ATP5MPL"],
+    "ATP5MD": ["ATP5MK"], "ATP5MPL": ["ATP5MJ"],
     "APOPT1": ["COA8"], "C10orf2": ["TWNK"], "TAZ": ["TAFAZZIN"],
     "C12orf65": ["MTRFR"], "C6orf203": ["MTRES1"], "C7orf55": ["FMC1"],
     "C20orf7": ["NDUFAF5"], "C8orf38": ["NDUFAF6"], "C17orf89": ["NDUFAF8"],
@@ -349,6 +350,12 @@ def build_aliases(extra=None, builtin=True):
             for c in cands:
                 if c not in table[old]:
                     table[old].append(c)
+        # and back, after the forward entries: a GTF older than the rename
+        # (GENCODE v26 of GTEx v8) holds the old symbol only
+        for old, cands in ALIASES.items():
+            for c in cands:
+                if old not in table[c]:
+                    table[c].append(old)
     return dict(table)
 
 

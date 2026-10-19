@@ -18,9 +18,13 @@ Outputs (in --datadir)
     GRCh38.fa (+ .fai built by promoter_features.py), cpgIslandExt.txt.gz,
     panelapp_genes_all.tsv (gene, confidence_level, entity_type),
     and with --validation: kopajtich/ (fibroblast RNA-seq and proteomics,
-    Zenodo 4501904), attenuation.csv (Goncalves et al. 2017);
+    datasets.zip of Zenodo 4501904, extracted), attenuation.csv (Goncalves et al. 2017);
     MANIFEST.tsv (file, bytes, source or error);
-    --genes (default genes.txt): MitoCarta3.0 symbols and PanelApp genes.
+    --genes (default genes.txt): MitoCarta3.0 symbols and PanelApp genes,
+    under the symbol of the --gtf when one is given (PanelApp keeps old HGNC
+    symbols such as ATP5A1: without this, a gene can be counted twice and
+    lost by the steps that match on the GTF symbol); genes_renamed.tsv in
+    --datadir lists the renames.
 
 Usage
     python3 scripts/fetch_regulome.py --datadir data --reuse ../mitoshow/data
@@ -61,9 +65,10 @@ VALIDATION = {
 }
 # patient fibroblasts, RNA-seq and proteomics (Kopajtich et al.): the files
 # of the Zenodo record whose name holds one of these words; their exact names
-# are read from the record
+# are read from the record. The record holds datasets.zip (processed tables),
+# raw_data.zip and FRASER_counts (splicing counts, hg19): only the first.
 ZENODO_RECORD = "4501904"
-ZENODO_WANTED = ("count", "proteomics", "annotation", "sample")
+ZENODO_WANTED = ("datasets",)
 PANELAPP = "https://panelapp.genomicsengland.co.uk/api/v1"
 
 
@@ -134,7 +139,43 @@ def zenodo(d: Path, record: str, wanted: tuple, manifest: list) -> None:
             continue
         url = (f.get("links") or {}).get("self") or \
             f"https://zenodo.org/records/{record}/files/{key}?download=1"
-        fetch(f"kopajtich/{key}", [url], d, [], manifest)
+        if fetch(f"kopajtich/{key}", [url], d, [], manifest) and key.endswith(".zip"):
+            import zipfile
+            try:
+                with zipfile.ZipFile(d / "kopajtich" / key) as z:
+                    z.extractall(d / "kopajtich")
+                    names = [n for n in z.namelist() if not n.endswith("/")]
+                print(f"{key}: {len(names)} files extracted to {d / 'kopajtich'}")
+                for n in names:
+                    manifest.append((f"kopajtich/{n}", (d / "kopajtich" / n).stat().st_size,
+                                     f"from {key}"))
+            except Exception as e:
+                manifest.append((f"kopajtich/{key}", 0, f"unzip failed: {e}"))
+
+
+def canonical(symbols: list, gtf: Path, d: Path) -> dict:
+    """symbol -> its name in the GTF (renamed HGNC symbols resolved with
+    the alias table of re2g_panel), None for panel entries that are not
+    genes; symbols absent from the GTF are left out (kept as they are)"""
+    from re2g_panel import build_aliases, gtf_gene_names, resolve_symbols
+    m, unresolved, not_genes = resolve_symbols(symbols, gtf_gene_names(gtf),
+                                               build_aliases())
+    with open(d / "genes_renamed.tsv", "w") as fh:
+        fh.write("symbol\tgtf_symbol\n")
+        for g in symbols:
+            if m.get(g, g) != g:
+                fh.write(f"{g}\t{m[g]}\n")
+            elif g in not_genes:
+                fh.write(f"{g}\tnot a gene\n")
+            elif g in unresolved:
+                fh.write(f"{g}\tnot in the GTF\n")
+    ren = dict(m, **{g: None for g in not_genes})
+    print(f"symbols: {sum(m[g] != g for g in m)} renamed to the GTF symbol, "
+          f"{len(not_genes)} not genes dropped, {len(unresolved)} not in the GTF "
+          f"(kept); see {d / 'genes_renamed.tsv'}")
+    if unresolved:
+        print("  not in the GTF: " + " ".join(unresolved[:40]))
+    return ren
 
 
 def panelapp(d: Path, name: str, manifest: list) -> list:
@@ -170,6 +211,8 @@ def main():
                    help="directory searched first for the files (repeatable)")
     p.add_argument("--genes", type=Path, default=Path("genes.txt"))
     p.add_argument("--panel-name", default="Mitochondrial disorders")
+    p.add_argument("--gtf", type=Path,
+                   help="GENCODE GTF: write the genes under its symbols")
     p.add_argument("--no-genome", action="store_true",
                    help="skip the GRCh38 FASTA (no promoter sequence features)")
     p.add_argument("--validation", action="store_true",
@@ -218,10 +261,15 @@ def main():
     if not mc:
         print("no MitoCarta3.0 gene: genes.txt not written")
         ok = False
-    gs = sorted(set(mc) | set(panel))
+    ren = {}
+    if mc and a.gtf and a.gtf.exists():
+        ren = canonical(sorted(set(mc) | set(panel)), a.gtf, d)
+    mc = {ren.get(g, g) for g in mc} - {None}
+    panel = {ren.get(g, g) for g in panel} - {None}
+    gs = sorted(mc | panel)
     if mc:
         a.genes.write_text("\n".join(gs) + "\n")
-    print(f"gene set: {len(mc)} MitoCarta3.0 + {len(set(panel) - set(mc))} PanelApp "
+    print(f"gene set: {len(mc)} MitoCarta3.0 + {len(panel - mc)} PanelApp "
           f"outside MitoCarta = {len(gs)} genes -> {a.genes}")
     with open(d / "MANIFEST.tsv", "w") as fh:
         fh.write("file\tbytes\tsource\n")

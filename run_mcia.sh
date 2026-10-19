@@ -86,12 +86,13 @@ do_setup() {
 do_fetch() {
     local reuse=()
     for r in ${REUSE:-../mitoshow/data}; do [ -d "$r" ] && reuse+=(--reuse "$r"); done
-    local opt=(--datadir data --genes genes.txt --validation)
+    # GTEx and GENCODE first: the gene set is written under the GTF symbols
+    step gtex_fetch python3 scripts/gtex_eqtl.py fetch --datadir data
+    local r2=$?
+    local opt=(--datadir data --genes genes.txt --validation --gtf "$GTF")
     [ -n "${NO_GENOME:-}" ] && opt+=(--no-genome)
     step fetch_regulome python3 scripts/fetch_regulome.py "${opt[@]}" ${reuse[@]+"${reuse[@]}"}
     local r1=$?
-    step gtex_fetch python3 scripts/gtex_eqtl.py fetch --datadir data
-    local r2=$?
     [ -s data/genes_extra.txt ] && { cat genes.txt data/genes_extra.txt | grep -v '^#' | sort -u > genes.tmp && mv genes.tmp genes.txt; echo "== genes.txt + data/genes_extra.txt: $(wc -l < genes.txt) genes"; }
     return $(( r1 || r2 ))
 }
@@ -175,7 +176,7 @@ do_bundle() {
     local f="mitoloop_regulome_$(date +%Y%m%d_%H%M).tar.gz"
     cp "$LOG" logs/current_run.log
     local items=(logs)
-    for x in genes.txt controls.txt data/MANIFEST.tsv data/panelapp_genes_all.tsv results; do
+    for x in genes.txt controls.txt data/MANIFEST.tsv data/panelapp_genes_all.tsv data/genes_renamed.tsv results; do
         [ -e "$x" ] && items+=("$x")
     done
     # results only: the inputs stay on the cluster

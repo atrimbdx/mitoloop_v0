@@ -452,7 +452,15 @@ The archive `mitoloop_regulome_<date>.tar.gz` holds the logs and
 `compare` ranks the genes on the variability score of `modes`; with
 `data/jiang2020_protein.tsv`, `data/jiang2020_samples.tsv` and
 `data/gtex_jiang_reads.gct.gz`, on L1. `config/methylation.tsv`, when
-present, adds promoter methylation.
+present, adds promoter methylation. The steps take about two minutes in
+all, so `bash run_mcia.sh all` can also run on the login node
+(`nohup nice bash run_mcia.sh all > logs/all_login.out 2>&1 &`).
+
+The gene set is written under the symbols of the GENCODE GTF: PanelApp
+keeps old HGNC symbols (ATP5A1 for ATP5F1A, APOPT1 for COA8), resolved
+with the alias table of `re2g_panel.py` in both directions;
+`data/genes_renamed.tsv` lists the renames and the symbols left as they
+are.
 
 ## Running on a SLURM cluster
 
