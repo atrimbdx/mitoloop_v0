@@ -71,7 +71,11 @@ step() {
 }
 
 do_setup() {
-    PY="${PYTHON:-python3}"
+    # the Python of a MitoShow setup when there is one (the system python3
+    # of the login node may be too old)
+    local def=python3
+    [ -x ../mitoshow/.venv/bin/python3 ] && def=../mitoshow/.venv/bin/python3
+    PY="${PYTHON:-$def}"
     echo "== setup with $PY ($($PY --version 2>&1))"
     "$PY" -m venv .venv-regulome || { echo "venv failed: load a Python >= 3.9 module first (module avail python)"; return 1; }
     activate
@@ -165,6 +169,12 @@ do_bundle() {
 
 activate
 env_info
+# the scripts need Python >= 3.8
+if [ "$STEP" != setup ] && ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 8))'; then
+    echo "== python3 is $(python3 --version 2>&1): too old. Run 'bash run_mcia.sh setup' first"
+    echo "   (it creates .venv-regulome; if it fails: module avail python, module load <python 3.x>)"
+    exit 1
+fi
 case "$STEP" in
     setup) do_setup ;;
     fetch) do_fetch ;;
