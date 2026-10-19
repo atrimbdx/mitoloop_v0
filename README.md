@@ -429,6 +429,30 @@ Rscript scripts/v4c_pairs.R compare \
 `config/pairs.example.tsv` documents the table and lists candidate public
 datasets. One `--gtf` is needed per genome build named in the table.
 
+### Mitochondrial regulome on MCIA
+
+`run_mcia.sh` runs section 11 on public data and writes one archive to
+send back. Compute nodes have no internet access: downloads run on the
+login node.
+
+```bash
+cd ~/mitoloop_v0                       # or: git clone https://github.com/atrimbdx/mitoloop_v0.git
+git fetch origin && git checkout claude/eloquent-babbage-yz27n1 && git pull
+bash run_mcia.sh setup                 # once; if python3 < 3.9: module load python first
+bash run_mcia.sh fetch                 # login node: MitoCarta, PanelApp, GO, GTEx, GENCODE,
+                                       # GRCh38 + CpG islands (~5 GB), Kopajtich; files of
+                                       # ../mitoshow/data are linked, not downloaded again
+mkdir -p logs && sbatch slurm/regulome.sbatch   # pathways, controls, modes, promoters,
+                                       # compare (+ L1 with the Jiang 2020 tables), then the archive
+```
+
+The archive `mitoloop_regulome_<date>.tar.gz` holds the logs and
+`results/` (not the inputs). Without the Jiang 2020 per-sample tables,
+`compare` ranks the genes on the variability score of `modes`; with
+`data/jiang2020_protein.tsv`, `data/jiang2020_samples.tsv` and
+`data/gtex_jiang_reads.gct.gz`, on L1. `config/methylation.tsv`, when
+present, adds promoter methylation.
+
 ## Running on a SLURM cluster
 
 `slurm/extract.sbatch` runs one library per array task;
