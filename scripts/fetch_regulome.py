@@ -66,9 +66,14 @@ VALIDATION = {
 # patient fibroblasts, RNA-seq and proteomics (Kopajtich et al.): the files
 # of the Zenodo record whose name holds one of these words; their exact names
 # are read from the record. The record holds datasets.zip (processed tables),
-# raw_data.zip and FRASER_counts (splicing counts, hg19): only the first.
+# raw_data.zip (count and protein tables, read by l1_score.py validate once
+# converted) and FRASER_counts (splicing counts, hg19): the first two. Of the
+# archives, the tables are extracted, and every member is listed in
+# kopajtich/CONTENTS.tsv.
 ZENODO_RECORD = "4501904"
-ZENODO_WANTED = ("datasets",)
+ZENODO_WANTED = ("datasets", "raw_data")
+ZENODO_MAX_GB = 5
+TABLE = (".tsv", ".csv", ".txt", ".tsv.gz", ".csv.gz", ".txt.gz", ".rds", ".xlsx")
 PANELAPP = "https://panelapp.genomicsengland.co.uk/api/v1"
 
 
@@ -132,10 +137,18 @@ def zenodo(d: Path, record: str, wanted: tuple, manifest: list) -> None:
         print(f"Zenodo {record}: {e}")
         return
     files = rec.get("files", [])
-    print(f"Zenodo {record}: {[f.get('key') for f in files]}")
+    (d / "kopajtich").mkdir(parents=True, exist_ok=True)
+    (d / "kopajtich" / "CONTENTS.tsv").write_text("archive\tmember\tbytes\n")
+    print(f"Zenodo {record}: " + ", ".join(
+        f"{f.get('key')} ({f.get('size', 0) / 1e6:,.0f} MB)" for f in files))
     for f in files:
         key = f.get("key", "")
         if not any(w in key.lower() for w in wanted):
+            continue
+        if f.get("size", 0) > ZENODO_MAX_GB * 1e9:
+            manifest.append((f"kopajtich/{key}", f.get("size", 0),
+                             f"not downloaded: over {ZENODO_MAX_GB} GB"))
+            print(f"{key}: over {ZENODO_MAX_GB} GB, not downloaded")
             continue
         url = (f.get("links") or {}).get("self") or \
             f"https://zenodo.org/records/{record}/files/{key}?download=1"
@@ -143,9 +156,16 @@ def zenodo(d: Path, record: str, wanted: tuple, manifest: list) -> None:
             import zipfile
             try:
                 with zipfile.ZipFile(d / "kopajtich" / key) as z:
-                    # macOS resource forks and folder files left out
-                    names = [n for n in z.namelist() if not n.endswith("/")
-                             and "__MACOSX" not in n and not n.endswith(".DS_Store")]
+                    info = [i for i in z.infolist() if not i.is_dir()
+                            and "__MACOSX" not in i.filename
+                            and not i.filename.endswith(".DS_Store")]
+                    with open(d / "kopajtich" / "CONTENTS.tsv", "a") as fh:
+                        for i in info:
+                            fh.write(f"{key}\t{i.filename}\t{i.file_size}\n")
+                    # tables only, under 3 GB each (macOS files left out)
+                    names = [i.filename for i in info
+                             if i.filename.lower().endswith(TABLE)
+                             and i.file_size < 3e9]
                     z.extractall(d / "kopajtich", names)
                 print(f"{key}: {len(names)} files extracted to {d / 'kopajtich'}")
                 for n in names:

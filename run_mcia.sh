@@ -214,7 +214,7 @@ do_bundle() {
     local f="mitoloop_regulome_$(date +%Y%m%d_%H%M).tar.gz"
     cp "$LOG" logs/current_run.log
     local items=(logs)
-    for x in genes.txt controls.txt data/MANIFEST.tsv data/panelapp_genes_all.tsv data/genes_renamed.tsv results; do
+    for x in genes.txt controls.txt data/MANIFEST.tsv data/panelapp_genes_all.tsv data/genes_renamed.tsv data/kopajtich/CONTENTS.tsv results; do
         [ -e "$x" ] && items+=("$x")
     done
     # the converted Jiang 2020 tables (derived, ~15 MB compressed): further
