@@ -1,0 +1,20 @@
+# experimental promoter annotations read by run_mcia.sh (promoter_features.py --annotation)
+# name, file (downloaded by fetch_regulome.py --promoter-annotations), mode (overlap, width, label=REGEX),
+# window (bp around the TSS; '-': the promoter, -1000 to +500), source
+name	file	mode	window	source
+epd	data/promoters_exp/Hs_EPDnew_006_hg38.bed	overlap	100	EPDnew 006 (Dreos et al. 2017): experimentally validated TSS
+cage_width	data/promoters_exp/hg38_fair+new_CAGE_peaks_phase1and2.bed.gz	width	200	FANTOM5 CAGE peaks (Forrest et al. 2014): width of the nearest peak, broad or sharp promoter
+screen_PLS	data/promoters_exp/GRCh38-cCREs.bed	label=PLS	200	ENCODE SCREEN cCREs (ENCODE 2020): promoter-like signature
+muscle_TssA	data/promoters_exp/E108_15_coreMarks_hg38lift_mnemonics.bed.gz	label=_TssA$	0	Roadmap ChromHMM 15 states, skeletal muscle female (E108): active TSS
+muscle_bivalent	data/promoters_exp/E108_15_coreMarks_hg38lift_mnemonics.bed.gz	label=TssBiv|BivFlnk	0	Roadmap ChromHMM E108: bivalent TSS
+muscle_repressed	data/promoters_exp/E108_15_coreMarks_hg38lift_mnemonics.bed.gz	label=ReprPC|Quies|Het	0	Roadmap ChromHMM E108: repressed or quiescent
+brain_TssA	data/promoters_exp/E073_15_coreMarks_hg38lift_mnemonics.bed.gz	label=_TssA$	0	Roadmap ChromHMM, dorsolateral prefrontal cortex (E073): active TSS
+chip_NRF1	data/promoters_exp/remap2022_NRF1_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): NRF1 ChIP-seq peaks, all biosamples
+chip_GABPA	data/promoters_exp/remap2022_GABPA_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): GABPA ChIP-seq peaks, all biosamples
+chip_YY1	data/promoters_exp/remap2022_YY1_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): YY1 ChIP-seq peaks, all biosamples
+chip_ESRRA	data/promoters_exp/remap2022_ESRRA_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): ESRRA ChIP-seq peaks, all biosamples
+chip_SP1	data/promoters_exp/remap2022_SP1_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): SP1 ChIP-seq peaks, all biosamples
+chip_NFYA	data/promoters_exp/remap2022_NFYA_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): NFYA ChIP-seq peaks, all biosamples
+chip_CREB1	data/promoters_exp/remap2022_CREB1_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): CREB1 ChIP-seq peaks, all biosamples
+chip_CTCF	data/promoters_exp/remap2022_CTCF_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): CTCF ChIP-seq peaks, all biosamples
+chip_TBP	data/promoters_exp/remap2022_TBP_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): TBP ChIP-seq peaks, all biosamples

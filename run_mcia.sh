@@ -89,7 +89,7 @@ do_fetch() {
     # GTEx and GENCODE first: the gene set is written under the GTF symbols
     step gtex_fetch python3 scripts/gtex_eqtl.py fetch --datadir data
     local r2=$?
-    local opt=(--datadir data --genes genes.txt --validation --gtf "$GTF")
+    local opt=(--datadir data --genes genes.txt --validation --promoter-annotations --gtf "$GTF")
     [ -n "${NO_GENOME:-}" ] && opt+=(--no-genome)
     step fetch_regulome python3 scripts/fetch_regulome.py "${opt[@]}" ${reuse[@]+"${reuse[@]}"}
     local r1=$?
@@ -136,6 +136,15 @@ do_run() {
     [ -s data/GRCh38.fa ] && prom+=(--fasta data/GRCh38.fa)
     [ -s data/cpgIslandExt.txt.gz ] && prom+=(--cpg-islands data/cpgIslandExt.txt.gz)
     [ -s config/methylation.tsv ] && prom+=(--meth-table config/methylation.tsv)
+    # experimental annotations (config/promoter_annotations.tsv), those present
+    if [ -s config/promoter_annotations.tsv ]; then
+        while IFS=$'\t' read -r name file mode win _src; do
+            case "$name" in ''|'#'*|name) continue ;; esac
+            [ -s "$file" ] || continue
+            [ "$win" = - ] && win=""
+            prom+=(--annotation "$name=$file:$mode${win:+:$win}")
+        done < config/promoter_annotations.tsv
+    fi
     step promoters python3 scripts/promoter_features.py "${prom[@]}" || rc=1
     # 5. L1, when the matched RNA and protein of the GTEx tissue proteome are
     #    there (Tables S2 and S3 of Jiang et al. 2020, converted above)

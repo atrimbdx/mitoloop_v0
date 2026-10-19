@@ -470,6 +470,15 @@ present, adds promoter methylation. The steps take about two minutes in
 all, so `bash run_mcia.sh all` can also run on the login node
 (`nohup nice bash run_mcia.sh all > logs/all_login.out 2>&1 &`).
 
+Promoters are also described from experimental data when `fetch` could
+download them (`config/promoter_annotations.tsv`, read by `run`): EPDnew
+validated TSS, FANTOM5 CAGE peak width (broad or sharp promoters), ENCODE
+SCREEN promoter-like cCREs, Roadmap ChromHMM states at the TSS in skeletal
+muscle and brain, and ReMap 2022 ChIP-seq peaks of NRF1, GABPA, YY1,
+ESRRA, SP1, NFYA, CREB1, CTCF and TBP (`promoter_features.py
+--annotation`). A source that failed is skipped and listed in
+`data/MANIFEST.tsv`.
+
 The gene set is written under the symbols of the GENCODE GTF: PanelApp
 keeps old HGNC symbols (ATP5A1 for ATP5F1A, APOPT1 for COA8), resolved
 with the alias table of `re2g_panel.py` in both directions;

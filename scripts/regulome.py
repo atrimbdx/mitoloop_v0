@@ -1053,8 +1053,9 @@ def cmd_compare(a) -> None:
 
     if a.promoters:
         per_gene(a.promoters, ["gc", "cpg_oe", "cpg_island", "bidirectional",
-                               "n_promoter_loops", "motif_"], "promoter",
-                 binary=("motif_", "cpg_island", "bidirectional"))
+                               "n_promoter_loops", "motif_", "exp_", "expw_"],
+                 "promoter",
+                 binary=("motif_", "cpg_island", "bidirectional", "exp_"))
         hcp = np.full(n, np.nan)
         for r in read_table(a.promoters):
             i = gi.get(r["gene"])
