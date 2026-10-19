@@ -56,15 +56,14 @@ SOURCES = {
         "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz"],
 }
 VALIDATION = {
-    "kopajtich/raw_counts.tsv": [
-        "https://zenodo.org/records/4501904/files/raw_counts.tsv?download=1"],
-    "kopajtich/proteomics_not_normalized.tsv": [
-        "https://zenodo.org/records/4501904/files/proteomics_not_normalized.tsv?download=1"],
-    "kopajtich/proteomics_annotation.tsv": [
-        "https://zenodo.org/records/4501904/files/proteomics_annotation.tsv?download=1"],
     "attenuation.csv": [
         "https://raw.githubusercontent.com/saezlab/protein_attenuation/master/tables/protein_attenuation_table.csv"],
 }
+# patient fibroblasts, RNA-seq and proteomics (Kopajtich et al.): the files
+# of the Zenodo record whose name holds one of these words; their exact names
+# are read from the record
+ZENODO_RECORD = "4501904"
+ZENODO_WANTED = ("count", "proteomics", "annotation", "sample")
 PANELAPP = "https://panelapp.genomicsengland.co.uk/api/v1"
 
 
@@ -117,6 +116,25 @@ def fetch(name: str, urls: list, d: Path, reuse: list, manifest: list) -> bool:
         print(f"  failed: {err}")
     manifest.append((name, 0, f"ERROR {err}"))
     return False
+
+
+def zenodo(d: Path, record: str, wanted: tuple, manifest: list) -> None:
+    """the files of a Zenodo record whose name contains one of `wanted`"""
+    try:
+        rec = get_json(f"https://zenodo.org/api/records/{record}")
+    except Exception as e:
+        manifest.append((f"zenodo:{record}", 0, f"ERROR {type(e).__name__}: {e}"))
+        print(f"Zenodo {record}: {e}")
+        return
+    files = rec.get("files", [])
+    print(f"Zenodo {record}: {[f.get('key') for f in files]}")
+    for f in files:
+        key = f.get("key", "")
+        if not any(w in key.lower() for w in wanted):
+            continue
+        url = (f.get("links") or {}).get("self") or \
+            f"https://zenodo.org/records/{record}/files/{key}?download=1"
+        fetch(f"kopajtich/{key}", [url], d, [], manifest)
 
 
 def panelapp(d: Path, name: str, manifest: list) -> list:
@@ -177,12 +195,13 @@ def main():
                 ok = False
             continue
         ok &= fetch(name, urls, d, reuse, manifest)
-    if a.validation:
+    if a.validation:                           # optional: never a failure
         for name, urls in VALIDATION.items():
-            fetch(name, urls, d, reuse, manifest)   # optional: no failure
+            fetch(name, urls, d, reuse, manifest)
+        zenodo(d, ZENODO_RECORD, ZENODO_WANTED, manifest)
     # the gene set
     try:
-        panel = panelapp(d, a.panel_name, manifest)
+        panel = panelapp(d, a.panel_name, manifest)    # kept when present
     except Exception as e:
         print(f"PanelApp failed ({type(e).__name__}: {e}); MitoCarta genes only")
         manifest.append(("panelapp_genes_all.tsv", 0, f"ERROR {e}"))
@@ -190,10 +209,18 @@ def main():
     mc = []
     if (d / "Human.MitoCarta3.0.xls").exists():
         from regulome import read_mitocarta
-        genes, _ = read_mitocarta(d / "Human.MitoCarta3.0.xls", None)
-        mc = sorted(genes)
+        try:
+            genes, _ = read_mitocarta(d / "Human.MitoCarta3.0.xls", None)
+            mc = sorted(genes)
+        except (Exception, SystemExit) as e:
+            print(f"MitoCarta3.0 unreadable ({type(e).__name__}: {e})")
+            ok = False
+    if not mc:
+        print("no MitoCarta3.0 gene: genes.txt not written")
+        ok = False
     gs = sorted(set(mc) | set(panel))
-    a.genes.write_text("\n".join(gs) + "\n")
+    if mc:
+        a.genes.write_text("\n".join(gs) + "\n")
     print(f"gene set: {len(mc)} MitoCarta3.0 + {len(set(panel) - set(mc))} PanelApp "
           f"outside MitoCarta = {len(gs)} genes -> {a.genes}")
     with open(d / "MANIFEST.tsv", "w") as fh:

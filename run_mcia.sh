@@ -17,7 +17,7 @@
 # Outputs      .venv-regulome/, data/, genes.txt, controls.txt,
 #              results/regulome, results/promoters, results/l1,
 #              mitoloop_regulome_<date>.tar.gz (everything to send back)
-# Usage        bash run_mcia.sh setup|fetch|run|bundle|all
+# Usage        bash run_mcia.sh setup|selftest|fetch|run|bundle|all
 #              PYTHON=/path/to/python3 to use another interpreter for setup;
 #              REUSE=dir to link files already downloaded (default
 #              ../mitoshow/data); NO_GENOME=1 to skip the GRCh38 FASTA.
@@ -161,6 +161,16 @@ do_run() {
     return $rc
 }
 
+# the tests of the scripts used here, on synthetic data: checks the Python
+# environment of the cluster in a few seconds, before the real run
+do_selftest() {
+    local rc=0
+    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh; do
+        step selftest bash "$t" || rc=1
+    done
+    return $rc
+}
+
 do_bundle() {
     local f="mitoloop_regulome_$(date +%Y%m%d_%H%M).tar.gz"
     cp "$LOG" logs/current_run.log
@@ -183,11 +193,12 @@ if [ "$STEP" != setup ] && ! python3 -c 'import sys; sys.exit(sys.version_info <
 fi
 case "$STEP" in
     setup) do_setup ;;
+    selftest) do_selftest ;;
     fetch) do_fetch ;;
     run) do_run ;;
     bundle) do_bundle ;;
     all) do_fetch; do_run; r=$?; do_bundle; (exit $r) ;;
-    *) echo "unknown step $STEP (setup|fetch|run|bundle|all)"; exit 2 ;;
+    *) echo "unknown step $STEP (setup|selftest|fetch|run|bundle|all)"; exit 2 ;;
 esac
 rc=$?
 echo "== $(date -Is) end of $STEP (status $rc)"

@@ -148,14 +148,21 @@ def load_genes(gtf: Path, gene_type: str, density_window: int) -> pd.DataFrame:
     return g
 
 
-def load_tpm_matrix(path: Path, symbol_col: str) -> pd.DataFrame:
-    """Median TPM per gene per tissue, indexed by gene symbol."""
+def load_tpm_matrix(path: Path, symbol_col: str):
+    """Median TPM per gene per tissue, indexed by Ensembl id without version
+    (the Name column) and by gene symbol: the ids are stable across GENCODE
+    releases, the symbols are not (GTEx v8 is GENCODE v26)."""
     d = pd.read_csv(path, sep="\t", skiprows=2, low_memory=False)
     if symbol_col not in d.columns:
         sys.exit(f"expected a {symbol_col} column in the GCT")
     num = d.select_dtypes("number")
-    num.index = d[symbol_col].astype(str)
-    return num[~num.index.duplicated()]
+    by_sym = num.set_axis(d[symbol_col].astype(str))
+    by_sym = by_sym[~by_sym.index.duplicated()]
+    by_id = None
+    if "Name" in d.columns:
+        by_id = num.set_axis(d["Name"].astype(str).str.split(".").str[0])
+        by_id = by_id[~by_id.index.duplicated()]
+    return by_id, by_sym
 
 
 def exclude_near(pool: pd.DataFrame, mito: pd.DataFrame,
@@ -267,19 +274,25 @@ def main() -> None:
 
     wanted = set(Path(args.genes).read_text().split())
     genes = load_genes(args.gtf, args.gene_type, args.density_window)
-    tpm = load_tpm_matrix(args.tpm, args.tpm_symbol_column)
+    tpm_id, tpm_sym = load_tpm_matrix(args.tpm, args.tpm_symbol_column)
     print(f"{len(genes):,} {args.gene_type} genes, "
-          f"{tpm.shape[1]} tissues in the TPM matrix")
+          f"{tpm_sym.shape[1]} tissues in the TPM matrix")
 
-    lt = np.log10(tpm + 1)
-    genes["log_tpm"] = genes["gene_name"].map(lt.median(axis=1))
-    genes["tpm_sd"] = genes["gene_name"].map(lt.std(axis=1))
+    # per gene: by Ensembl id, else by symbol
+    def per_gene(f):
+        v = genes["gene_name"].map(f(tpm_sym))
+        if tpm_id is not None:
+            v = genes["gene_id"].map(f(tpm_id)).fillna(v)
+        return v
+    genes["log_tpm"] = per_gene(lambda t: np.log10(t + 1).median(axis=1))
+    genes["tpm_sd"] = per_gene(lambda t: np.log10(t + 1).std(axis=1))
+    genes["tpm_max"] = per_gene(lambda t: t.max(axis=1))
     genes["log_len"] = np.log10(genes["length"].clip(lower=1))
     genes["log_dens"] = np.log10(genes["density"] + 1)
     feats = ["log_tpm", "tpm_sd", "log_len", "log_dens"]
 
     genes = genes.dropna(subset=feats)
-    genes = genes[genes["gene_name"].map(tpm.max(axis=1)) > args.min_tpm]
+    genes = genes[genes["tpm_max"] > args.min_tpm]
 
     is_mito = genes["gene_name"].isin(wanted)
     mito = genes[is_mito].copy()

@@ -439,6 +439,7 @@ login node.
 cd ~/mitoloop_v0                       # or: git clone https://github.com/atrimbdx/mitoloop_v0.git
 git fetch origin && git checkout claude/eloquent-babbage-yz27n1 && git pull
 bash run_mcia.sh setup                 # once; if python3 < 3.9: module load python first
+bash run_mcia.sh selftest              # tests of the scripts on synthetic data (~1 min)
 bash run_mcia.sh fetch                 # login node: MitoCarta, PanelApp, GO, GTEx, GENCODE,
                                        # GRCh38 + CpG islands (~5 GB), Kopajtich; files of
                                        # ../mitoshow/data are linked, not downloaded again
