@@ -60,7 +60,9 @@ Inputs
 
 Outputs
     score (in --out)
-      l1.tsv            per gene: gene, gene_id, set, n_tissues, n_pairs,
+      l1.tsv            per gene (score_resid: L1 minus the median L1 of
+                        the genes with the same mRNA variation): gene,
+                        gene_id, set, n_tissues, n_pairs,
                         sd_rna, sd_protein (across tissue means, log2),
                         rel_rna, rel_protein, rel_ratio (split-half
                         reliabilities), r and rho (raw Pearson and Spearman
@@ -635,6 +637,10 @@ def cmd_score(a) -> None:
         resid[ok] = sub_sc - med[bins]
     sets = np.array([r["set"] for r in rows])
     ctrl = resid[(sets == "control") & ~np.isnan(resid)]
+    # per gene: the score at equal mRNA variation, for ranking genes
+    for r, x in zip(rows, resid):
+        r["score_resid"] = x
+    write_tsv(out / "l1.tsv", rows, cols + ["score_resid"])
 
     summ = []
     statuses = ["estimable", "estimable_uncorrected", "unreliable", "flat",

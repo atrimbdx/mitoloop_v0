@@ -1053,7 +1053,8 @@ def cmd_compare(a) -> None:
 
     if a.promoters:
         per_gene(a.promoters, ["gc", "cpg_oe", "cpg_island", "bidirectional",
-                               "n_promoter_loops", "motif_", "exp_", "expw_"],
+                               "n_promoter_loops", "motif_", "exp_", "expw_",
+                               "expn_"],
                  "promoter",
                  binary=("motif_", "cpg_island", "bidirectional", "exp_"))
         hcp = np.full(n, np.nan)

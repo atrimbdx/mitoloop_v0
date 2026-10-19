@@ -166,7 +166,8 @@ do_run() {
         step l1_raw python3 scripts/l1_score.py score "${l1[@]/results\/l1/results/l1_raw}" \
             --no-content-adjustment || rc=1
         if [ -s results/l1/l1.tsv ]; then
-            score=(--scores results/l1/l1.tsv)
+            # genes ranked on L1 at equal mRNA variation (score_resid)
+            score=(--scores results/l1/l1.tsv --score-column score_resid)
             local val=(--l1 results/l1/l1.tsv --gtf "$GTF" --out results/l1/validation)
             [ -s results/l1_raw/l1.tsv ] && val+=(--replicate results/l1_raw/l1.tsv)
             # protein buffering of copy number in tumours (Goncalves et al.

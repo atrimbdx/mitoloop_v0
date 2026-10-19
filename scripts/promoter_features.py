@@ -78,6 +78,11 @@ Inputs
                     width        expw_NAME = width of the overlapping
                                  interval nearest the TSS (FANTOM5 CAGE
                                  peaks: broad or sharp promoters)
+                    biotypes     expn_NAME = largest number of biosamples
+                                 of an overlapping peak, read from the
+                                 name column 'TF:biosample1,biosample2'
+                                 (ReMap non-redundant peaks), 0 without
+                                 a peak: how reproducible the binding is
                     label=REGEX  exp_NAME = 1 when an overlapping interval
                                  has a column beyond the third matching
                                  REGEX (ChromHMM state 'TssA', SCREEN cCRE
@@ -487,7 +492,7 @@ def hits(iv: dict, chrom, s, e) -> list:
 
 
 def annotate(spec: str, rows: list):
-    m = re.match(r"^([A-Za-z0-9_.-]+)=(.+?)(?::(overlap|width|label=[^:]+))?"
+    m = re.match(r"^([A-Za-z0-9_.-]+)=(.+?)(?::(overlap|width|biotypes|label=[^:]+))?"
                  r"(?::(\d+))?$", spec)
     if not m:
         sys.exit(f"--annotation {spec!r}: expected NAME=PATH[:MODE][:WINDOW]")
@@ -499,7 +504,8 @@ def annotate(spec: str, rows: list):
         return [], []
     iv = load_labelled(path)
     rx = re.compile(mode[6:], re.I) if mode.startswith("label=") else None
-    col = f"expw_{name}" if mode == "width" else f"exp_{name}"
+    col = {"width": f"expw_{name}", "biotypes": f"expn_{name}"}.get(
+        mode, f"exp_{name}")
     n = 0
     for r in rows:
         if win is not None:
@@ -516,6 +522,14 @@ def annotate(spec: str, rows: list):
                 n += 1
             else:
                 r[col] = np.nan
+        elif mode == "biotypes":
+            best = 0
+            for j in k:
+                nm = iv[c][2][j].split("\t")[0]
+                bio = nm.split(":", 1)[1] if ":" in nm else nm
+                best = max(best, len({b for b in bio.split(",") if b}))
+            r[col] = best
+            n += best > 0
         elif rx is not None:
             r[col] = int(any(rx.search(x) for j in k
                              for x in iv[c][2][j].split("\t"))) if len(k) else 0
@@ -526,7 +540,7 @@ def annotate(spec: str, rows: list):
     print(f"annotation {name} ({mode}, "
           f"{'promoter' if win is None else f'TSS +/- {win} bp'}): "
           f"{n} of {len(rows)} promoters")
-    return ([], [col]) if mode == "width" else ([col], [])
+    return ([], [col]) if mode in ("width", "biotypes") else ([col], [])
 
 
 # ---------------------------------------------------------------------------

@@ -103,7 +103,7 @@ f = pd.read_csv("pf/promoter_features.tsv", sep="\t")
 tss = dict(zip(f.gene, f.tss))
 with open("chip.bed", "w") as fh:
     for g in f[f.set == "mito"].gene:
-        fh.write(f"chr1\t{tss[g] - 100}\t{tss[g] + 100}\tpeak\n")
+        fh.write(f"chr1\t{tss[g] - 100}\t{tss[g] + 100}\tNRF1:K-562,HepG2,GM12878\n")
     fh.write(f"chr1\t{tss['CTRLG2'] - 50000}\t{tss['CTRLG2'] - 20000}\tlong\n")
     fh.write(f"chr1\t{tss['CTRLG2'] - 30000}\t{tss['CTRLG2'] - 29000}\tshort\n")
 with open("cage.bed", "w") as fh:
@@ -127,8 +127,11 @@ python3 "$SCRIPTS/promoter_features.py" --gtf gencode.gtf.gz \
     --annotation chip=chip.bed --annotation cage=cage.bed:width:200 \
     --annotation tssA=states.bed.gz:label=TssA:0 \
     --annotation pls=ccre.bed:label=^PLS --annotation epd=epd.bed:overlap:100 \
+    --annotation bound=chip.bed:biotypes \
     --annotation absent=nofile.bed > pa.log
 [ "$(cell pa/promoter_features.tsv exp_epd MITOG5)" = 1 ] || fail "EPDnew BED with spaces"
+[ "$(cell pa/promoter_features.tsv expn_bound MITOG3)" = 3 ] || fail "ReMap biosamples"
+[ "$(cell pa/promoter_features.tsv expn_bound CTRLG2)" = 0 ] || fail "no ReMap peak"
 [ "$(cell pa/promoter_features.tsv exp_epd MITOG6)" = 0 ] || fail "no EPDnew TSS"
 A=pa/promoter_features.tsv
 [ "$(cell $A exp_chip MITOG3)" = 1 ] || fail "ChIP peak on a target"
