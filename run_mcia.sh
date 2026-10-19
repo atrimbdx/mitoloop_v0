@@ -172,10 +172,17 @@ do_run() {
             # protein buffering of copy number in tumours (Goncalves et al.
             # 2017): buffered proteins should have a low L1
             [ -s data/attenuation.csv ] && val+=(--external attenuation=data/attenuation.csv:attenuation:-)
-            [ -s data/kopajtich/raw_counts.tsv ] && [ -s data/kopajtich/pairs.tsv ] && \
-                val+=(--patients-rna data/kopajtich/raw_counts.tsv
-                      --patients-protein data/kopajtich/proteomics_not_normalized.tsv
-                      --patients-samples data/kopajtich/pairs.tsv)
+            # patient fibroblasts (Kopajtich et al.): does a collapse of the
+            # mRNA reach the protein, more for genes of high L1?
+            if [ -s data/kopajtich/raw_data/raw_counts.tsv ] && \
+                    [ ! data/kopajtich/patients_samples.tsv -nt data/kopajtich/raw_data/raw_counts.tsv ]; then
+                step kopajtich python3 scripts/kopajtich_tables.py --dir data/kopajtich/raw_data \
+                    --gtf "$GTF" --out data/kopajtich --report results/kopajtich || rc=1
+            fi
+            [ -s data/kopajtich/patients_samples.tsv ] && \
+                val+=(--patients-rna data/kopajtich/patients_rna.tsv
+                      --patients-protein data/kopajtich/patients_protein.tsv
+                      --patients-samples data/kopajtich/patients_samples.tsv)
             step l1_validate python3 scripts/l1_score.py validate "${val[@]}" || rc=1
         fi
     else
@@ -213,7 +220,7 @@ do_jiang() {
 # environment of the cluster in a few seconds, before the real run
 do_selftest() {
     local rc=0
-    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh; do
+    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh tests/test_kopajtich.sh; do
         step selftest bash "$t" || rc=1
     done
     return $rc

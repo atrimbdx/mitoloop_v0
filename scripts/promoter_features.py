@@ -455,13 +455,16 @@ def load_labelled(path: Path) -> dict:
         for line in fh:
             if line.startswith(("#", "track", "browser")):
                 continue
-            f = line.rstrip("\n").split("\t")
+            line = line.rstrip("\n")
+            # tab-separated; EPDnew writes its BED with spaces
+            f = line.split("\t") if "\t" in line else line.split()
             if len(f) >= 4 and f[0].isdigit() and not f[1].isdigit():
                 f = f[1:]                               # UCSC bin column
             try:
-                iv[f[0]].append((int(f[1]), int(f[2]), "\t".join(f[3:])))
+                x = (int(f[1]), int(f[2]), "\t".join(f[3:]))
             except (IndexError, ValueError):
                 continue
+            iv[f[0]].append(x)
     out = {}
     for c, v in iv.items():
         v.sort()

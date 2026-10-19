@@ -54,6 +54,7 @@ PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 | `scripts/regulome.py` | Python | `pathways`: MitoPathways layer per gene, inferred from GO where MitoCarta has none; `modes`: score per gene and mode of regulation from expression data; `compare`: promoters, elements, loops and methylation along the score |
 | `scripts/l1_score.py` | Python | `score`: L1 per gene and per complex from RNA and protein of the same samples, corrected for noise and mitochondrial content; `validate`: agreement with another atlas, published per-gene scores and patient fibroblasts with RNA-seq and proteomics |
 | `scripts/jiang2020_tables.py` | Python | the per-sample protein and RNA of Jiang et al. 2020 (Tables S2 and S3) as the inputs of `l1_score.py`, and tissue medians for `regulome.py modes` |
+| `scripts/kopajtich_tables.py` | Python | the RNA-seq and proteomics of the patient fibroblasts of Kopajtich et al. as the inputs of `l1_score.py validate` |
 | `scripts/vcf_annotate.py` | Python | `regions`: annotated BED of promoters, UTRs, coding exons, elements, loop anchors and other BEDs per gene; `annotate`: rare variants of WGS VCFs in these regions with frequency, scores, parental origin or phase, second hits and tiers |
 | `scripts/v4c_pairs.py`, `scripts/v4c_pairs.R` | Python, R | optional module: loops at mitochondrial promoters in two metabolic states of one cell type |
 | `config/` | | example library tables |
@@ -464,7 +465,10 @@ the genes on it in `compare`; without them, on the variability score of
 `modes`. L1 is also computed without the mitochondrial content adjustment
 (`results/l1_raw`, compared as `replicate` in the validation) and
 validated against the protein buffering of copy number of Gonçalves et
-al. 2017 (`attenuation`, expected negative). The converted tables
+al. 2017 (`attenuation`, expected negative) and on the patient
+fibroblasts of Kopajtich et al. (`kopajtich_tables.py`: an mRNA that
+collapses in one patient should take its protein down, more for genes of
+high L1). The converted tables
 (`data/jiang2020_*.tsv`) go into the archive. `config/methylation.tsv`, when
 present, adds promoter methylation. The steps take about two minutes in
 all, so `bash run_mcia.sh all` can also run on the login node

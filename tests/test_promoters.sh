@@ -115,6 +115,9 @@ with gzip.open("states.bed.gz", "wt") as fh:
                    (tss["CTRLG30"] - 500_000, tss["CTRLG30"] + 500_000, "15_Quies")])
     for s, e, n in rows:
         fh.write(f"chr1\t{s}\t{e}\t{n}\n")
+with open("epd.bed", "w") as fh:                    # EPDnew: spaces, a header
+    fh.write("track name=EPDnew\n")
+    fh.write(f"chr1 {tss['MITOG5'] - 49} {tss['MITOG5'] + 11} MITOG5_1 900 +\n")
 with open("ccre.bed", "w") as fh:
     fh.write(f"chr1\t{tss['MITOG7'] - 150}\t{tss['MITOG7'] + 150}\tEH38D1\tEH38E1\tPLS,CTCF-bound\n")
     fh.write(f"chr1\t{tss['MITOG8'] - 900}\t{tss['MITOG8'] - 600}\tEH38D2\tEH38E2\tpELS\n")
@@ -123,7 +126,10 @@ python3 "$SCRIPTS/promoter_features.py" --gtf gencode.gtf.gz \
     --genes genes.txt --controls controls.txt --perms 50 --out pa \
     --annotation chip=chip.bed --annotation cage=cage.bed:width:200 \
     --annotation tssA=states.bed.gz:label=TssA:0 \
-    --annotation pls=ccre.bed:label=^PLS --annotation absent=nofile.bed > pa.log
+    --annotation pls=ccre.bed:label=^PLS --annotation epd=epd.bed:overlap:100 \
+    --annotation absent=nofile.bed > pa.log
+[ "$(cell pa/promoter_features.tsv exp_epd MITOG5)" = 1 ] || fail "EPDnew BED with spaces"
+[ "$(cell pa/promoter_features.tsv exp_epd MITOG6)" = 0 ] || fail "no EPDnew TSS"
 A=pa/promoter_features.tsv
 [ "$(cell $A exp_chip MITOG3)" = 1 ] || fail "ChIP peak on a target"
 [ "$(cell $A exp_chip CTRLG2)" = 0 ] || fail "ChIP peak away from the promoter"
