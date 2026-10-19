@@ -97,7 +97,13 @@ do_fetch() {
 }
 
 do_run() {
-    local rc=0
+    local rc=0 miss=()
+    for x in genes.txt "$MITOCARTA" "$GTF" "$TPM" "$EQTL" "$GAF" "$OBO"; do [ -s "$x" ] || miss+=("$x"); done
+    if [ ${#miss[@]} -gt 0 ]; then
+        echo "== missing inputs: ${miss[*]}"
+        echo "   run 'bash run_mcia.sh fetch' on the login node first (see data/MANIFEST.tsv for failed downloads)"
+        return 1
+    fi
     # 1. functional layer of each gene (MitoPathways; GO inference elsewhere)
     step pathways python3 scripts/regulome.py pathways --mitocarta "$MITOCARTA" ${MITOPATHWAYS:+--mitopathways "$MITOPATHWAYS"} \
         --genes genes.txt --gaf "$GAF" --obo "$OBO" \
@@ -158,8 +164,8 @@ do_run() {
 do_bundle() {
     local f="mitoloop_regulome_$(date +%Y%m%d_%H%M).tar.gz"
     cp "$LOG" logs/current_run.log
-    local items=(logs genes.txt)
-    for x in controls.txt data/MANIFEST.tsv data/panelapp_genes_all.tsv results; do
+    local items=(logs)
+    for x in genes.txt controls.txt data/MANIFEST.tsv data/panelapp_genes_all.tsv results; do
         [ -e "$x" ] && items+=("$x")
     done
     # results only: the inputs stay on the cluster
