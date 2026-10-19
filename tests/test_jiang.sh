@@ -17,6 +17,11 @@
 #              protein (paired by donor and tissue site, tissue from a GTEx
 #              attributes file), RNA as ln(TPM + 1); the per-tissue protein
 #              table under the tissue names of a GTEx-like TPM table.
+#              Layout 3, as published (Tables S2 and S3 of the article):
+#              readme and empty sheets first, title rows, a tissue row above
+#              the GTEx sample ids, 'NA' strings, RNA and protein aliquots
+#              with different SM- suffixes, RNA as log2(TPM) with negative
+#              values.
 # Usage        bash tests/test_jiang.sh
 
 set -euo pipefail
@@ -55,7 +60,7 @@ def book(path, sheets):
     wb.save(path)
 
 
-for lay in (1, 2):
+for lay in (1, 2, 3):
     d = f"lay{lay}"
     import os
     os.makedirs(d, exist_ok=True)
@@ -78,6 +83,49 @@ for lay in (1, 2):
         book(f"{d}/1-s2.0-X-mmc3.xlsx", [(names[0], tab), (names[1], [["x"]]),
                                          (names[2], [["x"]]), (names[3], prows)])
         book(f"{d}/1-s2.0-X-mmc4.xlsx", [("A. RNA TPM", rrows), ("B. medians", [["x"]])])
+    elif lay == 3:
+        # as published: readme and empty sheets first, title rows, a tissue
+        # row above the GTEx ids, 'NA' strings, RNA as log2(TPM) with a floor
+        site = {t: f"{1000 + i:04d}" for i, t in enumerate(tissues)}
+        tname = {t: t.replace("_", " - ").title() for t in tissues}
+        pid = {r.protein_sample: f"GTEX-{r.donor}-{site[r.tissue]}-SM-9K{r.Index:03d}"
+               for r in smp.itertuples()}
+        rid = {r.rna_sample: f"GTEX-{r.donor}-{site[r.tissue]}-SM-5H{r.Index:03d}"
+               for r in smp.itertuples()}
+        tis_p = {r.protein_sample: tname[r.tissue] for r in smp.itertuples()}
+        tis_r = {r.rna_sample: tname[r.tissue] for r in smp.itertuples()}
+        tab = [["Table S2. A. Tissue name abbreviations"], [], [],
+               ["1. Tissue name and abbreviation"], [],
+               ["Tissue full name", "Tissue name abbreviations"]] + \
+            [[tname[t], f"X{i}"] for i, t in enumerate(tissues)]
+        P = prot.iloc[:, 1:].round(2).astype(object)
+        P = P.mask(P.index.to_series().apply(lambda i: i % 7 == 0).values[:, None]
+                   & (pd.DataFrame(range(P.shape[1])).T.values % 3 == 0), "NA")
+        prows = [[None, None, "Table S2. D. Cleaned relative protein abundances"], [],
+                 [None, None] + [tis_p[s] for s in prot.columns[1:]],
+                 ["gene.id.full", "gene.id"] + [pid[s] for s in prot.columns[1:]]] + \
+            [[f"ENSG{i:011d}.1", f"ENSG{i:011d}"] + list(v) for i, v in
+             zip(range(len(prot)), P.values.tolist())]
+        # the synthetic GTF ids are ENSG00000000000-...: map them by name
+        gid = dict(zip(rna.Description, rna.Name))
+        prows[4:] = [[gid.get(g, r[0]), gid.get(g, r[0]).split(".")[0]] + r[2:]
+                     for g, r in zip(prot.gene, prows[4:])]
+        rrows = [["Table S3. A. Cleaned and normalized RNA TPM in log scale"], [],
+                 [None, None] + [tis_r[s] for s in tpm.columns],
+                 ["gene.id.full", "gene.id"] + [rid[s] for s in tpm.columns]] + \
+            [[e, e.split(".")[0]] + [round(math.log2(max(x, 1e-3)), 3) for x in v]
+             for e, v in zip(rna.Name, tpm.values.tolist())]
+        rrows[-1][2:] = [-9.97] * (len(rrows[-1]) - 2)     # a gene not detected
+        book(f"{d}/1-s2.0-X-mmc3.xlsx", [("readme", [["Table S2. A."], ["Table S2. D."]]),
+                                         ("Sheet1", []), ("A tisse names", tab),
+                                         ("B protein raw abundance", [["x"]]),
+                                         ("C protein normalized abundance", [["x"]]),
+                                         ("D protein relative abundance", prows)])
+        book(f"{d}/1-s2.0-X-mmc4.xlsx", [("ReadMe", [["Table S3. A."]]),
+                                         ("A RNA cleaned log TPM", rrows)])
+        with open(f"{d}/median_tpm.gct", "w") as fh:
+            fh.write("#1.2\n1\t16\nName\tDescription\t" + "\t".join(tname[t] for t in tissues) + "\n")
+            fh.write("ENSG00000000000.2\tMITOG1" + "\t1" * 16 + "\n")
     else:
         site = {t: f"{1000 + i:04d}" for i, t in enumerate(tissues)}
         pid = lambda r: f"GTEX-{r.donor}-{site[r.tissue]}-SM-P{r.Index:03d}"
@@ -107,9 +155,10 @@ PY
 python3 "$SCRIPTS/l1_score.py" score --rna atlas_rna.gct --protein atlas_protein.tsv \
     --samples atlas_samples.tsv --gtf gencode.gtf.gz --genes genes.txt \
     --boot 50 --out ref > /dev/null
-for lay in 1 2; do
+for lay in 1 2 3; do
     att=()
     [ "$lay" = 2 ] && att=(--attributes lay$lay/attributes.txt --tpm lay$lay/median_tpm.gct)
+    [ "$lay" = 3 ] && att=(--tpm lay$lay/median_tpm.gct)
     python3 "$SCRIPTS/jiang2020_tables.py" --dir lay$lay --gtf gencode.gtf.gz \
         --out lay$lay/out --report lay$lay/rep "${att[@]}" > lay$lay/conv.log \
         || { cat lay$lay/conv.log; fail "conversion of layout $lay"; }
@@ -136,7 +185,10 @@ PY
 done
 grep -q "log base 2 taken" lay1/rep/conversion.txt || fail "log base 2"
 grep -q "log base 2.72 taken" lay2/rep/conversion.txt || fail "log base e"
-grep -q "donor and tissue" lay2/rep/conversion.txt || fail "pairing by donor and tissue"
+grep -q "pairs (same GTEx tissue sample)" lay2/rep/conversion.txt || fail "pairing by GTEx tissue sample"
+grep -q "tissue row above the header" lay3/rep/conversion.txt || fail "tissue row, layout 3"
+grep -q "log base 2 taken, values log(TPM + 0)" lay3/rep/conversion.txt || fail "log2 TPM without offset"
+[ "$(head -1 lay3/out/jiang2020_protein.tsv | tr '\t' '\n' | wc -l)" = 17 ] || fail "protein per tissue, layout 3"
 python3 - <<'PY' || fail "protein per tissue"
 import pandas as pd
 t = pd.read_csv("lay2/out/jiang2020_protein.tsv", sep="\t", index_col=0)

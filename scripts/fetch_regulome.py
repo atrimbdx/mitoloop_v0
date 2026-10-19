@@ -143,8 +143,10 @@ def zenodo(d: Path, record: str, wanted: tuple, manifest: list) -> None:
             import zipfile
             try:
                 with zipfile.ZipFile(d / "kopajtich" / key) as z:
-                    z.extractall(d / "kopajtich")
-                    names = [n for n in z.namelist() if not n.endswith("/")]
+                    # macOS resource forks and folder files left out
+                    names = [n for n in z.namelist() if not n.endswith("/")
+                             and "__MACOSX" not in n and not n.endswith(".DS_Store")]
+                    z.extractall(d / "kopajtich", names)
                 print(f"{key}: {len(names)} files extracted to {d / 'kopajtich'}")
                 for n in names:
                     manifest.append((f"kopajtich/{n}", (d / "kopajtich" / n).stat().st_size,

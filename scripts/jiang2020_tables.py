@@ -52,17 +52,21 @@ Usage
 
 Method
     Sheets are read with openpyxl in read-only mode (rows streamed). The
-    header is the first of the first 30 rows with at least half of its
-    cells filled; the sample columns are those numeric in at least 80% of
-    the first 300 data rows; the gene column is, of the other columns, the
-    one with most values that are Ensembl gene ids or GTF symbols. A row
-    above the header whose values repeat over the sample columns is read as
-    a tissue row. RNA and protein samples are paired by name (case, '.',
-    '_' and ' ' ignored), else by donor and tissue. The tissue of a sample
-    is, in this order: the tissue row, the GTEx attributes (exact sample id,
-    or donor and tissue-site code GTEX-XXXX-NNNN), the abbreviations of
-    Table S2 sheet A found as a token of the sample name. The RNA log base
-    (2, e or 10, with +1) is the one that brings the median sample sum of
+    header is the row just above the first row holding a gene (Ensembl id
+    or GTF symbol in one of its first five cells); the sample columns are
+    those whose filled cells ('NA' counts as empty) are numeric for at least
+    80%; the gene column is, of the other columns, the one with most values
+    that are Ensembl gene ids or GTF symbols. A row above the header whose
+    values repeat over the sample columns is read as a tissue row (as
+    published: GTEx tissue names above the GTEx sample ids). RNA and protein
+    samples are paired by name, by GTEx tissue sample (GTEX-donor-site: the
+    RNA-seq and proteomics aliquots differ in their SM- suffix) or by donor
+    and tissue, whichever pairs most. The tissue of a sample is, in this
+    order: the tissue row, the GTEx attributes (exact sample id, or donor
+    and tissue-site code), the abbreviations of Table S2 sheet A found as a
+    token of the sample name. The RNA values are log_b(TPM + c), c = 0 when
+    some are negative (as published: log2 TPM down to about -10) and 1
+    otherwise, and b (2, e or 10) brings the median sample sum of
     protein-coding TPM closest to 10^6.
 """
 
@@ -134,6 +138,13 @@ def describe(path: Path, fh, rows=6, cols=12):
     wb.close()
 
 
+MISSING = ("", "na", "nan", "n/a", "none", "null", "-")
+
+
+def missing(v) -> bool:
+    return v is None or (isinstance(v, str) and v.strip().lower() in MISSING)
+
+
 def is_num(v) -> bool:
     if isinstance(v, (int, float)) and not isinstance(v, bool):
         return True
@@ -163,8 +174,15 @@ def read_sheet(ws, names: set, rep, label: str):
         if len(head_rows) >= 30:
             break
     width = max(len(r) for r in head_rows)
-    hi = next(i for i, r in enumerate(head_rows)
-              if sum(v not in (None, "") for v in r) >= width / 2)
+    # the header is the row just above the first row that starts with a
+    # gene (Ensembl id or GTF symbol in one of its first 5 cells); else the
+    # first row with half of its cells filled
+    first = next((i for i, r in enumerate(head_rows) if i > 0 and any(
+        isinstance(v, str) and (ENSG.match(v.strip()) or v.strip() in names)
+        for v in r[:5])), None)
+    hi = first - 1 if first is not None else next(
+        i for i, r in enumerate(head_rows)
+        if sum(v not in (None, "") for v in r) >= width / 2)
     header = ["" if v is None else str(v).strip() for v in head_rows[hi]]
     header += [""] * (width - len(header))
     above = head_rows[hi - 1] if hi > 0 else None
@@ -174,14 +192,18 @@ def read_sheet(ws, names: set, rep, label: str):
     data = [list(r) + [None] * (width - len(r)) for r in data
             if any(v not in (None, "") for v in r)]
     probe = data[:300]
-    numeric = [sum(is_num(r[j]) for r in probe) >= 0.8 * len(probe)
-               for j in range(width)]
+    # numeric: 80% of the filled cells ('NA' is empty), and some filled
+    numeric = []
+    for j in range(width):
+        filled = [r[j] for r in probe if not missing(r[j])]
+        numeric.append(len(filled) >= 0.1 * len(probe) and
+                       sum(is_num(v) for v in filled) >= 0.8 * len(filled))
     # the gene column: Ensembl ids or GTF symbols
     best, best_n = None, 0
     for j in range(width):
         if numeric[j]:
             continue
-        vals = [str(r[j]).strip() for r in probe if r[j] not in (None, "")]
+        vals = [str(r[j]).strip() for r in probe if not missing(r[j])]
         n = sum(bool(ENSG.match(v)) or v in names for v in vals)
         if n > best_n:
             best, best_n = j, n
@@ -241,11 +263,14 @@ def abbreviations(wb, rep) -> dict:
     out = {}
     if ws is None:
         return out
-    for r in ws.iter_rows(max_row=200, values_only=True):
+    for r in ws.iter_rows(max_row=200, max_col=10, values_only=True):
         cells = [str(v).strip() for v in r if v not in (None, "")]
-        if len(cells) >= 2 and re.fullmatch(r"[A-Za-z0-9]{2,12}", cells[0]) \
-                and len(cells[1]) > len(cells[0]):
-            out[cells[0].upper()] = cells[1]
+        if len(cells) < 2:
+            continue
+        ab, full = sorted(cells[:2], key=len)       # either order
+        if re.fullmatch(r"[A-Za-z0-9]{2,12}", ab) and len(full) > len(ab) \
+                and not re.search(r"abbreviation", ab + full, re.I):
+            out[ab.upper()] = full
     log(rep, f"Table S2 sheet {ws.title!r}: {len(out)} tissue abbreviations "
              f"{list(out.items())[:3]}")
     return out
@@ -283,7 +308,8 @@ def tissue_of(name, tissue_row, attrs, by_site, abbr):
 
 
 def log_base(M, genes, coding, rep):
-    """base b of values log_b(TPM + 1): median column sum of protein-coding
+    """(b, c) of values log_b(TPM + c): c = 1, or 0 when some values are
+    negative; b the base bringing the median column sum of protein-coding
     TPM closest to 1e6"""
     rows = [i for i, g in enumerate(genes) if g in coding]
     if len(rows) < 1000:
@@ -292,18 +318,21 @@ def log_base(M, genes, coding, rep):
     if vmax > 50:
         log(rep, f"RNA: maximum {vmax:.0f}, values taken as TPM (not log)")
         return None
+    vmin = min((x for i in rows for x in M[i] if not math.isnan(x)), default=0)
+    c = 0.0 if vmin < 0 else 1.0
     best, err = 2.0, math.inf
     for b in (2.0, math.e, 10.0):
-        sums = sorted(sum(b ** M[i][j] - 1 for i in rows
+        sums = sorted(sum(b ** M[i][j] - c for i in rows
                           if not math.isnan(M[i][j]))
                       for j in range(len(M[0])))
         med = sums[len(sums) // 2]
         e = abs(math.log10(max(med, 1e-9)) - 6)
-        log(rep, f"RNA log base {b:.3g}: median sample sum of TPM {med:,.0f}")
+        log(rep, f"RNA log base {b:.3g} (+{c:g}): median sample sum of TPM {med:,.0f}")
         if e < err:
             best, err = b, e
-    log(rep, f"RNA: log base {best:.3g} taken")
-    return best
+    log(rep, f"RNA: log base {best:.3g} taken, values log(TPM + {c:g}) "
+             f"(minimum {vmin:.2f})")
+    return best, c
 
 
 def write_matrix(path: Path, genes, samples, M, f=None):
@@ -419,18 +448,32 @@ def main():
     pa, ph = annotate(ps, ptr)
     ra, rh = annotate(rs, rtr or ptr)
     log(rep, f"tissue of protein samples: {dict(ph)}; of RNA samples: {dict(rh)}")
-    rkey = {key(s): s for s in rs}
-    pairs = [(rkey[key(s)], s) for s in ps if key(s) in rkey]
-    how = "same name"
-    if len(pairs) < 0.5 * len(ps):
-        by_dt = defaultdict(list)
+    # pairing: same name; same GTEx tissue sample (GTEX-donor-site, the
+    # RNA-seq and proteomics aliquots differ in their SM- suffix); same
+    # donor and tissue. The rule pairing most samples is kept.
+    def by(keyf):
+        idx = {}
         for s in rs:
-            t, d, _ = ra[s]
-            if t and d:
-                by_dt[(d, t)].append(s)
-        pairs = [(by_dt[(pa[s][1], pa[s][0])][0], s) for s in ps
-                 if pa[s][0] and pa[s][1] and by_dt.get((pa[s][1], pa[s][0]))]
-        how = "donor and tissue"
+            k = keyf(s, ra[s])
+            if k:
+                idx.setdefault(k, s)
+        out = []
+        for s in ps:
+            k = keyf(s, pa[s])
+            if k and k in idx:
+                out.append((idx[k], s))
+        return out
+
+    def site(s, _a):
+        m = SITE.search(key(s))
+        return m.group(0) if m else None
+
+    rules = [("same name", by(lambda s, _a: key(s))),
+             ("same GTEx tissue sample", by(site)),
+             ("donor and tissue", by(lambda s, a: (a[1], a[0]) if a[0] and a[1] else None))]
+    for name, pr in rules:
+        log(rep, f"  pairing by {name}: {len(pr)} pairs")
+    how, pairs = max(rules, key=lambda x: len(x[1]))
     log(rep, f"{len(pairs)} RNA-protein pairs ({how}) of {len(ps)} protein and "
              f"{len(rs)} RNA samples")
     pairs = [(r, q) for r, q in pairs if pa[q][0] or ra[r][0]]
@@ -447,7 +490,7 @@ def main():
             fh.write(f"{t}\t{r}\t{q}\t{pa[q][1] or ra[r][1]}\t{pa[q][2] or ra[r][2]}\n")
     b = log_base(RM, rg, coding, rep)
     write_matrix(a.out / "jiang2020_rna_samples.tsv", rg, rs, RM,
-                 (lambda x: max(b ** x - 1, 0.0)) if b else None)
+                 (lambda x: max(b[0] ** x - b[1], 0.0)) if b else None)
     write_matrix(a.out / "jiang2020_protein_samples.tsv", pg, ps, PM)
     log(rep, f"written: {a.out}/jiang2020_rna_samples.tsv ({len(set(rg))} genes), "
              f"jiang2020_protein_samples.tsv ({len(set(pg))} genes), "
