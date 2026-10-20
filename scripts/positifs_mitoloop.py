@@ -69,6 +69,15 @@ LITTERATURE = [
      "PCH6 ; homozygote ; ARNm diminué, activité promotrice diminuée"),
     ("BCS1L", "c.-122G>T", "PMID:40660675 Ann Clin Transl Neurol 2025 (doi:10.1002/acn3.70108)",
      "en trans de p.L280F ; expression résiduelle de l'allèle normal (fibroblastes)"),
+    # Yépez 2022 (Genome Med, doi:10.1186/s13073-022-01019-9), tableau 1 :
+    # sous-expression (OUTRIDER) sans défaut d'épissage
+    ("NDUFA10", "NM_004544.3:c.-99_-75del", "Yépez 2022 tableau 1 (cas 11 et 17, fratrie)",
+     "homozygote 5'UTR ; sous-expression ARN (fibroblastes) ; déficit en complexe I"),
+    ("MRPL38", "NM_032478.3:c.-174_-148del", "Yépez 2022 tableau 1 (cas 2)",
+     "5'UTR, en trans de c.770C>G ; sous-expression ARN ; Leigh, déficit en complexes I et IV"),
+    ("UFM1", "NM_016617.2:c.-273_-271del", "Yépez 2022 tableau 1 (cas 13) ; Hamilton 2017 Neurology",
+     "homozygote promoteur, fondateur Rom ; sous-expression ARN, activité promotrice diminuée ; "
+     "UFM1 n'est pas un gène mitochondrial (contrôle hors périmètre)"),
 ]
 
 # Conséquences ClinVar (MC) acceptées
@@ -296,8 +305,10 @@ def main():
     recode = Recoder(a.cache or a.datadir / "variant_recoder.json")
 
     # notations c. -> à convertir
-    todo = [dict(gene=g, c=c, tx=None, categorie=categorie_c(c, True), source="litterature",
-                 preuve=f"{ref} ; {note}") for g, c, ref, note in LITTERATURE]
+    todo = [dict(gene=g, c=C_RE.search(v).group(0),
+                 tx=TX_RE.search(v).group(1) if TX_RE.search(v) else None,
+                 categorie=categorie_c(v, True), source="litterature",
+                 preuve=f"{ref} ; {note}") for g, v, ref, note in LITTERATURE]
     if a.litterature_extra:
         for r in csv.reader(open(a.litterature_extra), delimiter="\t"):
             if len(r) < 2 or r[0].startswith("#") or r[0].lower() == "gene":
