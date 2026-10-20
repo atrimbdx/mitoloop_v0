@@ -6,6 +6,8 @@
 # Installe ou met à jour MitoLoop :
 #   - données dans  $REANNOT_BASE/data/mitoloop
 #   - scripts       $REANNOT_BASE/scripts/{ajout_mitoloop.py, preparer_entree.py, reannot_complet.sh}
+# Remplace reannot_alphagenome.sh par sa version accélérée (étape AlphaGenome)
+# seulement s'il est exactement la version d'origine, gardée dans archives/.
 # Ne touche à rien d'autre : les données déjà installées (alphagenome, annovar,
 # morfee, ref, spliceai, spliceai2, vep_cache, vep_plugins), les environnements
 # et les autres scripts du pipeline restent tels quels.
@@ -54,7 +56,29 @@ rm -rf "$M"; mv "$M.nouveau" "$M"
 for f in $MINE; do cp "$f" "$BASE/scripts/"; done
 chmod +x "$BASE/scripts/reannot_complet.sh"
 
-# 3. Contrôle
+# 3. reannot_alphagenome.sh : étape 5 (AlphaGenome) lue par l'index sur les seules
+#    positions des variants, résultat identique. Appliqué seulement si le script en
+#    place est exactement la version d'origine connue ; l'original est gardé dans
+#    archives/reannot_alphagenome.sh.origine (jamais supprimé).
+AG_ORIG=9b28a24a508e096da42cd5e09a98b5d083d89fb2f03366fad1fd6d90c80ae4f4
+AG_NEW=dd3eba4f20ee8990b4de98df5a5052477826e13ec5525076b769e71d9897cc33
+if [ -f reannot_alphagenome.sh ] && [ -f "$BASE/scripts/reannot_alphagenome.sh" ]; then
+  cur=$(sha256sum "$BASE/scripts/reannot_alphagenome.sh" | cut -d' ' -f1)
+  if [ "$cur" = "$AG_ORIG" ]; then
+    mkdir -p "$BASE/archives"
+    cp -p "$BASE/scripts/reannot_alphagenome.sh" "$BASE/archives/reannot_alphagenome.sh.origine"
+    cp reannot_alphagenome.sh "$BASE/scripts/reannot_alphagenome.sh"
+    chmod +x "$BASE/scripts/reannot_alphagenome.sh"
+    echo "reannot_alphagenome.sh : étape AlphaGenome accélérée (original : archives/reannot_alphagenome.sh.origine)"
+  elif [ "$cur" = "$AG_NEW" ]; then
+    echo "reannot_alphagenome.sh : déjà la version accélérée"
+  else
+    echo "reannot_alphagenome.sh : version locale modifiée, non remplacée."
+    echo "  Pour accélérer AlphaGenome, voir l'étape 5 de $SRC/reannot_alphagenome.sh"
+  fi
+fi
+
+# 4. Contrôle
 echo "Contrôle de lecture :"
 python3 - "$M" <<'PY'
 import gzip, sys

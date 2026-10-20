@@ -241,7 +241,8 @@ echo "pipeline" > $V/scripts/reannot_alphagenome.sh
 ( cd $V/data && find . -type f -exec sha256sum {} + | sort ) > avant.sha
 for k in 1 2 3; do
     rm -rf transfert; cp -r pkg transfert
-    cp "$R/ajout_mitoloop.py" "$R/preparer_entree.py" "$R/reannot_complet.sh" "$R/07_maj_mitoloop_vm.sh" transfert/
+    cp "$R/ajout_mitoloop.py" "$R/preparer_entree.py" "$R/reannot_complet.sh" "$R/07_maj_mitoloop_vm.sh" \
+       "$R/reannot_alphagenome.sh" transfert/
     echo "mitoloop_v0 test$k" > transfert/VERSION
     ( cd transfert && sha256sum $(find . -type f ! -name SHA256SUMS | sed 's|^\./||' | sort) > SHA256SUMS )
     REANNOT_BASE="$PWD/$V" bash transfert/07_maj_mitoloop_vm.sh > install$k.log 2>&1 \
@@ -255,5 +256,12 @@ diff avant.sha apres.sha > /dev/null || fail "the pipeline data changed"
     || { ls $V/archives; fail "archives"; }
 tar -tzf $V/archives/mitoloop_mitoloop_v0_test2.tar.gz | grep -q "scripts/ajout_mitoloop.py" || fail "scripts archived"
 grep -q "Données du pipeline non modifiées : alphagenome annovar" install3.log || { cat install3.log; fail "install report"; }
+# a locally modified reannot_alphagenome.sh is left alone
+grep -q "version locale modifiée, non remplacée" install3.log || { cat install3.log; fail "AG script guard"; }
+[ ! -e $V/archives/reannot_alphagenome.sh.origine ] || fail "AG original archived without replacement"
+# the accelerated version already in place is recognised
+cp "$R/reannot_alphagenome.sh" $V/scripts/reannot_alphagenome.sh
+REANNOT_BASE="$PWD/$V" bash transfert/07_maj_mitoloop_vm.sh > install4.log 2>&1 || { cat install4.log; fail "install 4"; }
+grep -q "déjà la version accélérée" install4.log || { cat install4.log; fail "AG script recognised"; }
 
 echo "PASS test_reannot"
