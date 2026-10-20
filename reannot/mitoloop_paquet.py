@@ -235,14 +235,20 @@ def gismo_table(path):
             continue
         x = pd.to_numeric(t[col], errors="coerce")
         out_t[name] = x.map(lambda v: "" if v != v else f"{v:.4g}")
-        d = pd.qcut(x.rank(method="first"), 10, labels=False) + 1
-        out_t[name + "_decile"] = d.map(lambda v: "" if v != v else str(int(v)))
+        dcol = cols.get(norm(name) + "decile")
+        if dcol is not None:      # déciles fournis (gismo_scores.py) : gardés tels quels
+            d = pd.to_numeric(t[dcol], errors="coerce")
+        else:
+            d = pd.Series(pd.NA, index=t.index, dtype="Float64")
+            ok = x.notna()
+            d[ok] = pd.qcut(x[ok].rank(method="first"), 10, labels=False) + 1
+        out_t[name + "_decile"] = d.map(lambda v: "" if pd.isna(v) else str(int(v)))
     res = {}
     for i in t.index:
         r = {c: out_t.at[i, c] for c in GISMO_OUT}
-        if key is not None:
+        if key is not None and str(t.at[i, key]).startswith("ENSG"):
             res[str(t.at[i, key]).split(".")[0]] = r
-        if sym is not None:
+        if sym is not None and not pd.isna(t.at[i, sym]):
             res.setdefault(str(t.at[i, sym]), r)
     return res
 
