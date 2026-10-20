@@ -17,7 +17,9 @@
 # Outputs      .venv-regulome/, data/, genes.txt, controls.txt,
 #              results/regulome, results/promoters, results/l1,
 #              mitoloop_regulome_<date>.tar.gz (everything to send back)
-# Usage        bash run_mcia.sh setup|selftest|fetch|run|bundle|all
+# Usage        bash run_mcia.sh setup|selftest|fetch|run|reannot|bundle|all
+#              (reannot: the MitoLoop package of the reannot pipeline, in
+#              transfert_mitoloop/, see reannot/README_MitoLoop.md)
 #              PYTHON=/path/to/python3 to use another interpreter for setup;
 #              REUSE=dir to link files already downloaded (default
 #              ../mitoshow/data); NO_GENOME=1 to skip the GRCh38 FASTA.
@@ -168,11 +170,11 @@ do_run() {
         if [ -s results/l1/l1.tsv ]; then
             # genes ranked on L1 at equal mRNA variation (score_resid)
             score=(--scores results/l1/l1.tsv --score-column score_resid)
-            local val=(--l1 results/l1/l1.tsv --gtf "$GTF" --out results/l1/validation)
+            local val=(--l1 results/l1/l1.tsv --gtf "$GTF" --out results/l1/validation) ext=()
             [ -s results/l1_raw/l1.tsv ] && val+=(--replicate results/l1_raw/l1.tsv)
             # protein buffering of copy number in tumours (Goncalves et al.
             # 2017): buffered proteins should have a low L1
-            [ -s data/attenuation.csv ] && val+=(--external attenuation=data/attenuation.csv:attenuation:-)
+            [ -s data/attenuation.csv ] && ext+=(--external attenuation=data/attenuation.csv:attenuation:-)
             # patient fibroblasts (Kopajtich et al.): does a collapse of the
             # mRNA reach the protein, more for genes of high L1?
             if [ -s data/kopajtich/raw_data/raw_counts.tsv ] && \
@@ -181,10 +183,16 @@ do_run() {
                     --gtf "$GTF" --out data/kopajtich --report results/kopajtich || rc=1
             fi
             [ -s data/kopajtich/patients_samples.tsv ] && \
-                val+=(--patients-rna data/kopajtich/patients_rna.tsv
+                ext+=(--patients-rna data/kopajtich/patients_rna.tsv
                       --patients-protein data/kopajtich/patients_protein.tsv
                       --patients-samples data/kopajtich/patients_samples.tsv)
-            step l1_validate python3 scripts/l1_score.py validate "${val[@]}" || rc=1
+            step l1_validate python3 scripts/l1_score.py validate "${val[@]}" ${ext[@]+"${ext[@]}"} || rc=1
+            # the same validation for the L1 without content adjustment, the
+            # one used to annotate variants (reannot)
+            if [ -s results/l1_raw/l1.tsv ]; then
+                step l1_raw_validate python3 scripts/l1_score.py validate --l1 results/l1_raw/l1.tsv \
+                    --gtf "$GTF" --out results/l1_raw/validation ${ext[@]+"${ext[@]}"} || rc=1
+            fi
         fi
     else
         echo "== L1: no Jiang 2020 tables (Tables S2 and S3, *mmc3.xlsx and *mmc4.xlsx, in data/): comparison along the variability score of modes"
@@ -217,11 +225,78 @@ do_jiang() {
         --download-attributes --out data --report results/jiang2020
 }
 
+# the MitoLoop package of the reannot pipeline (VEP, SpliceAI, MORFEE,
+# AlphaGenome on an offline VM): gene table with the L1 class, regulatory
+# regions of the gene set, annotations cut to these regions, JASPAR motifs,
+# the VM scripts; then a check of ajout_mitoloop.py on variants drawn from
+# the regions. Written to transfert_mitoloop/, to copy to the VM.
+do_reannot() {
+    local T=transfert_mitoloop P=data/promoters_exp rc=0
+    [ -s results/l1_raw/l1.tsv ] || { echo "== reannot: results/l1_raw/l1.tsv missing (run first)"; return 1; }
+    mkdir -p results/reannot
+    local reg=(--gtf "$GTF" --genes genes.txt --out results/reannot/regions.bed)
+    [ -s results/re2g/re2g_elements.tsv ] && reg+=(--elements results/re2g/re2g_elements.tsv --min-prevalence 5)
+    [ -s results/loops/loops.tsv ] && reg+=(--loops results/loops/loops.tsv)
+    step reannot_regions python3 scripts/vcf_annotate.py regions "${reg[@]}" || return 1
+    rm -rf "$T"; mkdir -p "$T"
+    local pk=(--genes genes.txt --l1 results/l1_raw/l1.tsv
+              --fibroblast results/l1/validation/patient_genes.tsv
+              --regions results/reannot/regions.bed --out "$T"
+              --epd "$P/Hs_EPDnew_006_hg38.bed"
+              --cage "$P/hg38_fair+new_CAGE_peaks_phase1and2.bed.gz"
+              --chromhmm "muscle=$P/E108_15_coreMarks_hg38lift_mnemonics.bed.gz"
+              --chromhmm "brain=$P/E073_15_coreMarks_hg38lift_mnemonics.bed.gz"
+              --jaspar "$P/JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt")
+    local f tf
+    for f in "$P"/remap2022_*_nr_macs2_hg38_v1_0.bed.gz; do
+        [ -s "$f" ] || continue
+        tf=$(basename "$f"); tf=${tf#remap2022_}; tf=${tf%%_*}
+        pk+=(--remap "$tf=$f")
+    done
+    step reannot_package python3 reannot/mitoloop_paquet.py "${pk[@]}" || return 1
+    cp reannot/ajout_mitoloop.py reannot/07_maj_mitoloop_vm.sh reannot/README_MitoLoop.md "$T/"
+    echo "mitoloop_v0 $(git rev-parse --short HEAD 2>/dev/null || echo '?') $(date +%Y-%m-%d)" > "$T/VERSION"
+    ( cd "$T" && sha256sum $(find . -type f ! -name SHA256SUMS | sed 's|^\./||' | sort) > SHA256SUMS )
+    # check: 300 SNV drawn from the promoters, as a reannot table
+    if [ -s data/GRCh38.fa ]; then
+        python3 - "$T" <<'PY'
+import gzip, random, sys
+import pysam
+fa = pysam.FastaFile("data/GRCh38.fa")
+rows = [l.split("\t") for l in gzip.open(f"{sys.argv[1]}/regions.bed.gz", "rt")]
+rows = [r for r in rows if r[4].strip() == "promoter" and r[0] in fa.references]
+random.seed(1)
+comp = {"A": "G", "G": "A", "C": "T", "T": "C"}
+with open("results/reannot/check.final.tsv", "w") as fh:
+    fh.write("transcrit\tvariant_entree\tchrom\tpos\tref\talt\tgene\n")
+    for r in random.sample(rows, min(300, len(rows))):
+        p = random.randint(int(r[1]) + 1, int(r[2]))
+        b = fa.fetch(r[0], p - 1, p).upper()
+        if b in comp:
+            fh.write(f".\t.\t{r[0]}\t{p}\t{b}\t{comp[b]}\t{r[3]}\n")
+PY
+        step reannot_check python3 "$T/ajout_mitoloop.py" --data "$T" --fasta data/GRCh38.fa \
+            results/reannot/check.final.tsv || rc=1
+        [ -s results/reannot/check.final.mitoloop.tsv ] && awk -F'\t' 'NR > 1 { n[$(NF-1)]++ } END { for (k in n) print "   " n[k] " variants with " k " argument(s)" }' \
+            results/reannot/check.final.mitoloop.tsv | sort -k4n
+    fi
+    # validation: do the arguments point to the causal variants of the
+    # fine-mapped GTEx eQTL of the mitochondrial genes?
+    if [ -s data/GTEx_v8_finemapping_DAPG.txt.gz ] && [ -s data/GRCh38.fa ]; then
+        step reannot_validation python3 reannot/validation_eqtl.py --data "$T" \
+            --dapg data/GTEx_v8_finemapping_DAPG.txt.gz --fasta data/GRCh38.fa \
+            --out results/reannot/validation_eqtl.tsv || rc=1
+    fi
+    cp "$T/MANIFEST.tsv" results/reannot/MANIFEST.tsv
+    echo "== reannot: $(pwd)/$T ($(du -sh "$T" | cut -f1)) - copy to the VM, then bash 07_maj_mitoloop_vm.sh"
+    return $rc
+}
+
 # the tests of the scripts used here, on synthetic data: checks the Python
 # environment of the cluster in a few seconds, before the real run
 do_selftest() {
     local rc=0
-    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh tests/test_kopajtich.sh; do
+    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh tests/test_kopajtich.sh tests/test_reannot.sh; do
         step selftest bash "$t" || rc=1
     done
     return $rc
@@ -258,8 +333,9 @@ case "$STEP" in
     fetch) do_fetch ;;
     run) do_run ;;
     bundle) do_bundle ;;
-    all) do_fetch; do_run; r=$?; do_bundle; (exit $r) ;;
-    *) echo "unknown step $STEP (setup|selftest|fetch|run|bundle|all)"; exit 2 ;;
+    all) do_fetch; do_run; r=$?; do_reannot || r=1; do_bundle; (exit $r) ;;
+    reannot) do_reannot ;;
+    *) echo "unknown step $STEP (setup|selftest|fetch|run|reannot|bundle|all)"; exit 2 ;;
 esac
 rc=$?
 echo "== $(date -Is) end of $STEP (status $rc)"

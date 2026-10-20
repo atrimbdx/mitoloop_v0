@@ -28,3 +28,6 @@ __pycache__/
 
 # system
 .DS_Store
+
+# reannot package (built by run_mcia.sh reannot, copied to the VM)
+transfert_mitoloop/

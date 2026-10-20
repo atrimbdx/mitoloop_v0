@@ -62,7 +62,10 @@ Outputs
     score (in --out)
       l1.tsv            per gene (score_resid: L1 minus the median L1 of
                         the genes with the same mRNA variation): gene,
-                        gene_id, set, n_tissues, n_pairs,
+                        gene_id, set, n_tissues, n_pairs, l1_class
+                        (transmitted: 95% interval above --class-high;
+                        not_transmitted: below --class-low; uncertain;
+                        not_estimable),
                         sd_rna, sd_protein (across tissue means, log2),
                         rel_rna, rel_protein, rel_ratio (split-half
                         reliabilities), r and rho (raw Pearson and Spearman
@@ -465,6 +468,21 @@ def concordance(R, P, tissue_of, a, rng, labels):
 # ---------------------------------------------------------------------------
 # score
 
+def l1_class(r, high, low) -> str:
+    """transmitted: the 95% interval above `high`; not_transmitted: below
+    `low`; uncertain in between; not_estimable without a score"""
+    if not str(r.get("status", "")).startswith("estimable"):
+        return "not_estimable"
+    lo, hi = to_float(r.get("ci_low")), to_float(r.get("ci_high"))
+    if np.isnan(lo) or np.isnan(hi):
+        return "uncertain"
+    if lo > high:
+        return "transmitted"
+    if hi < low:
+        return "not_transmitted"
+    return "uncertain"
+
+
 def cmd_score(a) -> None:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -637,10 +655,12 @@ def cmd_score(a) -> None:
         resid[ok] = sub_sc - med[bins]
     sets = np.array([r["set"] for r in rows])
     ctrl = resid[(sets == "control") & ~np.isnan(resid)]
-    # per gene: the score at equal mRNA variation, for ranking genes
+    # per gene: the score at equal mRNA variation, for ranking genes; and
+    # the class read from the 95% interval, for annotating variants
     for r, x in zip(rows, resid):
         r["score_resid"] = x
-    write_tsv(out / "l1.tsv", rows, cols + ["score_resid"])
+        r["l1_class"] = l1_class(r, a.class_high, a.class_low)
+    write_tsv(out / "l1.tsv", rows, cols + ["score_resid", "l1_class"])
 
     summ = []
     statuses = ["estimable", "estimable_uncorrected", "unreliable", "flat",
@@ -840,6 +860,19 @@ def cmd_validate(a) -> None:
                               "agrees": int(odds > 1),
                               "detail": f"{k1}/{len(top)} vs "
                                         f"{k2}/{len(bot)}"})
+        # the same events by l1_class (the classes used to annotate variants)
+        cls = {g: r.get("l1_class", "") for g, r in l1.items()}
+        tr = [e["propagated"] for e in events if cls.get(e["gene"]) == "transmitted"]
+        nt = [e["propagated"] for e in events if cls.get(e["gene"]) == "not_transmitted"]
+        if tr and nt:
+            k1, k2 = sum(tr), sum(nt)
+            odds, p = fisher_exact([[k1, len(tr) - k1], [k2, len(nt) - k2]])
+            tests.append({"test": "outlier_propagation_by_l1_class",
+                          "n": len(tr) + len(nt), "statistic": "odds_ratio",
+                          "value": float(odds), "p": float(p), "expected": "+",
+                          "agrees": int(odds > 1),
+                          "detail": f"transmitted {k1}/{len(tr)} vs "
+                                    f"not_transmitted {k2}/{len(nt)}"})
         print(f"  {len(events)} RNA outliers, "
               f"{sum(e['propagated'] for e in events)} reaching the protein")
 
@@ -891,6 +924,10 @@ def main():
                    help="noise-corrected sd across tissues (log2) below "
                         "which a gene is flat (default %(default)s)")
     s.add_argument("--min-reliability", type=float, default=0.3)
+    s.add_argument("--class-high", type=float, default=0.5,
+                   help="l1_class transmitted: ci_low above this")
+    s.add_argument("--class-low", type=float, default=0.3,
+                   help="l1_class not_transmitted: ci_high below this")
     s.add_argument("--min-reliability-tissues", type=int, default=5,
                    help="tissues with two samples needed for the "
                         "reliabilities (default %(default)s)")

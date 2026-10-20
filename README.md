@@ -55,6 +55,7 @@ PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 | `scripts/l1_score.py` | Python | `score`: L1 per gene and per complex from RNA and protein of the same samples, corrected for noise and mitochondrial content; `validate`: agreement with another atlas, published per-gene scores and patient fibroblasts with RNA-seq and proteomics |
 | `scripts/jiang2020_tables.py` | Python | the per-sample protein and RNA of Jiang et al. 2020 (Tables S2 and S3) as the inputs of `l1_score.py`, and tissue medians for `regulome.py modes` |
 | `scripts/kopajtich_tables.py` | Python | the RNA-seq and proteomics of the patient fibroblasts of Kopajtich et al. as the inputs of `l1_score.py validate` |
+| `reannot/` | Python, bash | MitoLoop module of the reannot pipeline (VEP, SpliceAI, MORFEE, AlphaGenome on an offline VM): package built on MCIA, `ajout_mitoloop.py` adds the arguments on the expression of mitochondrial genes to the reannot tables; see `reannot/README_MitoLoop.md` |
 | `scripts/vcf_annotate.py` | Python | `regions`: annotated BED of promoters, UTRs, coding exons, elements, loop anchors and other BEDs per gene; `annotate`: rare variants of WGS VCFs in these regions with frequency, scores, parental origin or phase, second hits and tiers |
 | `scripts/v4c_pairs.py`, `scripts/v4c_pairs.R` | Python, R | optional module: loops at mitochondrial promoters in two metabolic states of one cell type |
 | `config/` | | example library tables |
@@ -488,6 +489,20 @@ keeps old HGNC symbols (ATP5A1 for ATP5F1A, APOPT1 for COA8), resolved
 with the alias table of `re2g_panel.py` in both directions;
 `data/genes_renamed.tsv` lists the renames and the symbols left as they
 are.
+
+### Annotation of non-coding variants (reannot pipeline)
+
+`bash run_mcia.sh reannot` (also run by `all`) writes `transfert_mitoloop/`,
+the MitoLoop package of the reannot pipeline: the L1 class of each
+mitochondrial gene (L1 without content adjustment, 95% interval), their
+regulatory regions, EPDnew, FANTOM5, ReMap, ChromHMM and JASPAR cut to these
+regions, and `ajout_mitoloop.py`. On the VM, `bash 07_maj_mitoloop_vm.sh`
+installs or updates it; `python3 ~/reannot/scripts/ajout_mitoloop.py
+run.final.tsv` adds the MITO_* columns. The arguments are validated on the
+fine-mapped GTEx eQTL of the mitochondrial genes
+(`results/reannot/validation_eqtl.tsv`) and the L1 classes on the patient
+fibroblasts (`results/l1_raw/validation/validation.tsv`). See
+`reannot/README_MitoLoop.md`.
 
 ## Running on a SLURM cluster
 

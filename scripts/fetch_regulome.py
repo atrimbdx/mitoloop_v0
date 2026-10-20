@@ -21,7 +21,9 @@ Outputs (in --datadir)
     SCREEN cCREs, Roadmap ChromHMM of skeletal muscle and brain, ReMap
     ChIP-seq peaks of 9 factors; see config/promoter_annotations.tsv),
     and with --validation: kopajtich/ (fibroblast RNA-seq and proteomics,
-    datasets.zip of Zenodo 4501904, extracted), attenuation.csv (Goncalves et al. 2017);
+    datasets.zip of Zenodo 4501904, extracted), attenuation.csv,
+    GTEx_v8_finemapping_DAPG.txt.gz (fine-mapped eQTL, validation of the
+    reannot arguments) (Goncalves et al. 2017);
     MANIFEST.tsv (file, bytes, source or error);
     --genes (default genes.txt): MitoCarta3.0 symbols and PanelApp genes,
     under the symbol of the --gtf when one is given (PanelApp keeps old HGNC
@@ -91,6 +93,13 @@ PROMOTER_SOURCES = {
     "hg38_fair+new_CAGE_peaks_phase1and2.bed.gz": [
         "https://fantom.gsc.riken.jp/5/datafiles/reprocessed/hg38_latest/extra/"
         "CAGE_peaks/hg38_fair+new_CAGE_peaks_phase1and2.bed.gz"],
+    "JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt": [
+        "https://jaspar.elixir.no/download/data/2024/CORE/"
+        "JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt",
+        "https://jaspar.genereg.net/download/data/2024/CORE/"
+        "JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt",
+        "https://jaspar2024.genereg.net/download/data/2024/CORE/"
+        "JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt"],
     "GRCh38-cCREs.bed": [
         "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.bed",
         "https://downloads.wenglab.org/V3/GRCh38-cCREs.bed"],
@@ -200,6 +209,37 @@ def zenodo(d: Path, record: str, wanted: tuple, manifest: list) -> None:
                 manifest.append((f"kopajtich/{key}", 0, f"unzip failed: {e}"))
 
 
+DAPG_TAR = ("https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/"
+            "fine-mapping-cis-eqtl/GTEx_v8_finemapping_DAPG.tar")
+DAPG_MEMBER = "GTEx_v8_finemapping_DAPG/GTEx_v8_finemapping_DAPG.txt.gz"
+
+
+def gtex_dapg(d: Path, manifest: list) -> None:
+    """GTEx v8 fine-mapped eQTL (DAP-G), the table only: read from the
+    760 MB release tar as a stream, nothing else kept"""
+    import tarfile
+    dest = d / Path(DAPG_MEMBER).name
+    if dest.exists() and dest.stat().st_size > 0:
+        manifest.append((dest.name, dest.stat().st_size, "present"))
+        return
+    try:
+        req = urllib.request.Request(DAPG_TAR, headers=UA)
+        with urllib.request.urlopen(req, timeout=600) as r, \
+                tarfile.open(fileobj=r, mode="r|") as tf:
+            for m in tf:
+                if m.name == DAPG_MEMBER:
+                    tmp = dest.with_name(dest.name + ".part")
+                    with tf.extractfile(m) as fi, open(tmp, "wb") as fo:
+                        shutil.copyfileobj(fi, fo, 1 << 20)
+                    tmp.replace(dest)
+                    break
+        manifest.append((dest.name, dest.stat().st_size, DAPG_TAR))
+        print(f"{dest.name}: {dest.stat().st_size / 1e6:.0f} MB")
+    except Exception as e:  # network errors of every kind
+        manifest.append((dest.name, 0, f"ERROR {type(e).__name__}: {e}"))
+        print(f"GTEx DAP-G failed: {e}")
+
+
 def canonical(symbols: list, gtf: Path, d: Path) -> dict:
     """symbol -> its name in the GTF (renamed HGNC symbols resolved with
     the alias table of re2g_panel), None for panel entries that are not
@@ -295,6 +335,7 @@ def main():
         for name, urls in VALIDATION.items():
             fetch(name, urls, d, reuse, manifest)
         zenodo(d, ZENODO_RECORD, ZENODO_WANTED, manifest)
+        gtex_dapg(d, manifest)
     # the gene set
     try:
         panel = panelapp(d, a.panel_name, manifest)    # kept when present
