@@ -31,7 +31,13 @@ chrom/pos/ref/alt et transcrit ENST MANE) :
   chrom pos ref alt transcrit gene categorie source etoiles clinvar_id
   transcrit_suppose notation_publiee preuve
 notation_publiee est écrite « NM_x (c.y) » pour ne pas être prise pour la
-colonne variant. Les variants non convertis vont dans PREFIXE.non_convertis.tsv.
+colonne variant. Aussi écrits : PREFIXE.entree.tsv (entrée de reannot_alphagenome.sh :
+transcrit, notation g.), PREFIXE.vcf, PREFIXE.non_convertis.tsv (notations non
+converties) et PREFIXE.exclus.tsv (expansions de répétitions, variants > 50 pb).
+
+Sans réseau vers Ensembl et le NCBI : --gtf (GENCODE, tag MANE_Select) et --fasta
+(GRCh38 indexé, fichier ou URL) convertissent les notations c. localement sur le
+MANE Select, en contrôlant les bases de référence publiées.
 
 Usage
   python3 scripts/positifs_mitoloop.py --genes genes.txt [--out positifs_mitoloop.tsv]
@@ -92,9 +98,11 @@ LITTERATURE = [
 # Conséquences ClinVar (MC) acceptées
 MC_NONCODANT = {"5_prime_UTR_variant": "5UTR_promoteur", "3_prime_UTR_variant": "3UTR",
                 "2KB_upstream_variant": "5UTR_promoteur", "upstream_gene_variant": "5UTR_promoteur",
-                "500B_downstream_variant": "3UTR", "downstream_gene_variant": "3UTR",
-                "non-coding_transcript_variant": "non_codant"}
+                "500B_downstream_variant": "3UTR", "downstream_gene_variant": "3UTR"}
 MC_INTRON = {"intron_variant": "intronique"}
+# conséquences sur d'autres isoformes ou d'autres gènes : admises, mais pas suffisantes
+MC_NEUTRE = {"non-coding_transcript_variant", "intron_variant"}
+MAX_LONGUEUR = 50          # au-delà (expansions de répétitions, grandes délétions) : exclus
 ETOILES = {"practice_guideline": 4, "reviewed_by_expert_panel": 3,
            "criteria_provided,_multiple_submitters,_no_conflicts": 2,
            "criteria_provided,_single_submitter": 1}
@@ -244,6 +252,185 @@ def genomic(notation):
     return [[c, str(pos), ref, alt]]
 
 
+class Fasta:
+    """bases d'un FASTA indexé (.fai à côté), fichier local non compressé ou URL
+    (lecture par plages HTTP)"""
+
+    def __init__(self, src: str):
+        self.src = src
+        fai = (urllib.request.urlopen(src + ".fai", timeout=60).read().decode()
+               if "://" in src else open(src + ".fai").read())
+        self.idx = {}
+        for line in fai.splitlines():
+            f = line.split("\t")
+            self.idx[f[0]] = tuple(int(x) for x in f[1:5])
+
+    def name(self, c):
+        for n in (c, "chr" + c, c[3:] if c.startswith("chr") else None, "chrM" if c == "MT" else None):
+            if n and n in self.idx:
+                return n
+        raise KeyError(f"chromosome {c} absent du FASTA")
+
+    def seq(self, c, start, end):
+        """bases start..end (1-based, incluses)"""
+        length, off, lb, lw = self.idx[self.name(c)]
+        if start < 1 or end > length or end < start:
+            raise ValueError(f"{c}:{start}-{end} hors du chromosome")
+        b0 = off + (start - 1) // lb * lw + (start - 1) % lb
+        b1 = off + (end - 1) // lb * lw + (end - 1) % lb
+        if "://" in self.src:
+            req = urllib.request.Request(self.src, headers={"Range": f"bytes={b0}-{b1}"})
+            raw = urllib.request.urlopen(req, timeout=60).read()
+        else:
+            with open(self.src, "rb") as fh:
+                fh.seek(b0)
+                raw = fh.read(b1 - b0 + 1)
+        return raw.decode().replace("\n", "").replace("\r", "").upper()
+
+
+COMP = str.maketrans("ACGTN", "TGCAN")
+
+
+def revcomp(x):
+    return x.translate(COMP)[::-1]
+
+
+def gtf_transcripts(path: Path, extra=()):
+    """transcrits MANE Select (et ceux de `extra`) d'un GTF GENCODE ou Ensembl :
+    symbole -> ENST, et ENST -> structure (chrom, brin, exons, début et fin du CDS)"""
+    tag = re.compile(r'transcript_id "(ENST\d+)')
+    mane, tx = {}, {}
+    extra = {e.split(".")[0] for e in extra}
+    with gzip.open(path, "rt") as fh:
+        for line in fh:
+            if line[0] == "#":
+                continue
+            f = line.split("\t", 8)
+            if f[2] not in ("transcript", "exon", "start_codon", "stop_codon", "CDS"):
+                continue
+            m = tag.search(f[8])
+            if not m or ("MANE_Select" not in f[8] and m.group(1) not in extra):
+                continue
+            t = tx.setdefault(m.group(1), {"chrom": f[0], "strand": f[6], "exon": [], "CDS": [],
+                                           "start_codon": [], "stop_codon": []})
+            if f[2] == "transcript":
+                g = re.search(r'gene_name "([^"]+)"', f[8])
+                if g and "MANE_Select" in f[8]:
+                    mane[g.group(1)] = m.group(1)
+            else:
+                t[f[2]].append((int(f[3]), int(f[4])))
+    return mane, tx
+
+
+class Local:
+    """notations ENST:c. et ASSEMBLAGE:chrom:pos:REF>ALT -> [(chrom, pos, ref, alt)] GRCh38,
+    sans réseau : structure du transcrit dans le GTF, bases et contrôle de la
+    référence dans le FASTA"""
+
+    def __init__(self, tx, fasta: Fasta):
+        self.tx, self.fa = tx, fasta
+        self.err = {}
+
+    def __call__(self, notations):
+        out = {}
+        for h in dict.fromkeys(notations):
+            try:
+                out[h] = [self.convert(h)]
+            except (ValueError, KeyError) as e:
+                self.err[h] = str(e)
+                out[h] = []
+        return out
+
+    def convert(self, h):
+        g = GEN_RE.match(h)
+        if g:
+            asm, c, pos, ref, alt = g.groups()
+            if asm != "GRCh38":
+                raise ValueError("position GRCh37 : conversion par Ensembl nécessaire")
+            pos = int(pos)
+            seq = self.fa.seq(c, pos, pos + len(ref) - 1)
+            if seq != ref:
+                raise ValueError(f"référence GRCh38 {seq}, publiée {ref}")
+            return (c, str(pos), ref, alt)
+        enst, c = h.split(":", 1)
+        t = self.tx.get(enst.split(".")[0])
+        if t is None:
+            raise KeyError(f"{enst} absent du GTF")
+        m = C_RE.fullmatch(c)
+        if not m:
+            raise ValueError(f"notation non lue : {c}")
+        gs = [self.c_to_g(t, x) for x in m.group("pos").split("_")]
+        g1, g2 = min(gs), max(gs)
+        ch, fa, minus = t["chrom"], self.fa, t["strand"] == "-"
+        orient = (lambda x: revcomp(x.upper())) if minus else (lambda x: x.upper())
+        chg = m.group("chg")
+        if ">" in chg:
+            r, a = (orient(x) for x in chg.split(">"))
+            seq = fa.seq(ch, g1, g2)
+            if seq != r:
+                raise ValueError(f"référence GRCh38 {seq}, publiée {r} ({h})")
+            return (ch.replace("chr", ""), str(g1), r, a)
+        dm = re.fullmatch(r"del([ACGT]*)ins([ACGT]+)|del([ACGT]*)|dup([ACGT]*)|ins([ACGT]+)", chg)
+        dseq, ins, delseq, dupseq, insseq = dm.groups()
+        if insseq is not None:                       # entre g1 et g2
+            b = fa.seq(ch, g1, g1)
+            return (ch.replace("chr", ""), str(g1), b, b + orient(insseq))
+        span = fa.seq(ch, g1, g2)
+        given = dseq if ins is not None else (delseq if delseq is not None else dupseq)
+        if given and orient(given) != span:
+            raise ValueError(f"séquence GRCh38 {span}, publiée {orient(given)} ({h})")
+        if ins is not None:
+            return (ch.replace("chr", ""), str(g1), span, orient(ins))
+        if dupseq is not None:
+            b = fa.seq(ch, g2, g2)
+            return (ch.replace("chr", ""), str(g2), b, b + span)
+        b = fa.seq(ch, g1 - 1, g1 - 1)                # délétion : base d'ancrage
+        return (ch.replace("chr", ""), str(g1 - 1), b + span, b)
+
+    @staticmethod
+    def c_to_g(t, tok):
+        m = re.fullmatch(r"(\*?)(-?\d+)([-+]\d+)?", tok)
+        if not m:
+            raise ValueError(f"position non lue : {tok}")
+        star, num, off = m.group(1), int(m.group(2)), int(m.group(3) or 0)
+        minus = t["strand"] == "-"
+        ex = sorted(t["exon"], reverse=minus)
+        blocks, i0 = [], 1                                 # (début g, fin g, début t, fin t)
+        for s, e in ex:
+            blocks.append((s, e, i0, i0 + e - s))
+            i0 += e - s + 1
+        n = i0 - 1
+
+        def g2t(g):
+            for s, e, a, b in blocks:
+                if s <= g <= e:
+                    return a + (g - s if not minus else e - g)
+            raise ValueError("codon hors des exons")
+
+        def t2g(i):
+            if i < 1:                                       # en amont du transcrit
+                return t2g(1) - (1 - i) if not minus else t2g(1) + (1 - i)
+            if i > n:                                       # en aval
+                return t2g(n) + (i - n) if not minus else t2g(n) - (i - n)
+            for s, e, a, b in blocks:
+                if a <= i <= b:
+                    return s + (i - a) if not minus else e - (i - a)
+
+        cds = t["start_codon"] or t["CDS"]
+        stop = t["stop_codon"] or t["CDS"]
+        if not cds:
+            raise ValueError("transcrit sans CDS")
+        if star:
+            if not stop:
+                raise ValueError("transcrit sans codon stop")
+            i = g2t(max(x[1] for x in stop) if not minus else min(x[0] for x in stop)) + num
+        else:
+            cs = g2t(min(x[0] for x in cds) if not minus else max(x[1] for x in cds))
+            i = cs + num if num < 0 else cs + num - 1
+        g = t2g(i)
+        return g + off if not minus else g - off
+
+
 def parse_recoder(data):
     """réponse de variant_recoder -> {entrée: [[chrom, pos, ref, alt], ...]}"""
     out = {}
@@ -271,6 +458,14 @@ def chrom_ok(c):
     return c if re.fullmatch(r"[0-9]{1,2}|X|Y|MT|M", c) else None
 
 
+def expansion(ref, alt):
+    """insertion ou délétion faite d'un motif de 1 à 6 pb répété au moins 4 fois"""
+    if len(ref) == len(alt) or min(len(ref), len(alt)) != 1:
+        return False
+    x = (alt if len(alt) > len(ref) else ref)[1:]
+    return any(len(x) >= 4 * u and len(x) % u == 0 and x == x[:u] * (len(x) // u) for u in range(1, 7))
+
+
 def clinvar_rows(path, genes, introns, min_stars):
     keep = dict(MC_NONCODANT, **(MC_INTRON if introns else {}))
     n = 0
@@ -290,7 +485,7 @@ def clinvar_rows(path, genes, introns, min_stars):
             if not g or not re.fullmatch(r"[ACGT]+", f[3]) or not re.fullmatch(r"[ACGT]+", f[4]):
                 continue
             mc = [m.split("|")[1] for m in info.get("MC", "").split(",") if "|" in m]
-            if not mc or any(m not in keep for m in mc):
+            if not any(m in keep for m in mc) or any(m not in keep and m not in MC_NEUTRE for m in mc):
                 continue
             stars = ETOILES.get(info.get("CLNREVSTAT", ""), 0)
             if stars < min_stars:
@@ -299,7 +494,7 @@ def clinvar_rows(path, genes, introns, min_stars):
             if not c:
                 continue
             n += 1
-            cat = sorted({keep[m] for m in mc})[0]
+            cat = sorted({keep[m] for m in mc if m in keep})[0]
             yield dict(chrom=c, pos=f[1], ref=f[3], alt=f[4], gene=g[0], categorie=cat,
                        source="clinvar", etoiles=str(stars), clinvar_id=f[2],
                        preuve=f"{sig} ; {info.get('CLNDN', '.').replace('_', ' ')}"[:300])
@@ -346,13 +541,23 @@ def main():
     p.add_argument("--avec-introniques", action="store_true")
     p.add_argument("--etoiles-min", type=int, default=0)
     p.add_argument("--sans-clinvar", action="store_true")
+    p.add_argument("--gtf", type=Path, help="GTF GENCODE ou Ensembl (GRCh38) : conversion sans "
+                   "réseau sur le MANE Select, avec --fasta")
+    p.add_argument("--fasta", help="FASTA GRCh38 indexé (.fai), fichier ou URL")
     a = p.parse_args()
     a.datadir.mkdir(parents=True, exist_ok=True)
 
     genes = read_genes(a.genes, a.renamed)
-    mane = read_mane(a.mane or mane_file(a.datadir))
+    if a.gtf:
+        if not a.fasta:
+            sys.exit("--gtf demande --fasta")
+        sym, txs = gtf_transcripts(a.gtf)
+        mane = {g: (None, e) for g, e in sym.items()}
+        recode = Local(txs, Fasta(a.fasta))
+    else:
+        mane = read_mane(a.mane or mane_file(a.datadir))
+        recode = Recoder(a.cache or a.datadir / "variant_recoder.json")
     log(f"{len(genes)} gènes ; {sum(g in mane for g in genes)} avec un MANE Select")
-    recode = Recoder(a.cache or a.datadir / "variant_recoder.json")
 
     # notations c. -> à convertir
     todo = [dict(gene=g, c=v, tx=None, genomique=True, categorie="intergenique",
@@ -387,16 +592,21 @@ def main():
             r["suppose"], r["hgvs"] = ".", r["c"]
             continue
         r["suppose"] = "non" if r["tx"] else "oui"
+        r["tx_pub"] = r["tx"]
+        if a.gtf and r["tx"] and not r["tx"].startswith("ENST"):
+            # conversion locale : NM publié supposé identique au MANE Select
+            r["tx"], r["suppose"] = None, "oui (NM publié = MANE)"
         if not r["tx"]:
             if r["gene"] not in mane:
                 bad.append((r, "gène sans MANE Select"))
                 continue
-            r["tx"] = mane[r["gene"]][0]
+            r["tx"] = mane[r["gene"]][1 if a.gtf else 0]
         r["hgvs"] = f"{r['tx']}:{r['c']}"
     conv = recode([r["hgvs"] for r in todo if "hgvs" in r])
     # version du NM inconnue d'Ensembl : nouvel essai sans version
     retry = {r["hgvs"]: re.sub(r"^(NM_\d+)\.\d+", r"\1", r["hgvs"]) for r in todo
-             if "hgvs" in r and not conv.get(r["hgvs"]) and re.match(r"NM_\d+\.", r["hgvs"])}
+             if "hgvs" in r and not conv.get(r["hgvs"]) and re.match(r"NM_\d+\.", r["hgvs"])
+             and not a.gtf}
     if retry:
         conv2 = recode(list(retry.values()))
         for h, h2 in retry.items():
@@ -406,13 +616,13 @@ def main():
             continue
         hits = conv.get(r["hgvs"]) or []
         if not hits:
-            bad.append((r, "non converti (Ensembl)"))
+            bad.append((r, "non converti : " + getattr(recode, "err", {}).get(r["hgvs"], "Ensembl")))
             continue
         for c, pos, ref, alt in hits:
             rows.append(dict(chrom=c, pos=pos, ref=ref, alt=alt, gene=r["gene"],
                              categorie=r["categorie"], source=r["source"], etoiles=".",
                              clinvar_id=".", transcrit_suppose=r["suppose"],
-                             notation_publiee=r["c"] if r.get("genomique") else f"{r['tx']} ({r['c']})", preuve=r["preuve"]))
+                             notation_publiee=r["c"] if r.get("genomique") else f"{r.get('tx_pub') or r['tx']} ({r['c']})", preuve=r["preuve"]))
 
     if not a.sans_clinvar:
         cv = a.clinvar or download(CLINVAR_URL, a.datadir / "clinvar.vcf.gz")
@@ -431,6 +641,8 @@ def main():
                 m[f] = " | ".join(dict.fromkeys(vals)) or "."
         else:
             merged[k] = dict(r)
+    exclus = {k: merged.pop(k) for k in list(merged)
+              if max(len(k[2]), len(k[3])) - 1 > MAX_LONGUEUR or expansion(k[2], k[3])}
     order = lambda k: (int(k[0]) if k[0].isdigit() else 100 + ord(k[0][0]), k[1])
     cols = ["chrom", "pos", "ref", "alt", "transcrit", "gene", "categorie", "source",
             "etoiles", "clinvar_id", "transcrit_suppose", "notation_publiee", "preuve"]
@@ -441,6 +653,37 @@ def main():
             r["chrom"] = "chr" + r["chrom"]
             r["transcrit"] = mane.get(r["gene"], (None, "."))[1]
             fh.write("\t".join(str(r.get(c, ".")).replace("\t", " ") for c in cols) + "\n")
+    # entrée de reannot_alphagenome.sh, sans en-tête (transcrit, notation g.)
+    from preparer_entree import g_notation
+    with open(a.out.with_name(a.out.name.replace(".tsv", "") + ".entree.tsv"), "w") as fh:
+        for k in sorted(merged, key=order):
+            r = merged[k]
+            fh.write(f"{r['transcrit']}\t{g_notation(r['chrom'], r['pos'], r['ref'], r['alt'])}\n")
+    # même chose en VCF (GRCh38, trié)
+    with open(a.out.with_name(a.out.name.replace(".tsv", "") + ".vcf"), "w") as fh:
+        fh.write("##fileformat=VCFv4.2\n##reference=GRCh38\n"
+                 '##INFO=<ID=GENE,Number=1,Type=String,Description="Gène">\n'
+                 '##INFO=<ID=CAT,Number=1,Type=String,Description="Catégorie">\n'
+                 '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source (litterature, clinvar)">\n'
+                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+        for k in sorted(merged, key=order):
+            r = merged[k]
+            src = ",".join(dict.fromkeys(x.split(" ")[0].split("[")[0] for x in r["source"].split(" | ")))
+            vid = r["clinvar_id"].split(" | ")[0] if r["clinvar_id"] != "." else "."
+            fh.write(f"{r['chrom']}\t{r['pos']}\t{vid}\t{r['ref']}\t{r['alt']}\t.\t.\t"
+                     f"GENE={r['gene']};CAT={r['categorie']};SOURCE={src}\n")
+    ex = a.out.with_name(a.out.name.replace(".tsv", "") + ".exclus.tsv")
+    with open(ex, "w") as fh:
+        fh.write("chrom\tpos\tlongueur\tgene\tsource\tclinvar_id\tpreuve\traison\n")
+        for k in sorted(exclus, key=order):
+            r = exclus[k]
+            fh.write(f"chr{k[0]}\t{k[1]}\t{max(len(k[2]), len(k[3])) - 1}\t{r['gene']}\t{r['source']}\t"
+                     f"{r['clinvar_id']}\t{r['preuve']}\t"
+                     + ("expansion de répétition" if expansion(k[2], k[3]) else
+                        f"plus de {MAX_LONGUEUR} pb (grand remaniement)")
+                     + " : non évaluable par l'annotation\n")
+    if exclus:
+        log(f"{len(exclus)} expansions de répétitions ou variants de plus de {MAX_LONGUEUR} pb -> {ex}")
     nc = a.out.with_name(a.out.name.replace(".tsv", "") + ".non_convertis.tsv")
     with open(nc, "w") as fh:
         fh.write("gene\tnotation\tsource\traison\n")

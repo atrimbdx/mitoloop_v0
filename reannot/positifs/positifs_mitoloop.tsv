@@ -1,0 +1,31 @@
+chrom	pos	ref	alt	transcrit	gene	categorie	source	etoiles	clinvar_id	transcrit_suppose	notation_publiee	preuve
+chr1	161166672	G	A	ENST00000367999	PPOX	5UTR_promoteur	clinvar	1	2202870	.	.	Likely_pathogenic ; not provided
+chr1	226986807	A	AG	ENST00000366777	COQ8A	3UTR	clinvar	0	590809	.	.	Likely_pathogenic ; Coenzyme Q10 deficiency, primary, 1
+chr2	218659671	G	T	ENST00000359273	BCS1L	5UTR_promoteur	litterature	.	.	oui	ENST00000359273 (c.-122G>T)	PMID:40660675 Ann Clin Transl Neurol 2025 (doi:10.1002/acn3.70108) ; en trans de p.L280F ; expression résiduelle de l'allèle normal (fibroblastes)
+chr2	218660131	C	G	ENST00000359273	BCS1L	5UTR_promoteur	clinvar	1	801896	.	.	Likely_pathogenic ; GRACILE syndrome
+chr2	240025375	CGCTGCCGTGACGTCACGGCCGGGGT	C	ENST00000252711	NDUFA10	5UTR_promoteur	litterature	.	.	oui (NM publié = MANE)	NM_004544.3 (c.-99_-75del)	Yépez 2022 tableau 1 (cas 11 et 17, fratrie) ; homozygote 5'UTR ; sous-expression ARN (fibroblastes) ; déficit en complexe I
+chr5	132369824	G	A	ENST00000245407	SLC22A5	5UTR_promoteur	clinvar	2	25340	.	.	Pathogenic ; SLC22A5-related disorder|Renal carnitine transport defect|not provided|Inborn genetic diseases
+chr6	87589959	T	C	ENST00000369536	RARS2	5UTR_promoteur	litterature	.	.	oui	ENST00000369536 (c.-2A>G)	PMID:25809939 J Hum Genet 2015 (doi:10.1038/jhg.2015.31) ; PCH6 ; homozygote ; ARNm diminué, activité promotrice diminuée
+chr8	95036360	C	T	ENST00000396124	NDUFAF6	5UTR_promoteur	clinvar	2	929495	.	.	Pathogenic/Likely_pathogenic ; Mitochondrial complex 1 deficiency, nuclear type 17|not provided
+chr8	102148058	G	T	ENST00000251810	RRM2B	intergenique	litterature	.	.	.	GRCh38:8:102148058:G>T	Yépez 2022 tableau 1 (cas 28) ; hg19 chr8:103160286G>T (fichier additionnel 1) ; intergénique (c.?), en trans de c.328C>T ; sous-expression ARN et expression mono-allélique
+chr9	37422747	GC	AT	ENST00000318158	GRHPR	5UTR_promoteur	clinvar	1	204230	.	.	Likely_pathogenic ; Primary hyperoxaluria, type II
+chr9	95876026	TC	T	ENST00000653738	ERCC6L2	5UTR_promoteur	clinvar	1	3692630	.	.	Pathogenic ; not provided
+chr11	34916458	AT	A	ENST00000227868	PDHX	5UTR_promoteur	clinvar	0	590822	.	.	Likely_pathogenic ; Pyruvate dehydrogenase E1-alpha deficiency
+chr11	61967589	T	A	ENST00000273550	FTH1	5UTR_promoteur	clinvar	0	16490	.	.	Pathogenic ; Hemochromatosis type 5
+chr13	38349646	AAGT	A	ENST00000239878	UFM1	5UTR_promoteur	litterature	.	.	oui (NM publié = MANE)	NM_016617.2 (c.-273_-271del)	Yépez 2022 tableau 1 (cas 13) ; Hamilton 2017 Neurology ; homozygote promoteur, fondateur Rom ; sous-expression ARN, activité promotrice diminuée ; UFM1 n'est pas un gène mitochondrial (contrôle hors périmètre)
+chr15	76216528	AAAAG	A	ENST00000557943	ETFA	3UTR	clinvar	0	1252024	.	.	Pathogenic ; Multiple acyl-CoA dehydrogenase deficiency
+chr15	76311473	C	T	ENST00000557943	ETFA	5UTR_promoteur	litterature	.	.	oui	ENST00000557943 (c.-85G>A)	PMID:36579410 Am J Med Genet A (doi:10.1002/ajmg.a.63104) ; MADD ; homozygote ; ETFA diminuée (lymphoblastes), promoteur diminué (luciférase)
+chr16	2047832	C	A	ENST00000651570	NTHL1	5UTR_promoteur	clinvar	1	2673806	.	.	Pathogenic ; Familial adenomatous polyposis 3
+chr16	66548020	C	T	ENST00000544898	TK2	5UTR_promoteur	clinvar	1	3778875	.	.	Likely_pathogenic ; Mitochondrial disease
+chr17	7220052	T	C	ENST00000356839	ACADVL	5UTR_promoteur	clinvar	1	432072	.	.	Likely_pathogenic ; Very long chain acyl-CoA dehydrogenase deficiency|not provided
+chr17	7220063	AGGGACGGT	A	ENST00000356839	ACADVL	5UTR_promoteur	clinvar	1	2959537	.	.	Likely_pathogenic ; Very long chain acyl-CoA dehydrogenase deficiency
+chr17	75905022	AGGCCCCTGCACCGTCTGCCTCGGGCGC	A	ENST00000309352	MRPL38	5UTR_promoteur	litterature	.	.	oui (NM publié = MANE)	NM_032478.3 (c.-174_-148del)	Yépez 2022 tableau 1 (cas 2) ; 5'UTR, en trans de c.770C>G ; sous-expression ARN et protéine (Kopajtich 2021 medRxiv doi:10.1101/2021.03.09.21253187) ; Leigh, déficit en complexes I et IV ; ATTENTION Kopajtich écrit c.1-174del127 (127 pb, soit c.-174_-48del) : à vérifier dans Yépez, fichier additionnel 1
+chr19	29708415	G	A	ENST00000323670	C19orf12	5UTR_promoteur	clinvar	2	31156	.	.	Pathogenic/Likely_pathogenic ; Hereditary spastic paraplegia 43|not provided|Abnormality of iron homeostasis|Neurodegeneration with brain iron accumulation 4|Neurodegeneration with brain iron accumulation
+chr19	29708423	C	G	ENST00000323670	C19orf12	5UTR_promoteur	clinvar	0	617482	.	.	Pathogenic ; Neurodegeneration with brain iron accumulation 4
+chr20	3923334	G	C	ENST00000610179	PANK2	3UTR	clinvar	0	430728	.	.	Likely_pathogenic ; Pigmentary pallidal degeneration
+chr22	50526097	GCAGCAC	G	ENST00000252029	TYMP	5UTR_promoteur	clinvar	2	1332698	.	.	Pathogenic/Likely_pathogenic ; Mitochondrial DNA depletion syndrome 1
+chr22	50526102	ACCAGCG	A	ENST00000252029	TYMP	5UTR_promoteur	clinvar	1	16659	.	.	Likely_pathogenic ; Mitochondrial DNA depletion syndrome 1
+chr22	50526393	A	AGCCGTCGTCCAGCGCCGC	ENST00000252029	TYMP	5UTR_promoteur	clinvar	0	223073	.	.	Pathogenic ; Mitochondrial DNA depletion syndrome 1
+chrX	19359731	C	CAGTCAATGAAAT	ENST00000422285	PDHA1	3UTR	clinvar	0	10891	.	.	Pathogenic ; Pyruvate dehydrogenase E1-alpha deficiency
+chrX	101346683	T	G	ENST00000372902	TIMM8A	3UTR	clinvar	0	11325	.	.	Pathogenic ; Deafness dystonia syndrome
+chrX	130165779	C	G	ENST00000287295	AIFM1	5UTR_promoteur	clinvar	0	162472	.	.	Likely_pathogenic ; Deafness, X-linked 5

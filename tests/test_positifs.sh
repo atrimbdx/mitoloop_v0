@@ -57,7 +57,10 @@ v += [rec(15, 76311000, 101, "C", "T", "Pathogenic", "ETFA", "SO:0001623|5_prime
       rec(5, 53460600, 107, "G", "A", "Pathogenic", "NDUFS4", "SO:0001627|intron_variant"),            # intron
       rec(5, 53460700, 108, "G", "A", "Benign", "NDUFS4", "SO:0001623|5_prime_UTR_variant"),
       rec(5, 53460800, 109, "G", "A", "Pathogenic", "NDUFS4", ""),                                     # sans MC
-      rec(5, 53460900, 110, "G", "<DEL>", "Pathogenic", "NDUFS4", "SO:0001623|5_prime_UTR_variant")]
+      rec(5, 53460900, 110, "G", "<DEL>", "Pathogenic", "NDUFS4", "SO:0001623|5_prime_UTR_variant"),
+      rec(5, 53461000, 111, "G", "A", "Pathogenic", "NDUFS4", "SO:0001623|5_prime_UTR_variant,SO:0001619|non-coding_transcript_variant"),
+      rec(5, 53461100, 112, "G", "GCAGCAGCAGCAG", "Pathogenic", "NDUFS4", "SO:0001624|3_prime_UTR_variant"),
+      rec(5, 53461200, 113, "G", "A", "Pathogenic", "NDUFS4", "SO:0001619|non-coding_transcript_variant")]
 with gzip.open("clinvar.vcf.gz", "wt") as fh:
     fh.write("\n".join(v) + "\n")
 with open("supp.tsv", "w") as fh:
@@ -83,7 +86,9 @@ def ok(c, m):
         sys.exit("FAIL test_positifs: " + m)
 r = k[("chr8", "102148058")]
 ok(r["gene"] == "RRM2B" and r["categorie"] == "intergenique" and r["notation_publiee"].startswith("GRCh38:"), "RRM2B")
-ok(len(rows) == 7, f"7 variants attendus, {len(rows)}: {sorted(k)}")
+ok(("chr5", "53461000") in k, "5'UTR + transcrit non codant")
+ok("53461100" in open("pos.exclus.tsv").read(), "expansion CAG exclue")
+ok(len(rows) == 8, f"8 variants attendus, {len(rows)}: {sorted(k)}")
 e = k[("chr15", "76311000")]
 ok("litterature" in e["source"] and "clinvar" in e["source"] and e["clinvar_id"] == "101", "fusion ETFA")
 ok(e["transcrit"] == "ENST00000557943" and e["transcrit_suppose"] == "oui", "transcrit ETFA")
@@ -91,7 +96,7 @@ ok(("chr2", "218658000") in k, "BCS1L via NM sans version")
 ok(("chr5", "53460100") in k and k[("chr5", "53460100")]["categorie"] == "3UTR", "alias OLDNAME")
 ok(k[("chr5", "53560000")]["source"] == "supp.tsv", "table c.*30")
 ok(k[("chr5", "53460000")]["transcrit_suppose"] == "non", "table NM donné")
-for p in ("53460200", "53460300", "53460400", "53460500", "53460600", "53460700", "53460800"):
+for p in ("53460200", "53460300", "53460400", "53460500", "53460600", "53460700", "53460800", "53461100", "53461200"):
     ok(("chr5", p) not in k, f"{p} aurait dû être exclu")
 bad = open("pos.non_convertis.tsv").read()
 ok("c.-999A>G" in bad, "non converti RARS2")
@@ -107,7 +112,8 @@ grep -q $'\t53460600\t' pos2.tsv || fail "intron avec --avec-introniques"
 python3 "$R/preparer_entree.py" pos.tsv e.tsv > p.log || { cat p.log; fail "preparer"; }
 grep -q "chrom=1, pos=2, ref=3, alt=4, transcrit 5" p.log || { cat p.log; fail "colonnes reconnues"; }
 grep -q $'^ENST00000557943\tchr15:g.76311000C>T$' e.tsv || { cat e.tsv; fail "entrée reannot"; }
-[ "$(wc -l < e.tsv)" -eq 7 ] || fail "7 lignes d'entrée"
+[ "$(wc -l < e.tsv)" -eq 8 ] || fail "8 lignes d'entrée"
+cmp -s e.tsv pos.entree.tsv || { diff e.tsv pos.entree.tsv; fail "entrée écrite par le script = entrée de preparer_entree"; }
 
 # conversion GRCh37 -> GRCh38 et contrôle de la référence (réponses Ensembl simulées)
 python3 - "$S" <<'PY' || fail "genomic"
@@ -124,6 +130,49 @@ assert p.genomic("GRCh37:8:103160286:G>T") == [["8", "102148058", "G", "T"]]
 seq["G"] = "A"
 try:
     p.genomic("GRCh37:8:103160286:G>T"); sys.exit("référence fausse acceptée")
+except ValueError:
+    pass
+PY
+
+# conversion locale (GTF + FASTA) : brins + et -, amont du transcrit, délétion
+python3 - "$S" <<'PY' || fail "conversion locale"
+import gzip, random, sys
+sys.path[:0] = [sys.argv[1], sys.argv[1] + "/../reannot"]
+import positifs_mitoloop as p
+random.seed(1)
+g = "".join(random.choice("ACGT") for _ in range(500))
+with open("mini.fa", "w") as fh:
+    fh.write(">chr1\n" + "\n".join(g[i:i + 60] for i in range(0, 500, 60)) + "\n")
+with open("mini.fa.fai", "w") as fh:
+    fh.write("chr1\t500\t6\t60\t61\n")
+gtf = [("chr1", "transcript", 101, 300, "+", "TP", "ENST00000000001"),
+       ("chr1", "exon", 101, 150, "+", "TP", "ENST00000000001"),
+       ("chr1", "exon", 201, 300, "+", "TP", "ENST00000000001"),
+       ("chr1", "start_codon", 121, 123, "+", "TP", "ENST00000000001"),
+       ("chr1", "transcript", 101, 350, "-", "TM", "ENST00000000002"),
+       ("chr1", "exon", 101, 200, "-", "TM", "ENST00000000002"),
+       ("chr1", "exon", 301, 350, "-", "TM", "ENST00000000002"),
+       ("chr1", "start_codon", 340, 342, "-", "TM", "ENST00000000002")]
+with gzip.open("mini.gtf.gz", "wt") as fh:
+    for c, f, a, b, st, gn, tx in gtf:
+        fh.write(f'{c}\tX\t{f}\t{a}\t{b}\t.\t{st}\t.\tgene_name "{gn}"; transcript_id "{tx}"; tag "MANE_Select";\n')
+mane, txs = p.gtf_transcripts(p.Path("mini.gtf.gz"))
+assert mane == {"TP": "ENST00000000001", "TM": "ENST00000000002"}, mane
+L = p.Local(txs, p.Fasta("mini.fa"))
+b = lambda pos: g[pos - 1]
+comp = {"A": "T", "C": "G", "G": "C", "T": "A"}
+# + : c.-5 -> 116 ; c.-25 -> 96 (amont du transcrit)
+assert L.convert(f"ENST00000000001:c.-5{b(116)}>A") == ("1", "116", b(116), "A")
+assert L.convert(f"ENST00000000001:c.-25{b(96)}>A") == ("1", "96", b(96), "A")
+# - : c.-3 -> 345 ; c.-20 -> 362 (amont) ; bases du brin codant
+assert L.convert(f"ENST00000000002:c.-3{comp[b(345)]}>G") == ("1", "345", b(345), "C")
+assert L.convert(f"ENST00000000002:c.-20{comp[b(362)]}>G") == ("1", "362", b(362), "C")
+# délétion c.-5_-3 sur - : 345..347, ancre 344
+assert L.convert("ENST00000000002:c.-5_-3del") == ("1", "344", g[343:347], b(344))
+# référence fausse refusée
+wrong = [x for x in "ACGT" if x != b(116)][0]
+try:
+    L.convert(f"ENST00000000001:c.-5{wrong}>A"); sys.exit("référence fausse acceptée")
 except ValueError:
     pass
 PY
