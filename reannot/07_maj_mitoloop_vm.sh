@@ -22,7 +22,8 @@ touch "$M.nouveau"/annotations/*.tbi 2>/dev/null || true   # index plus récent 
 [ -f README_MitoLoop.md ] && cp README_MitoLoop.md "$M.nouveau/"
 rm -rf "$M.ancien"; [ -d "$M" ] && mv "$M" "$M.ancien"
 mv "$M.nouveau" "$M"
-cp ajout_mitoloop.py "$BASE/scripts/"
+cp ajout_mitoloop.py preparer_entree.py reannot_complet.sh "$BASE/scripts/"
+chmod +x "$BASE"/scripts/*.sh
 
 echo "Contrôle de lecture :"
 python3 - "$M" <<'PY'
@@ -36,4 +37,7 @@ print(f"  {n} gènes, {r} régions, annotations : {', '.join(a)}")
 PY
 echo "Version : $(cat "$M/VERSION")"
 echo "Mise à jour MitoLoop installée dans $M"
-echo "Usage : python3 $BASE/scripts/ajout_mitoloop.py run.final.tsv  (ou run.final.spliceai2.tsv)"
+echo "Usage, tout le pipeline depuis un Excel, un TSV ou un VCF :"
+echo "  bash $BASE/scripts/reannot_complet.sh variants.xlsx [prefixe]"
+echo "MitoLoop seul sur une table déjà produite :"
+echo "  python3 $BASE/scripts/ajout_mitoloop.py run.final.tsv"

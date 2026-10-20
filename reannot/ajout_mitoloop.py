@@ -6,6 +6,7 @@ codant sur l'expression d'un gène mitochondrial. Le fichier d'origine n'est
 pas modifié : le résultat est écrit à côté, avec le suffixe .mitoloop.tsv.
 
 Usage : python3 ajout_mitoloop.py run1.final.tsv [run2.final.tsv ...]
+        (un VCF est aussi accepté : run.vcf.gz -> run.mitoloop.tsv)
         (REANNOT_BASE, MITOLOOP_DIR, FASTA, SAMTOOLS comme dans les autres
         scripts ; --data, --fasta, --samtools pour les donner autrement)
 
@@ -301,9 +302,22 @@ def main():
 
     for path in a.tables:
         out = re.sub(r"\.tsv$", "", path) + ".mitoloop.tsv"
-        with open(path) as fh:
-            head = fh.readline().rstrip("\n").split("\t")
-            rows = [ln.rstrip("\n").split("\t") for ln in fh if ln.strip()]
+        if re.search(r"\.vcf(\.gz)?$", path):
+            # VCF : une ligne par allèle alternatif
+            head, rows = ["chrom", "pos", "id", "ref", "alt"], []
+            with opener(path) as fh:
+                for ln in fh:
+                    if ln.startswith("#"):
+                        continue
+                    f = ln.rstrip("\n").split("\t")
+                    # les allèles symboliques (<DEL>, SV) ne sont pas annotés
+                    rows += [[f[0], f[1], f[2], f[3], x] for x in f[4].split(",")
+                             if re.fullmatch(r"[ACGTNacgtn]+", x)]
+            out = re.sub(r"\.vcf(\.gz)?$", "", path) + ".mitoloop.tsv"
+        else:
+            with open(path) as fh:
+                head = fh.readline().rstrip("\n").split("\t")
+                rows = [ln.rstrip("\n").split("\t") for ln in fh if ln.strip()]
         col = {h.lower().lstrip("#"): i for i, h in enumerate(head)}
         for k in ("chrom", "pos", "ref", "alt"):
             if k not in col:

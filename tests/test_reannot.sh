@@ -175,4 +175,61 @@ assert float(v["site_NRF1"]["p"]) < 1e-6 and float(v["site_NRF1"]["z"]) > 0
 assert float(v["n_arguments"]["difference"]) > 0
 PY
 
+# input preparation: Excel with HGVS (NM_ prefix), VCF with indels and the
+# MANE Select transcript taken from the GTF; one-command chain with stubs
+python3 - <<'PY'
+import gzip, openpyxl
+wb = openpyxl.Workbook(); ws = wb.active
+ws.append(["Patient", "Transcript", "Variant", "Note"])
+ws.append(["P1", "ENST00000269305.9", "NM_000546.6:c.-29+2T>G", "x"])
+ws.append(["P2", "ENST00000269305", "chr17:g.7676154G>C", ""])
+ws.append(["P3", "", "", ""])
+wb.save("variants.xlsx")
+with gzip.open("ens.gtf.gz", "wt") as fh:
+    fh.write('1\tens\ttranscript\t5001\t9000\t.\t+\t.\tgene_id "G1"; transcript_id "ENST00000000011"; tag "MANE_Select";\n')
+    fh.write('1\tens\ttranscript\t10000\t13000\t.\t-\t.\tgene_id "G2"; transcript_id "ENST00000000022"; tag "MANE_Select";\n')
+    fh.write('1\tens\ttranscript\t5001\t9500\t.\t+\t.\tgene_id "G1"; transcript_id "ENST00000000033";\n')
+with open("in.vcf", "w") as fh:
+    fh.write("##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+    fh.write("chr1\t4972\t.\tC\tA,T\t.\t.\t.\n")
+    fh.write("chr1\t13100\t.\tATG\tA\t.\t.\t.\n")
+    fh.write("chr1\t13200\t.\tA\tACC\t.\t.\t.\n")
+    fh.write("chr1\t13300\t.\tA\t<DEL>\t.\t.\t.\n")
+PY
+python3 "$R/preparer_entree.py" variants.xlsx e1.tsv > p1.log || { cat p1.log; fail "xlsx"; }
+[ "$(cat e1.tsv)" = "$(printf 'ENST00000269305.9\tc.-29+2T>G\nENST00000269305\tchr17:g.7676154G>C')" ] \
+    || { cat e1.tsv p1.log; fail "xlsx content"; }
+python3 "$R/preparer_entree.py" in.vcf e2.tsv --gtf ens.gtf.gz > p2.log || { cat p2.log; fail "vcf"; }
+[ "$(cat e2.tsv)" = "$(printf 'ENST00000000011\tchr1:g.4972C>A\nENST00000000011\tchr1:g.4972C>T\nENST00000000022\tchr1:g.13101_13102del\nENST00000000022\tchr1:g.13200_13201insCC')" ] \
+    || { cat e2.tsv p2.log; fail "vcf content"; }
+# the chain, with stubs of the reannot scripts (the real ones need VEP)
+mkdir -p base/scripts base/data/ref base/data/spliceai2
+echo 115 > base/VEP_RELEASE
+cp ens.gtf.gz base/data/ref/Homo_sapiens.GRCh38.115.gtf.gz
+cp -r pkg base/data/mitoloop
+cp "$R/preparer_entree.py" "$R/ajout_mitoloop.py" "$R/reannot_complet.sh" base/scripts/
+cat > base/scripts/reannot_alphagenome.sh <<'SH'
+#!/usr/bin/env bash
+# stub: one final.tsv row per input line, the position of a g. notation
+awk -F'\t' 'BEGIN { print "transcrit\tvariant_entree\tchrom\tpos\tref\talt\tgene\tstatut" }
+  { split($2, a, /[:.>]/); g = substr($2, index($2, "g.") + 2); match(g, /[0-9]+/); p = substr(g, RSTART, RLENGTH)
+    r = substr($2, length($2) - 2, 1); x = substr($2, length($2))
+    print $1 "\t" $2 "\t" a[1] "\t" p "\t" r "\t" x "\t.\tok" }' "$1" > "$2.final.tsv"
+SH
+cat > base/scripts/ajout_spliceai2.sh <<'SH'
+#!/usr/bin/env bash
+awk -F'\t' -v OFS='\t' 'NR == 1 { print $0, "SpliceAI2_statut"; next } { print $0, "non_couvert" }' "$1" > "${1%.tsv}.spliceai2.tsv"
+SH
+touch base/data/spliceai2/spliceai2.tsv.gz
+printf '#chrom\tpos\tref\talt\nchr1\t4972\tC\tA\n' > direct.tsv
+REANNOT_BASE="$PWD/base" FASTA="$PWD/genome.fa" SAMTOOLS=no-samtools-here \
+    bash base/scripts/reannot_complet.sh in.vcf run2 > chain.log 2>&1 || { cat chain.log; fail "chain"; }
+[ -s run2.final.spliceai2.mitoloop.tsv ] || { cat chain.log; fail "chain output"; }
+head -1 run2.final.spliceai2.mitoloop.tsv | grep -q "SpliceAI2_statut.*MITO_gene" || fail "chain columns"
+grep -q "ENST00000000011.*GENEP:promoter" run2.final.spliceai2.mitoloop.tsv || { cat run2.final.spliceai2.mitoloop.tsv; fail "chain MitoLoop"; }
+python3 "$R/ajout_mitoloop.py" --data pkg --fasta genome.fa --samtools no-samtools-here in.vcf 2> v.log \
+    || { cat v.log; fail "VCF in ajout_mitoloop"; }
+[ "$(awk -F'\t' 'NR > 1 { print $NF }' in.mitoloop.tsv | sort | uniq -c | tr -s ' ' | tr '\n' ';')" = " 4 annote;" ] \
+    || { cat in.mitoloop.tsv; fail "VCF statuses"; }
+
 echo "PASS test_reannot"

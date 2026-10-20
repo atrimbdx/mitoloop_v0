@@ -14,21 +14,37 @@ Le paquet est écrit dans `mitoloop_v0/transfert_mitoloop/` : à copier sur la V
 
 ## Installation et mise à jour (VM)
 
+    export REANNOT_BASE=/home/jovyan/DURAAK/reannot     # dossier du pipeline sur la VM
     cd transfert_mitoloop && bash 07_maj_mitoloop_vm.sh
 
-Les données vont dans `$REANNOT_BASE/data/mitoloop`, le script dans
+Les données vont dans `$REANNOT_BASE/data/mitoloop`, les scripts
+(`ajout_mitoloop.py`, `preparer_entree.py`, `reannot_complet.sh`) dans
 `$REANNOT_BASE/scripts`. Une mise à jour remplace la version précédente
 (gardée dans `data/mitoloop.ancien`).
 
 ## Utilisation (VM)
 
-    python3 ~/reannot/scripts/ajout_mitoloop.py run1.final.tsv [run2.final.tsv ...]
+Tout le pipeline en une commande, depuis un Excel (.xlsx), un TSV, un CSV ou
+un VCF :
 
-Résultat à côté de chaque fichier : `run1.final.mitoloop.tsv`. Seuls les
-variants des régions régulatrices des gènes mitochondriaux (promoteur, UTR,
-éléments ENCODE-rE2G, ancres de boucles) sont annotés ; les autres ont le
-statut `hors_regions_mito`. Trier sur `MITO_n_arguments` à l'intérieur des
-priorités habituelles.
+    export REANNOT_BASE=/home/jovyan/DURAAK/reannot
+    bash $REANNOT_BASE/scripts/reannot_complet.sh variants.xlsx run1 [--feuille NOM]
+
+Étapes : préparation de l'entrée (colonnes transcrit et variant c./n./g.
+reconnues par leur contenu, ou chrom/pos/ref/alt ; sans transcrit, le MANE
+Select voisin), VEP + SpliceAI + MORFEE + AlphaGenome
+(`reannot_alphagenome.sh`), SpliceAI2 s'il est installé, MitoLoop. Résultat :
+`run1.final.spliceai2.mitoloop.tsv` (ou `run1.final.mitoloop.tsv`).
+
+MitoLoop seul, sur une table déjà produite ou sur un VCF :
+
+    python3 $REANNOT_BASE/scripts/ajout_mitoloop.py run1.final.tsv
+    python3 $REANNOT_BASE/scripts/ajout_mitoloop.py variants.vcf.gz
+
+Seuls les variants des régions régulatrices des gènes mitochondriaux
+(promoteur, UTR, éléments ENCODE-rE2G, ancres de boucles) sont annotés ; les
+autres ont le statut `hors_regions_mito`. Trier sur `MITO_n_arguments` à
+l'intérieur des priorités habituelles.
 
 ## Colonnes
 
