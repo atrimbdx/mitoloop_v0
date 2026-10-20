@@ -249,12 +249,6 @@ do_reannot() {
               --jaspar "$P/JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt"
               --gtf "$GTF" --gnomad "$P/gnomad.v4.1.constraint_metrics.tsv"
               --gismo data/gismo --phylop "$P/cactus241way.phyloP.bw")
-    # GISMO : le dépôt Zenodo donne le code et ses entrées, pas de table de scores
-    local gz; gz=$(ls data/gismo/*/GISMO-GISMO.zip data/gismo/GISMO-GISMO.zip 2>/dev/null | head -n 1)
-    if [ -n "$gz" ] && [ ! -s data/gismo/gismo_genes.tsv ]; then
-        step gismo_scores python3 scripts/gismo_scores.py --zip "$gz" --gtf "$GTF" \
-            --out data/gismo/gismo_genes.tsv || echo "== GISMO not computed: package without GISMO"
-    fi
     local f tf
     for f in "$P"/remap2022_*_nr_macs2_hg38_v1_0.bed.gz; do
         [ -s "$f" ] || continue

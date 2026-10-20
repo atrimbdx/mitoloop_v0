@@ -76,4 +76,24 @@ ok(r["ENSG00000000000"]["gismo_mis_decile"] == "7" and r["GENE0"]["gismo_decile"
 ok(r["GENE19"]["gismo_decile"] == "10", "lecture par symbole")
 PY
 
+# lecture par le paquet d'un dossier : table publiée prioritaire, sinon consensus
+mkdir -p d1/sub d2
+cp gismo_genes.tsv d1/                               # recalcul : ignoré
+unzip -q -o GISMO-GISMO.zip -d d1/sub
+unzip -q -o GISMO-GISMO.zip -d d2
+printf 'Gene\tEnsembl gene ID\tGISMO\tGISMO decile\tGISMO-mis\tGISMO-mis decile\nGENE0\tENSG00000000000\t0.01\t2\t0.4\t6\nGENE1\tENSG00000000001\t0.2\t9\t0.3\t4\n' > d2/published.tsv
+python3 - "$HERE/../reannot" <<'PY' || exit 1
+import sys
+sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+import mitoloop_paquet as mp
+def ok(c, m):
+    if not c:
+        sys.exit("FAIL test_gismo: " + m)
+r = mp.gismo_table(Path("d1"), mp.gtf_mane(Path("mini.gtf.gz")))
+ok(r["GENE0"]["gismo"] == "" and r["GENE0"]["gismo_mis_decile"] == "7", "consensus seul (MANE), recalcul ignoré")
+r = mp.gismo_table(Path("d2"))
+ok(r["GENE0"]["gismo_decile"] == "2" and r["GENE1"]["gismo_mis_decile"] == "4", "table publiée prioritaire")
+PY
+
 echo "PASS test_gismo"

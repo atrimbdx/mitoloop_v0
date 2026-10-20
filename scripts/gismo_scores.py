@@ -3,6 +3,12 @@
 gismo_scores.py - gene table of GISMO and GISMO-mis (Liao et al. 2026) from the
 Zenodo record 20547722, which holds the code and its inputs but no score table.
 
+A CHECK ONLY, not used by the pipeline: the package takes the published
+values (supplementary table of the article). This re-implementation of
+GenerateScore/01_GISMOscores.R (fewer null draws, another random generator)
+serves to verify that the published deciles are understood, by comparing
+them with --compare.
+
 Purpose      One row per gene with GISMO (loss of the ortholog across 462
              mammals) and GISMO-mis (missense over synonymous substitutions
              across orthologs), and their deciles, for mitoloop_paquet.py.
@@ -159,6 +165,8 @@ def main():
                    help="null draws (10000 in the original script; 1000 gives the same deciles "
                         "up to genes at a boundary)")
     p.add_argument("--seed", type=int, default=1337)
+    p.add_argument("--compare", type=Path,
+                   help="table of the published scores (xlsx/tsv): agreement of the deciles")
     a = p.parse_args()
     src = Source(a.zip)
     sym, mane = gtf_genes(a.gtf)
@@ -171,6 +179,17 @@ def main():
     out["gismo_decile"] = out["gismo_decile"].astype("Int64")
     a.out.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(a.out, sep="\t", index=False, float_format="%.5g")
+    if a.compare:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reannot"))
+        from mitoloop_paquet import gismo_table
+        pub = gismo_table(a.compare)
+        for k in ("gismo_decile", "gismo_mis_decile"):
+            pairs = [(int(r[k]), int(pub[g][k])) for g, r in zip(out["gene"], out.to_dict("records"))
+                     if isinstance(g, str) and g in pub and pub[g][k] and not pd.isna(r[k])]
+            if pairs:
+                same = sum(x == y for x, y in pairs) / len(pairs)
+                near = sum(abs(x - y) <= 1 for x, y in pairs) / len(pairs)
+                print(f"{k} : {len(pairs)} gènes ; identique {same:.1%}, à un décile près {near:.1%}")
     print(f"{a.out} : {len(out)} lignes ; GISMO {out['gismo'].notna().sum()}, "
           f"GISMO-mis {out['gismo_mis'].notna().sum()}, sans symbole "
           f"{out['gene'].isna().sum()}")

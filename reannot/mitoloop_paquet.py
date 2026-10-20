@@ -26,11 +26,13 @@ Entrées (produites par run_mcia.sh de mitoloop_v0)
                  (gnomad.v4.1.constraint_metrics.tsv) : transcrit MANE
                  Select, sinon canonique ; LoF observés et attendus, o/e,
                  LOEUF, pLI, o/e et z faux-sens
-  --gismo        dossier (ou table) GISMO de Liao et al. 2026 (Zenodo
-                 20547722) : la table qui porte GISMO et GISMO-mis par gène
-                 est trouvée par le nom de ses colonnes ; déciles calculés
-                 sur tous ses gènes quand ils ne sont pas fournis (1 = le plus
-                 contraint)
+  --gismo        dossier (ou table) GISMO de Liao et al. 2026 : la table
+                 supplémentaire de l'article qui porte GISMO et GISMO-mis par
+                 gène, trouvée par le nom de ses colonnes (déciles repris
+                 s'ils y sont, sinon calculés sur tous ses gènes, 1 = le plus
+                 contraint) ; à défaut, GISMO-mis seul et son décile 'dec'
+                 dans la table de consensus des auteurs (Zenodo 20547722,
+                 gismo-mis_consensus_genenames_*.txt)
   --phylop       bigWig phyloP 241 mammifères (Zoonomia) ; ou
                  --phylop-bedgraph, un bedGraph déjà réduit : extrait sur les
                  régions, bgzip + tabix (annotations/phylop.bedgraph.gz)
@@ -184,12 +186,29 @@ def gnomad_table(path):
     return out
 
 
-def gismo_table(path):
-    """identifiant Ensembl et symbole -> GISMO, GISMO-mis et leurs déciles"""
+def gtf_mane(gtf):
+    """transcrits MANE Select (ENST sans version)"""
+    out = set()
+    with opener(gtf) as fh:
+        for line in fh:
+            if "MANE_Select" not in line or line[0] == "#":
+                continue
+            f = line.split("\t", 9)
+            m = re.search(r'transcript_id "(ENST\d+)', f[8]) if len(f) > 8 and f[2] == "transcript" else None
+            if m:
+                out.add(m.group(1))
+    return out
+
+
+def gismo_table(path, mane=frozenset()):
+    """identifiant Ensembl et symbole -> GISMO, GISMO-mis et leurs déciles ;
+    `mane` : transcrits préférés quand la table donne plusieurs transcrits par gène"""
     import pandas as pd
+    # gismo_genes*.tsv : recalcul de contrôle (gismo_scores.py), jamais pris pour la table publiée
     files = [path] if path.is_file() else sorted(
         f for f in path.rglob("*") if f.is_file() and re.search(
-            r"\.(tsv|csv|txt|xlsx)(\.gz)?$", f.name, re.I))
+            r"\.(tsv|csv|txt|xlsx)(\.gz)?$", f.name, re.I)
+        and not f.name.startswith("gismo_genes"))
     norm = lambda x: re.sub(r"[^a-z0-9]", "", str(x).lower())
     best = None
     for f in files:
@@ -206,6 +225,17 @@ def gismo_table(path):
             cols = {norm(c): c for c in t.columns}
             g = next((cols[k] for k in ("gismo", "gismoscore") if k in cols), None)
             m = next((cols[k] for k in ("gismomis", "gismomisscore") if k in cols), None)
+            consensus = (g is None and m is None and
+                         all(k in cols for k in ("miscal", "dec", "genename")))
+            if consensus:        # table des auteurs (Zenodo) : GISMO-mis seul, décile 'dec'
+                m = cols["miscal"]
+                t = t.rename(columns={cols["dec"]: "gismo_mis_decile"})
+                tx = next((c for c in t.columns if t[c].astype(str).head(200)
+                           .str.match(r"^ENST\d{11}").mean() > 0.5), None)
+                if tx is not None:   # transcrit MANE Select d'abord pour chaque gène
+                    first = ~t[tx].astype(str).str.split(".").str[0].isin(mane)
+                    t = t.assign(_o=first).sort_values("_o", kind="stable").drop(columns="_o")
+                cols = {norm(c): c for c in t.columns}
             if g is None and m is None:
                 continue
             key = None
@@ -218,14 +248,15 @@ def gismo_table(path):
                                           "hgncsymbol") if k in cols), None)
             if key is None and sym is None:
                 continue
-            n = len(t)
+            # une table publiée avec GISMO passe avant la table GISMO-mis seule
+            n = (g is not None, len(t))
             if best is None or n > best[0]:
                 best = (n, f, sheet, t, g, m, key, sym)
     if best is None:
         print("GISMO : aucune table avec une colonne GISMO ou GISMO-mis")
         return {}
     n, f, sheet, t, g, m, key, sym = best
-    print(f"GISMO : {f.name}{' / ' + str(sheet) if sheet else ''}, {n} gènes, "
+    print(f"GISMO : {f.name}{' / ' + str(sheet) if sheet else ''}, {n[1]} gènes, "
           f"colonnes {g!r}, {m!r}, clé {key or sym!r}")
     out_t = pd.DataFrame(index=t.index)
     for col, name in ((g, "gismo"), (m, "gismo_mis")):
@@ -339,7 +370,8 @@ def main():
     in_regions = {r["gene"] for r in regs}
     ens = gtf_ids(a.gtf) if a.gtf and a.gtf.exists() else {}
     gn = gnomad_table(a.gnomad) if a.gnomad and a.gnomad.exists() else {}
-    gm = gismo_table(a.gismo) if a.gismo and a.gismo.exists() else {}
+    gm = gismo_table(a.gismo, gtf_mane(a.gtf) if a.gtf and a.gtf.exists() else frozenset()) \
+        if a.gismo and a.gismo.exists() else {}
     cols = ["gene", "gene_id", "l1_class", "l1", "ci_low", "ci_high", "status",
             "complex", "protein_coupling", "rna_coupling", "fibroblast_r"] + \
         GNOMAD_OUT + GISMO_OUT
