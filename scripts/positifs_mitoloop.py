@@ -74,7 +74,9 @@ LITTERATURE = [
     ("NDUFA10", "NM_004544.3:c.-99_-75del", "Yépez 2022 tableau 1 (cas 11 et 17, fratrie)",
      "homozygote 5'UTR ; sous-expression ARN (fibroblastes) ; déficit en complexe I"),
     ("MRPL38", "NM_032478.3:c.-174_-148del", "Yépez 2022 tableau 1 (cas 2)",
-     "5'UTR, en trans de c.770C>G ; sous-expression ARN ; Leigh, déficit en complexes I et IV"),
+     "5'UTR, en trans de c.770C>G ; sous-expression ARN et protéine (Kopajtich 2021 medRxiv "
+     "doi:10.1101/2021.03.09.21253187) ; Leigh, déficit en complexes I et IV ; ATTENTION Kopajtich "
+     "écrit c.1-174del127 (127 pb, soit c.-174_-48del) : à vérifier dans Yépez, fichier additionnel 1"),
     ("UFM1", "NM_016617.2:c.-273_-271del", "Yépez 2022 tableau 1 (cas 13) ; Hamilton 2017 Neurology",
      "homozygote promoteur, fondateur Rom ; sous-expression ARN, activité promotrice diminuée ; "
      "UFM1 n'est pas un gène mitochondrial (contrôle hors périmètre)"),
