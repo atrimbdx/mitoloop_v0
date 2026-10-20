@@ -293,7 +293,12 @@ PY
             --out results/reannot/validation_eqtl.tsv || rc=1
     fi
     cp "$T/MANIFEST.tsv" results/reannot/MANIFEST.tsv
-    echo "== reannot: $(pwd)/$T ($(du -sh "$T" | cut -f1)) - copy to the VM, then bash 07_maj_mitoloop_vm.sh"
+    # one file to copy to the VM; the previous ones are removed
+    rm -f transfert_mitoloop_*.tar.gz
+    local tgz="transfert_mitoloop_$(date +%Y%m%d).tar.gz"
+    tar -czf "$tgz" "$T"
+    echo "== reannot: $(pwd)/$tgz ($(du -h "$tgz" | cut -f1)) - copy it to the VM:"
+    echo "   tar -xzf $tgz && cd transfert_mitoloop && bash 07_maj_mitoloop_vm.sh"
     return $rc
 }
 

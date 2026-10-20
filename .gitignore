@@ -31,3 +31,4 @@ __pycache__/
 
 # reannot package (built by run_mcia.sh reannot, copied to the VM)
 transfert_mitoloop/
+transfert_mitoloop_*.tar.gz

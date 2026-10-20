@@ -232,4 +232,28 @@ python3 "$R/ajout_mitoloop.py" --data pkg --fasta genome.fa --samtools no-samtoo
 [ "$(awk -F'\t' 'NR > 1 { print $NF }' in.mitoloop.tsv | sort | uniq -c | tr -s ' ' | tr '\n' ';')" = " 4 annote;" ] \
     || { cat in.mitoloop.tsv; fail "VCF statuses"; }
 
+# VM install: three updates on a reannot tree; the downloaded data must not
+# move, the previous versions are archived, two archives kept
+V=vm/reannot; mkdir -p $V/scripts $V/envs/vep/bin
+for d in alphagenome annovar morfee ref spliceai spliceai2 vep_cache vep_plugins; do
+    mkdir -p $V/data/$d; echo "$d" > $V/data/$d/donnees.txt; done
+echo "pipeline" > $V/scripts/reannot_alphagenome.sh
+( cd $V/data && find . -type f -exec sha256sum {} + | sort ) > avant.sha
+for k in 1 2 3; do
+    rm -rf transfert; cp -r pkg transfert
+    cp "$R/ajout_mitoloop.py" "$R/preparer_entree.py" "$R/reannot_complet.sh" "$R/07_maj_mitoloop_vm.sh" transfert/
+    echo "mitoloop_v0 test$k" > transfert/VERSION
+    ( cd transfert && sha256sum $(find . -type f ! -name SHA256SUMS | sed 's|^\./||' | sort) > SHA256SUMS )
+    REANNOT_BASE="$PWD/$V" bash transfert/07_maj_mitoloop_vm.sh > install$k.log 2>&1 \
+        || { cat install$k.log; fail "install $k"; }
+done
+( cd $V/data && find . -path ./mitoloop -prune -o -type f -exec sha256sum {} + | sort ) > apres.sha
+diff avant.sha apres.sha > /dev/null || fail "the pipeline data changed"
+[ "$(cat $V/scripts/reannot_alphagenome.sh)" = pipeline ] || fail "a pipeline script changed"
+[ "$(cat $V/data/mitoloop/VERSION)" = "mitoloop_v0 test3" ] || fail "installed version"
+[ "$(ls $V/archives | tr '\n' ' ')" = "mitoloop_mitoloop_v0_test1.tar.gz mitoloop_mitoloop_v0_test2.tar.gz " ] \
+    || { ls $V/archives; fail "archives"; }
+tar -tzf $V/archives/mitoloop_mitoloop_v0_test2.tar.gz | grep -q "scripts/ajout_mitoloop.py" || fail "scripts archived"
+grep -q "Données du pipeline non modifiées : alphagenome annovar" install3.log || { cat install3.log; fail "install report"; }
+
 echo "PASS test_reannot"
