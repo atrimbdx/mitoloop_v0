@@ -82,7 +82,7 @@ LITTERATURE = [
      "5'UTR, en trans de c.770C>G ; sous-expression ARN et protéine (Kopajtich 2021 medRxiv "
      "doi:10.1101/2021.03.09.21253187) ; Leigh, déficit en complexes I et IV ; ATTENTION Kopajtich "
      "écrit c.1-174del127 (127 pb, soit c.-174_-48del) : à vérifier dans Yépez, fichier additionnel 1"),
-    ("RRM2B", "GRCh37:8:103160286:G>T", "Yépez 2022 tableau 1 (cas 28), position hg19 du fichier additionnel 1",
+    ("RRM2B", "GRCh38:8:102148058:G>T", "Yépez 2022 tableau 1 (cas 28) ; hg19 chr8:103160286G>T (fichier additionnel 1)",
      "intergénique (c.?), en trans de c.328C>T ; sous-expression ARN et expression mono-allélique"),
     ("UFM1", "NM_016617.2:c.-273_-271del", "Yépez 2022 tableau 1 (cas 13) ; Hamilton 2017 Neurology",
      "homozygote promoteur, fondateur Rom ; sous-expression ARN, activité promotrice diminuée ; "
@@ -230,8 +230,15 @@ def genomic(notation):
         c, pos = hits[0]["seq_region_name"], hits[0]["start"]
         if hits[0].get("strand", 1) != 1:
             raise ValueError("conversion sur le brin opposé")
-    seq = get_json(f"/sequence/region/human/{c}:{pos}..{pos + len(ref) - 1}:1"
-                   "?coord_system_version=GRCh38;content-type=application/json")["seq"].upper()
+    try:
+        seq = get_json(f"/sequence/region/human/{c}:{pos}..{pos + len(ref) - 1}:1"
+                       "?coord_system_version=GRCh38;content-type=application/json")["seq"].upper()
+    except OSError as e:
+        if asm == "GRCh37":
+            raise
+        log(f"  {notation} : référence non vérifiée (Ensembl injoignable : {e}) ; "
+            "bcftools norm la contrôlera sur la VM")
+        return [[c, str(pos), ref, alt]]
     if seq != ref:
         raise ValueError(f"référence GRCh38 {seq}, publiée {ref}")
     return [[c, str(pos), ref, alt]]

@@ -38,7 +38,7 @@ cache = {
     "NM_004328:c.-122G>T": [["2", "218658000", "G", "T"]],
     "NM_002495.4:c.*30A>G": [["5", "53560000", "A", "G"]],
     "NM_002495.4:c.-10C>T": [["5", "53460000", "C", "T"]],
-    "GRCh37:8:103160286:G>T": [["8", "102148058", "G", "T"]],
+    "GRCh38:8:102148058:G>T": [["8", "102148058", "G", "T"]],
 }
 json.dump(cache, open("cache.json", "w"))
 v = ["##fileformat=VCFv4.1", "##fileDate=2026-10-01",
@@ -82,7 +82,7 @@ def ok(c, m):
     if not c:
         sys.exit("FAIL test_positifs: " + m)
 r = k[("chr8", "102148058")]
-ok(r["gene"] == "RRM2B" and r["categorie"] == "intergenique" and r["notation_publiee"].startswith("GRCh37:"), "RRM2B")
+ok(r["gene"] == "RRM2B" and r["categorie"] == "intergenique" and r["notation_publiee"].startswith("GRCh38:"), "RRM2B")
 ok(len(rows) == 7, f"7 variants attendus, {len(rows)}: {sorted(k)}")
 e = k[("chr15", "76311000")]
 ok("litterature" in e["source"] and "clinvar" in e["source"] and e["clinvar_id"] == "101", "fusion ETFA")
