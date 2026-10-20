@@ -242,7 +242,7 @@ echo "pipeline" > $V/scripts/reannot_alphagenome.sh
 for k in 1 2 3; do
     rm -rf transfert; cp -r pkg transfert
     cp "$R/ajout_mitoloop.py" "$R/preparer_entree.py" "$R/reannot_complet.sh" "$R/07_maj_mitoloop_vm.sh" \
-       "$R/reannot_alphagenome.sh" transfert/
+       "$R/reannot_alphagenome.sh" "$R/run_morfee.R" "$R/verifier_morfee.sh" transfert/
     echo "mitoloop_v0 test$k" > transfert/VERSION
     ( cd transfert && sha256sum $(find . -type f ! -name SHA256SUMS | sed 's|^\./||' | sort) > SHA256SUMS )
     REANNOT_BASE="$PWD/$V" bash transfert/07_maj_mitoloop_vm.sh > install$k.log 2>&1 \

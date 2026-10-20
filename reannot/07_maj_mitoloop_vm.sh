@@ -6,8 +6,9 @@
 # Installe ou met à jour MitoLoop :
 #   - données dans  $REANNOT_BASE/data/mitoloop
 #   - scripts       $REANNOT_BASE/scripts/{ajout_mitoloop.py, preparer_entree.py, reannot_complet.sh}
-# Remplace reannot_alphagenome.sh par sa version accélérée (étape AlphaGenome)
-# seulement s'il est exactement la version d'origine, gardée dans archives/.
+# Remplace reannot_alphagenome.sh (étape AlphaGenome) et run_morfee.R par leur
+# version accélérée, seulement s'ils sont exactement la version d'origine,
+# gardée dans archives/.
 # Ne touche à rien d'autre : les données déjà installées (alphagenome, annovar,
 # morfee, ref, spliceai, spliceai2, vep_cache, vep_plugins), les environnements
 # et les autres scripts du pipeline restent tels quels.
@@ -78,7 +79,29 @@ if [ -f reannot_alphagenome.sh ] && [ -f "$BASE/scripts/reannot_alphagenome.sh" 
   fi
 fi
 
-# 4. Contrôle
+# 4. run_morfee.R : même sortie, plus rapide (variants transmis à MORFEE limités à
+#    ceux qu'il annote, annotation GENCODE réduite aux transcrits concernés,
+#    variants répartis sur THREADS processus). Même règle que ci-dessus ; original
+#    gardé dans archives/run_morfee.R.origine. Vérification sur un run déjà fait :
+#    bash verifier_morfee.sh PREFIXE
+MO_ORIG=87ef7edc63cd9fc56ce02306e51fc7df212c00487b11387a4772150a19b600ed
+MO_NEW=faced6774797152143fe7be8c64d1940390da7714c3646142d1d351cc86b8927
+if [ -f run_morfee.R ] && [ -f "$BASE/scripts/run_morfee.R" ]; then
+  cur=$(sha256sum "$BASE/scripts/run_morfee.R" | cut -d' ' -f1)
+  if [ "$cur" = "$MO_ORIG" ]; then
+    mkdir -p "$BASE/archives"
+    cp -p "$BASE/scripts/run_morfee.R" "$BASE/archives/run_morfee.R.origine"
+    cp run_morfee.R "$BASE/scripts/run_morfee.R"
+    echo "run_morfee.R : MORFEE accéléré (original : archives/run_morfee.R.origine)"
+  elif [ "$cur" = "$MO_NEW" ]; then
+    echo "run_morfee.R : déjà la version accélérée"
+  else
+    echo "run_morfee.R : version locale modifiée, non remplacée."
+  fi
+fi
+[ -f verifier_morfee.sh ] && cp verifier_morfee.sh "$BASE/scripts/"
+
+# 5. Contrôle
 echo "Contrôle de lecture :"
 python3 - "$M" <<'PY'
 import gzip, sys

@@ -259,7 +259,7 @@ do_reannot() {
         || echo "== pyBigWig missing: no phyloP in the package"
     step reannot_package python3 reannot/mitoloop_paquet.py "${pk[@]}" || return 1
     cp reannot/ajout_mitoloop.py reannot/preparer_entree.py reannot/reannot_complet.sh \
-       reannot/reannot_alphagenome.sh \
+       reannot/reannot_alphagenome.sh reannot/run_morfee.R reannot/verifier_morfee.sh \
        reannot/07_maj_mitoloop_vm.sh reannot/README_MitoLoop.md "$T/"
     echo "mitoloop_v0 $(git rev-parse --short HEAD 2>/dev/null || echo '?') $(date +%Y-%m-%d)" > "$T/VERSION"
     ( cd "$T" && sha256sum $(find . -type f ! -name SHA256SUMS | sed 's|^\./||' | sort) > SHA256SUMS )
