@@ -26,13 +26,14 @@ Entrées (produites par run_mcia.sh de mitoloop_v0)
                  (gnomad.v4.1.constraint_metrics.tsv) : transcrit MANE
                  Select, sinon canonique ; LoF observés et attendus, o/e,
                  LOEUF, pLI, o/e et z faux-sens
-  --gismo        dossier (ou table) GISMO de Liao et al. 2026 : la table
-                 supplémentaire de l'article qui porte GISMO et GISMO-mis par
-                 gène, trouvée par le nom de ses colonnes (déciles repris
-                 s'ils y sont, sinon calculés sur tous ses gènes, 1 = le plus
-                 contraint) ; à défaut, GISMO-mis seul et son décile 'dec'
-                 dans la table de consensus des auteurs (Zenodo 20547722,
-                 gismo-mis_consensus_genenames_*.txt)
+  --gismo        dossier (ou table) GISMO de Liao et al. 2026 : GISMO =
+                 upper.ci et son décile publiés (Supplementary Table 2 :
+                 lower.ci, median, upper.ci, gene, decile ; 1 = le moins de
+                 pertes d'orthologue, le plus contraint ; virgule décimale
+                 acceptée) ; GISMO-mis et son décile 'dec' de la table de
+                 consensus des auteurs (Zenodo 20547722,
+                 gismo-mis_consensus_genenames_*.txt, transcrit MANE Select),
+                 ou d'une table publiée avec une colonne GISMO-mis
   --phylop       bigWig phyloP 241 mammifères (Zoonomia) ; ou
                  --phylop-bedgraph, un bedGraph déjà réduit : extrait sur les
                  régions, bgzip + tabix (annotations/phylop.bedgraph.gz)
@@ -202,7 +203,11 @@ def gtf_mane(gtf):
 
 def gismo_table(path, mane=frozenset()):
     """identifiant Ensembl et symbole -> GISMO, GISMO-mis et leurs déciles ;
-    `mane` : transcrits préférés quand la table donne plusieurs transcrits par gène"""
+    `mane` : transcrits préférés quand la table donne plusieurs transcrits par gène.
+    GISMO et GISMO-mis viennent chacun de la meilleure table qui les porte :
+    Supplementary Table 2 de Liao et al. (lower.ci, median, upper.ci, gene,
+    decile ; GISMO = upper.ci, décile repris tel quel), une table avec des
+    colonnes GISMO / GISMO-mis, ou la table de consensus des auteurs (GISMO-mis)"""
     import pandas as pd
     # gismo_genes*.tsv : recalcul de contrôle (gismo_scores.py), jamais pris pour la table publiée
     files = [path] if path.is_file() else sorted(
@@ -210,7 +215,9 @@ def gismo_table(path, mane=frozenset()):
             r"\.(tsv|csv|txt|xlsx)(\.gz)?$", f.name, re.I)
         and not f.name.startswith("gismo_genes"))
     norm = lambda x: re.sub(r"[^a-z0-9]", "", str(x).lower())
-    best = None
+    num = lambda s: pd.to_numeric(s.astype(str).str.strip().str.replace(",", ".", regex=False),
+                                  errors="coerce")   # virgule décimale des tables collées d'Excel
+    best = {}                                         # mesure -> (rang, fichier, onglet, table, valeur, décile, clé, symbole)
     for f in files:
         try:
             if f.name.lower().endswith(".xlsx"):
@@ -225,63 +232,61 @@ def gismo_table(path, mane=frozenset()):
             cols = {norm(c): c for c in t.columns}
             g = next((cols[k] for k in ("gismo", "gismoscore") if k in cols), None)
             m = next((cols[k] for k in ("gismomis", "gismomisscore") if k in cols), None)
-            consensus = (g is None and m is None and
-                         all(k in cols for k in ("miscal", "dec", "genename")))
-            if consensus:        # table des auteurs (Zenodo) : GISMO-mis seul, décile 'dec'
-                m = cols["miscal"]
-                t = t.rename(columns={cols["dec"]: "gismo_mis_decile"})
+            gd, md = cols.get("gismodecile"), cols.get("gismomisdecile")
+            rank = 2
+            if g is None and m is None and all(k in cols for k in ("upperci", "decile")):
+                g, gd = cols["upperci"], cols["decile"]   # Supplementary Table 2
+            elif g is None and m is None and all(k in cols for k in ("miscal", "dec", "genename")):
+                m, md, rank = cols["miscal"], cols["dec"], 1   # consensus des auteurs (Zenodo)
                 tx = next((c for c in t.columns if t[c].astype(str).head(200)
                            .str.match(r"^ENST\d{11}").mean() > 0.5), None)
                 if tx is not None:   # transcrit MANE Select d'abord pour chaque gène
                     first = ~t[tx].astype(str).str.split(".").str[0].isin(mane)
                     t = t.assign(_o=first).sort_values("_o", kind="stable").drop(columns="_o")
-                cols = {norm(c): c for c in t.columns}
             if g is None and m is None:
                 continue
-            key = None
-            for c in t.columns:
-                v = t[c].astype(str).head(200)
-                if v.str.match(r"^ENSG\d{11}").mean() > 0.5:
-                    key = c
-                    break
+            key = next((c for c in t.columns if t[c].astype(str).head(200)
+                        .str.match(r"^ENSG\d{11}").mean() > 0.5), None)
             sym = next((cols[k] for k in ("gene", "genename", "symbol", "genesymbol",
-                                          "hgncsymbol") if k in cols), None)
+                                          "hgncsymbol") if k in cols and cols[k] != key), None)
             if key is None and sym is None:
                 continue
-            # une table publiée avec GISMO passe avant la table GISMO-mis seule
-            n = (g is not None, len(t))
-            if best is None or n > best[0]:
-                best = (n, f, sheet, t, g, m, key, sym)
-    if best is None:
+            for name, col, dcol in (("gismo", g, gd), ("gismo_mis", m, md)):
+                n = (rank, len(t))
+                if col is not None and (name not in best or n > best[name][0]):
+                    best[name] = (n, f, sheet, t, col, dcol, key, sym)
+    if not best:
         print("GISMO : aucune table avec une colonne GISMO ou GISMO-mis")
         return {}
-    n, f, sheet, t, g, m, key, sym = best
-    print(f"GISMO : {f.name}{' / ' + str(sheet) if sheet else ''}, {n[1]} gènes, "
-          f"colonnes {g!r}, {m!r}, clé {key or sym!r}")
-    out_t = pd.DataFrame(index=t.index)
-    for col, name in ((g, "gismo"), (m, "gismo_mis")):
-        if col is None:
-            out_t[name] = ""
-            out_t[name + "_decile"] = ""
+    res, by_sym = {}, {}
+    for name in ("gismo", "gismo_mis"):
+        if name not in best:
+            print(f"GISMO : pas de table pour {name}")
             continue
-        x = pd.to_numeric(t[col], errors="coerce")
-        out_t[name] = x.map(lambda v: "" if v != v else f"{v:.4g}")
-        dcol = cols.get(norm(name) + "decile")
-        if dcol is not None:      # déciles fournis (gismo_scores.py) : gardés tels quels
-            d = pd.to_numeric(t[dcol], errors="coerce")
+        n, f, sheet, t, col, dcol, key, sym = best[name]
+        print(f"GISMO : {name} <- {f.name}{' / ' + str(sheet) if sheet else ''}, {n[1]} lignes, "
+              f"colonne {col!r}, décile {dcol or 'calculé'!r}, clé {key or sym!r}")
+        x = num(t[col])
+        if dcol is not None:      # déciles publiés : gardés tels quels
+            d = num(t[dcol])
         else:
             d = pd.Series(pd.NA, index=t.index, dtype="Float64")
             ok = x.notna()
             d[ok] = pd.qcut(x[ok].rank(method="first"), 10, labels=False) + 1
-        out_t[name + "_decile"] = d.map(lambda v: "" if pd.isna(v) else str(int(v)))
-    res = {}
-    for i in t.index:
-        r = {c: out_t.at[i, c] for c in GISMO_OUT}
-        if key is not None and str(t.at[i, key]).startswith("ENSG"):
-            res[str(t.at[i, key]).split(".")[0]] = r
-        if sym is not None and not pd.isna(t.at[i, sym]):
-            res.setdefault(str(t.at[i, sym]), r)
-    return res
+        val = x.map(lambda v: "" if v != v else f"{v:.4g}")
+        dec = d.map(lambda v: "" if pd.isna(v) else str(int(v)))
+        for i in t.index:
+            r = {name: val[i], name + "_decile": dec[i]}
+            if key is not None and str(t.at[i, key]).startswith("ENSG"):
+                res.setdefault(str(t.at[i, key]).split(".")[0], {}).update(r)
+            if sym is not None and not pd.isna(t.at[i, sym]):
+                by_sym.setdefault(str(t.at[i, sym]), {}).setdefault(name, r)
+    for s_, parts in by_sym.items():
+        rs = res.setdefault(s_, {})
+        for r in parts.values():
+            for k, v in r.items():
+                rs.setdefault(k, v)
+    return {k: {c: v.get(c, "") for c in GISMO_OUT} for k, v in res.items()}
 
 
 def phylop_cut(bw, bedgraph, rb, path):
@@ -385,7 +390,8 @@ def main():
             n_cls[cls] += 1
             gid = (r.get("gene_id") or ens.get(g, "")).split(".")[0]
             x = gn.get(gid) or gn.get(g) or {}
-            y = gm.get(gid) or gm.get(g) or {}
+            y = {c: (gm.get(gid, {}).get(c) or gm.get(g, {}).get(c, "")) for c in GISMO_OUT} \
+                if gid in gm or g in gm else {}   # GISMO par ENSG, GISMO-mis par symbole
             n_gn += bool(x)
             n_gm += bool(y)
             row = [g, gid, cls, r.get("score", ""),
