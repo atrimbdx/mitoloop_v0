@@ -33,6 +33,15 @@ Colonnes ajoutées :
                      motif, contenu en information de la position (bits),
                      variation du score du site (log2, alt - ref)
   MITO_chromatine    état de la chromatine au variant (Roadmap ChromHMM)
+  MITO_phyloP        conservation de la base sur 241 mammifères (Zoonomia,
+                     phyloP ; positif = conservée)
+  MITO_gnomAD        contraintes du gène dans gnomAD v4.1 (transcrit MANE
+                     Select) : LoF observés/attendus, o/e LoF, LOEUF, pLI,
+                     o/e et z faux-sens
+  MITO_GISMO         GISMO (perte du gène parmi 462 mammifères) et GISMO-mis
+                     (contrainte faux-sens entre mammifères), avec leur
+                     décile (1 = le plus contraint ; déciles 1 à 4 de GISMO
+                     pour les gènes récessifs selon Liao et al. 2026)
   MITO_arguments     arguments réunis (liste) et MITO_n_arguments
   MITO_statut        annote, hors_regions_mito, NA
 
@@ -45,6 +54,10 @@ Arguments (chacun issu d'une donnée publiée, sans pondération) :
                         bits) d'un site du même facteur, fixé au variant, et
                         baisse son score d'au moins --min-delta
   chromatine_active_<tissu>  état actif (TssA, TssAFlnk, Enh, EnhG, TxFlnk)
+  conservation_mammiferes    phyloP >= --min-phylop (2,27 : seuil de
+                        conservation significative, FDR 5 %, de Zoonomia)
+Les contraintes gnomAD et GISMO décrivent le gène, pas le variant : elles sont
+données en colonnes, sans entrer dans les arguments.
 
 Python 3 de la bibliothèque standard et samtools (environnement vep).
 """
@@ -271,6 +284,8 @@ def main():
                    help="score relatif minimal d'un site JASPAR sur la référence")
     p.add_argument("--min-ic", type=float, default=1.0)
     p.add_argument("--min-delta", type=float, default=1.0)
+    p.add_argument("--min-phylop", type=float, default=2.27)
+    p.add_argument("--tabix", default=os.environ.get("TABIX", "tabix"))
     a = p.parse_args()
     D = a.data
     genes = load_genes(D / "genes.tsv")
@@ -309,12 +324,15 @@ def main():
             if len(ref) == 1 and len(f[A]) == 1 and mats:
                 need.add(f"{f[C]}:{max(1, pos - 30)}-{pos + 30}")
         seqs = fetch_seqs(a.fasta, a.samtools, sorted(need)) if need else {}
+        phy = fetch_phylop(D / "annotations" / "phylop.bedgraph.gz", a.tabix,
+                           {(rows[i][C], int(rows[i][P])) for i in hits_of})
 
         # 2. annotation
         extra = ["MITO_gene", "MITO_L1_classe", "MITO_L1", "MITO_L1_IC",
-                 "MITO_L1_note", "MITO_dist_TSS", "MITO_CAGE", "MITO_fixation",
-                 "MITO_motifs", "MITO_chromatine", "MITO_arguments",
-                 "MITO_n_arguments", "MITO_statut"]
+                 "MITO_L1_note", "MITO_gnomAD", "MITO_GISMO", "MITO_dist_TSS",
+                 "MITO_CAGE", "MITO_fixation", "MITO_motifs", "MITO_chromatine",
+                 "MITO_phyloP", "MITO_arguments", "MITO_n_arguments",
+                 "MITO_statut"]
         n_stat = defaultdict(int)
         with open(out, "w") as fo:
             fo.write("\t".join(head + extra) + "\n")
@@ -329,7 +347,7 @@ def main():
                     n_stat["hors_regions_mito"] += 1
                     continue
                 v = annotate(f, C, P, R, A, G, hits_of[i], genes, ann,
-                             chrom_ann, mats, tfs, seqs, a)
+                             chrom_ann, mats, tfs, seqs, a, phy)
                 fo.write("\t".join(f + [v[k] for k in extra[:-1]] + ["annote"]) + "\n")
                 n_stat["annote"] += 1
         for s_, n in sorted(n_stat.items()):
@@ -337,7 +355,68 @@ def main():
         print(f"           Résultat : {out}", file=sys.stderr)
 
 
-def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a):
+def fetch_phylop(path, tabix, positions):
+    """(chrom, pos) -> phyloP, lu dans le bedGraph indexé (tabix, ou pysam)"""
+    out = {}
+    if not positions or not Path(path).exists():
+        return out
+    by_key = {}
+    for c, p_ in positions:
+        by_key[(chrom_key(c), p_)] = (c, p_)
+    lines = []
+    if shutil.which(tabix):
+        tmp = Path(f".mitoloop_pos_{os.getpid()}.txt")
+        names = None
+        try:
+            res = subprocess.run([tabix, "-l", str(path)], capture_output=True,
+                                 text=True, check=True)
+            names = {chrom_key(x): x for x in res.stdout.split()}
+        except subprocess.CalledProcessError:
+            names = {}
+        tmp.write_text("".join(f"{names.get(k, k)}\t{p_}\n"
+                               for k, p_ in sorted(by_key)))
+        try:
+            res = subprocess.run([tabix, "-R", str(tmp), str(path)],
+                                 capture_output=True, text=True, check=True)
+            lines = res.stdout.splitlines()
+        finally:
+            tmp.unlink(missing_ok=True)
+    else:
+        import pysam
+        t = pysam.TabixFile(str(path))
+        names = {chrom_key(x): x for x in t.contigs}
+        for k, p_ in by_key:
+            if k in names:
+                lines += list(t.fetch(names[k], p_ - 1, p_))
+    for ln in lines:
+        f = ln.split("\t")
+        k, s, e = chrom_key(f[0]), int(f[1]), int(f[2])
+        for p_ in range(s + 1, e + 1):
+            if (k, p_) in by_key:
+                out[by_key[(k, p_)]] = float(f[3])
+    return out
+
+
+def gene_constraints(gi):
+    """colonnes MITO_gnomAD et MITO_GISMO"""
+    gn = []
+    if gi.get("gnomad_lof_obs", "") != "" or gi.get("gnomad_loeuf", ""):
+        gn.append(f"LoF={gi.get('gnomad_lof_obs', '')}/{gi.get('gnomad_lof_exp', '')}")
+        for k, lab in (("gnomad_lof_oe", "oe_LoF"), ("gnomad_loeuf", "LOEUF"),
+                       ("gnomad_pli", "pLI"), ("gnomad_mis_oe", "oe_mis"),
+                       ("gnomad_mis_z", "z_mis")):
+            if gi.get(k, ""):
+                gn.append(f"{lab}={gi[k]}")
+    gm = []
+    for k, lab in (("gismo", "GISMO"), ("gismo_mis", "GISMO-mis")):
+        if gi.get(k, ""):
+            d = gi.get(k + "_decile", "")
+            gm.append(f"{lab}={gi[k]}" + (f"(d{d})" if d else ""))
+    return ";".join(gn) or ".", ";".join(gm) or "."
+
+
+def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a,
+             phy=None):
     chrom, pos, ref, alt = f[C], int(f[P]), f[R], f[A]
     by_gene = defaultdict(list)
     for _s, _e, lab in hits:
@@ -367,6 +446,7 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a):
     v["MITO_L1_note"] = ";".join(notes) or "."
     if cls == "transmitted":
         args.append("L1_transmis")
+    v["MITO_gnomAD"], v["MITO_GISMO"] = gene_constraints(gi)
 
     s0, e0 = pos - 1, pos - 1 + max(len(ref), 1)
     # site d'initiation validé (EPDnew) le plus proche, orienté
@@ -423,6 +503,10 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a):
             if ACTIVE.search(st):
                 args.append(f"chromatine_active_{tissue}")
     v["MITO_chromatine"] = ",".join(states) or "."
+    x = (phy or {}).get((chrom, pos))
+    v["MITO_phyloP"] = "." if x is None else f"{x:.2f}"
+    if x is not None and x >= a.min_phylop:
+        args.append("conservation_mammiferes")
     v["MITO_arguments"] = ",".join(dict.fromkeys(args)) or "."
     v["MITO_n_arguments"] = str(len(dict.fromkeys(args)))
     return v

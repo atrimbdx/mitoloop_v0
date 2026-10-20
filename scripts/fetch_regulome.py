@@ -17,13 +17,14 @@ Outputs (in --datadir)
     Human.MitoCarta3.0.xls, goa_human.gaf.gz, go-basic.obo,
     GRCh38.fa (+ .fai built by promoter_features.py), cpgIslandExt.txt.gz,
     panelapp_genes_all.tsv (gene, confidence_level, entity_type),
-    with --promoter-annotations: promoters_exp/ (EPDnew, FANTOM5 CAGE peaks,
+    with --promoter-annotations: promoters_exp/ (gnomAD v4.1 gene
+    constraint, Zoonomia phyloP 241 mammals, EPDnew, FANTOM5 CAGE peaks,
     SCREEN cCREs, Roadmap ChromHMM of skeletal muscle and brain, ReMap
     ChIP-seq peaks of 9 factors; see config/promoter_annotations.tsv),
     and with --validation: kopajtich/ (fibroblast RNA-seq and proteomics,
     datasets.zip of Zenodo 4501904, extracted), attenuation.csv,
     GTEx_v8_finemapping_DAPG.txt.gz (fine-mapped eQTL, validation of the
-    reannot arguments) (Goncalves et al. 2017);
+    reannot arguments), gismo/ (GISMO, Zenodo 20547722) (Goncalves et al. 2017);
     MANIFEST.tsv (file, bytes, source or error);
     --genes (default genes.txt): MitoCarta3.0 symbols and PanelApp genes,
     under the symbol of the --gtf when one is given (PanelApp keeps old HGNC
@@ -79,6 +80,9 @@ ZENODO_RECORD = "4501904"
 ZENODO_WANTED = ("datasets", "raw_data")
 ZENODO_MAX_GB = 5
 TABLE = (".tsv", ".csv", ".txt", ".tsv.gz", ".csv.gz", ".txt.gz", ".rds", ".xlsx")
+# GISMO and GISMO-mis (Liao et al. 2026, Nat Genet): gene loss and missense
+# constraint across 462 mammals, every file of the record, in gismo/
+GISMO_RECORD = "20547722"
 PANELAPP = "https://panelapp.genomicsengland.co.uk/api/v1"
 # experimental promoter annotations (config/promoter_annotations.tsv), in
 # promoters_exp/; ReMap: one file per factor
@@ -100,6 +104,15 @@ PROMOTER_SOURCES = {
         "JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt",
         "https://jaspar2024.genereg.net/download/data/2024/CORE/"
         "JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt"],
+    # gene constraint of gnomAD v4.1 (LoF obs/exp, o/e, LOEUF, pLI, missense)
+    "gnomad.v4.1.constraint_metrics.tsv": [
+        "https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/"
+        "constraint/gnomad.v4.1.constraint_metrics.tsv"],
+    # base-wise conservation over 241 mammals (Zoonomia, phyloP; several GB,
+    # cut to the regions of the gene set when the reannot package is built)
+    "cactus241way.phyloP.bw": [
+        "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/cactus241way/cactus241way.phyloP.bw",
+        "https://hgdownload.gi.ucsc.edu/goldenPath/hg38/cactus241way/cactus241way.phyloP.bw"],
     "GRCh38-cCREs.bed": [
         "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.bed",
         "https://downloads.wenglab.org/V3/GRCh38-cCREs.bed"],
@@ -162,8 +175,10 @@ def fetch(name: str, urls: list, d: Path, reuse: list, manifest: list) -> bool:
     return False
 
 
-def zenodo(d: Path, record: str, wanted: tuple, manifest: list) -> None:
-    """the files of a Zenodo record whose name contains one of `wanted`"""
+def zenodo(d: Path, record: str, wanted: tuple, manifest: list,
+           sub: str = "kopajtich") -> None:
+    """the files of a Zenodo record whose name contains one of `wanted`
+    (every file when `wanted` is empty), in d/sub"""
     try:
         rec = get_json(f"https://zenodo.org/api/records/{record}")
     except Exception as e:
@@ -171,42 +186,42 @@ def zenodo(d: Path, record: str, wanted: tuple, manifest: list) -> None:
         print(f"Zenodo {record}: {e}")
         return
     files = rec.get("files", [])
-    (d / "kopajtich").mkdir(parents=True, exist_ok=True)
-    (d / "kopajtich" / "CONTENTS.tsv").write_text("archive\tmember\tbytes\n")
+    (d / sub).mkdir(parents=True, exist_ok=True)
+    (d / sub / "CONTENTS.tsv").write_text("archive\tmember\tbytes\n")
     print(f"Zenodo {record}: " + ", ".join(
         f"{f.get('key')} ({f.get('size', 0) / 1e6:,.0f} MB)" for f in files))
     for f in files:
         key = f.get("key", "")
-        if not any(w in key.lower() for w in wanted):
+        if wanted and not any(w in key.lower() for w in wanted):
             continue
         if f.get("size", 0) > ZENODO_MAX_GB * 1e9:
-            manifest.append((f"kopajtich/{key}", f.get("size", 0),
+            manifest.append((f"{sub}/{key}", f.get("size", 0),
                              f"not downloaded: over {ZENODO_MAX_GB} GB"))
             print(f"{key}: over {ZENODO_MAX_GB} GB, not downloaded")
             continue
         url = (f.get("links") or {}).get("self") or \
             f"https://zenodo.org/records/{record}/files/{key}?download=1"
-        if fetch(f"kopajtich/{key}", [url], d, [], manifest) and key.endswith(".zip"):
+        if fetch(f"{sub}/{key}", [url], d, [], manifest) and key.endswith(".zip"):
             import zipfile
             try:
-                with zipfile.ZipFile(d / "kopajtich" / key) as z:
+                with zipfile.ZipFile(d / sub / key) as z:
                     info = [i for i in z.infolist() if not i.is_dir()
                             and "__MACOSX" not in i.filename
                             and not i.filename.endswith(".DS_Store")]
-                    with open(d / "kopajtich" / "CONTENTS.tsv", "a") as fh:
+                    with open(d / sub / "CONTENTS.tsv", "a") as fh:
                         for i in info:
                             fh.write(f"{key}\t{i.filename}\t{i.file_size}\n")
                     # tables only, under 3 GB each (macOS files left out)
                     names = [i.filename for i in info
                              if i.filename.lower().endswith(TABLE)
                              and i.file_size < 3e9]
-                    z.extractall(d / "kopajtich", names)
-                print(f"{key}: {len(names)} files extracted to {d / 'kopajtich'}")
+                    z.extractall(d / sub, names)
+                print(f"{key}: {len(names)} files extracted to {d / sub}")
                 for n in names:
-                    manifest.append((f"kopajtich/{n}", (d / "kopajtich" / n).stat().st_size,
+                    manifest.append((f"{sub}/{n}", (d / sub / n).stat().st_size,
                                      f"from {key}"))
             except Exception as e:
-                manifest.append((f"kopajtich/{key}", 0, f"unzip failed: {e}"))
+                manifest.append((f"{sub}/{key}", 0, f"unzip failed: {e}"))
 
 
 DAPG_TAR = ("https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/"
@@ -335,6 +350,7 @@ def main():
         for name, urls in VALIDATION.items():
             fetch(name, urls, d, reuse, manifest)
         zenodo(d, ZENODO_RECORD, ZENODO_WANTED, manifest)
+        zenodo(d, GISMO_RECORD, (), manifest, sub="gismo")
         gtex_dapg(d, manifest)
     # the gene set
     try:

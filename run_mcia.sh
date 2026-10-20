@@ -53,7 +53,7 @@ env_info() {
     echo "== python $(command -v python3) $(python3 --version 2>&1)"
     python3 - <<'PY' 2>&1
 import importlib
-for m in ("numpy", "pandas", "scipy", "xlrd", "openpyxl", "pysam"):
+for m in ("numpy", "pandas", "scipy", "xlrd", "openpyxl", "pysam", "pyBigWig"):
     try:
         print(f"== {m} {importlib.import_module(m).__version__}")
     except Exception as e:
@@ -82,7 +82,7 @@ do_setup() {
     "$PY" -m venv .venv-regulome || { echo "venv failed: load a Python >= 3.9 module first (module avail python)"; return 1; }
     activate
     python3 -m pip install --upgrade pip >/dev/null
-    python3 -m pip install numpy pandas scipy xlrd openpyxl requests pysam
+    python3 -m pip install numpy pandas scipy xlrd openpyxl requests pysam pyBigWig
 }
 
 do_fetch() {
@@ -246,13 +246,17 @@ do_reannot() {
               --cage "$P/hg38_fair+new_CAGE_peaks_phase1and2.bed.gz"
               --chromhmm "muscle=$P/E108_15_coreMarks_hg38lift_mnemonics.bed.gz"
               --chromhmm "brain=$P/E073_15_coreMarks_hg38lift_mnemonics.bed.gz"
-              --jaspar "$P/JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt")
+              --jaspar "$P/JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt"
+              --gtf "$GTF" --gnomad "$P/gnomad.v4.1.constraint_metrics.tsv"
+              --gismo data/gismo --phylop "$P/cactus241way.phyloP.bw")
     local f tf
     for f in "$P"/remap2022_*_nr_macs2_hg38_v1_0.bed.gz; do
         [ -s "$f" ] || continue
         tf=$(basename "$f"); tf=${tf#remap2022_}; tf=${tf%%_*}
         pk+=(--remap "$tf=$f")
     done
+    python3 -c 'import pyBigWig' 2>/dev/null || python3 -m pip install pyBigWig \
+        || echo "== pyBigWig missing: no phyloP in the package"
     step reannot_package python3 reannot/mitoloop_paquet.py "${pk[@]}" || return 1
     cp reannot/ajout_mitoloop.py reannot/07_maj_mitoloop_vm.sh reannot/README_MitoLoop.md "$T/"
     echo "mitoloop_v0 $(git rev-parse --short HEAD 2>/dev/null || echo '?') $(date +%Y-%m-%d)" > "$T/VERSION"

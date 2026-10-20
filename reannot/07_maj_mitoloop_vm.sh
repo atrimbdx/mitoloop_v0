@@ -16,7 +16,8 @@ sha256sum -c SHA256SUMS
 M="$BASE/data/mitoloop"
 rm -rf "$M.nouveau"; mkdir -p "$M.nouveau/annotations"
 cp genes.tsv regions.bed.gz MANIFEST.tsv VERSION "$M.nouveau/"
-cp annotations/*.bed.gz "$M.nouveau/annotations/"
+cp annotations/* "$M.nouveau/annotations/"
+touch "$M.nouveau"/annotations/*.tbi 2>/dev/null || true   # index plus récent que les données
 [ -f motifs.jaspar ] && cp motifs.jaspar "$M.nouveau/"
 [ -f README_MitoLoop.md ] && cp README_MitoLoop.md "$M.nouveau/"
 rm -rf "$M.ancien"; [ -d "$M" ] && mv "$M" "$M.ancien"

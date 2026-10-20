@@ -21,6 +21,19 @@ Entrées (produites par run_mcia.sh de mitoloop_v0)
                  répétable
   --jaspar       matrices JASPAR (format jaspar) ; --tfs : facteurs gardés
   --margin       pb autour des régions pour les extraits (défaut 1000)
+  --gtf          GENCODE GTF : identifiant Ensembl de chaque symbole
+  --gnomad       contraintes par gène de gnomAD v4.1
+                 (gnomad.v4.1.constraint_metrics.tsv) : transcrit MANE
+                 Select, sinon canonique ; LoF observés et attendus, o/e,
+                 LOEUF, pLI, o/e et z faux-sens
+  --gismo        dossier (ou table) GISMO de Liao et al. 2026 (Zenodo
+                 20547722) : la table qui porte GISMO et GISMO-mis par gène
+                 est trouvée par le nom de ses colonnes ; déciles calculés
+                 sur tous ses gènes quand ils ne sont pas fournis (1 = le plus
+                 contraint)
+  --phylop       bigWig phyloP 241 mammifères (Zoonomia) ; ou
+                 --phylop-bedgraph, un bedGraph déjà réduit : extrait sur les
+                 régions, bgzip + tabix (annotations/phylop.bedgraph.gz)
 
 Sortie (--out) : genes.tsv, regions.bed.gz, annotations/{epd,cage,
 remap_<TF>,chromhmm_<tissu>}.bed.gz, motifs.jaspar, MANIFEST.tsv (source et
@@ -117,6 +130,160 @@ def subset(path, win, convert):
     return out
 
 
+GNOMAD_IN = {"gnomad_lof_obs": "lof.obs", "gnomad_lof_exp": "lof.exp",
+             "gnomad_lof_oe": "lof.oe", "gnomad_loeuf": "lof.oe_ci.upper",
+             "gnomad_pli": "lof.pLI", "gnomad_mis_oe": "mis.oe",
+             "gnomad_mis_z": "mis.z_score"}
+GNOMAD_OUT = list(GNOMAD_IN)
+GISMO_OUT = ["gismo", "gismo_decile", "gismo_mis", "gismo_mis_decile"]
+
+
+def gtf_ids(gtf):
+    """symbole -> identifiant Ensembl (gènes)"""
+    out = {}
+    with opener(gtf) as fh:
+        for line in fh:
+            if line[0] == "#":
+                continue
+            f = line.split("\t", 9)
+            if len(f) < 9 or f[2] != "gene":
+                continue
+            m1 = re.search(r'gene_id "([^"]+)"', f[8])
+            m2 = re.search(r'gene_name "([^"]+)"', f[8])
+            if m1 and m2:
+                out.setdefault(m2.group(1), m1.group(1).split(".")[0])
+    return out
+
+
+def gnomad_table(path):
+    """identifiant Ensembl et symbole -> contraintes du transcrit MANE Select
+    (sinon canonique) de gnomAD"""
+    best = {}
+    with opener(path) as fh:
+        head = fh.readline().rstrip("\n").split("\t")
+        c = {h: i for i, h in enumerate(head)}
+        for line in fh:
+            f = line.rstrip("\n").split("\t")
+            gid = f[c["gene_id"]]
+            if not gid.startswith("ENSG"):
+                continue
+            rank = 2 * (f[c["mane_select"]] == "true") + (f[c["canonical"]] == "true")
+            if gid in best and best[gid][0] >= rank:
+                continue
+            row = {k: f[c[v]] if v in c and f[c[v]] != "NA" else ""
+                   for k, v in GNOMAD_IN.items()}
+            for k in ("gnomad_lof_exp", "gnomad_lof_oe", "gnomad_loeuf",
+                      "gnomad_pli", "gnomad_mis_oe", "gnomad_mis_z"):
+                try:
+                    row[k] = f"{float(row[k]):.3g}" if row[k] else ""
+                except ValueError:
+                    pass
+            best[gid] = (rank, f[c["gene"]], row)
+    out = {gid: r for gid, (_k, _g, r) in best.items()}
+    out.update({g: r for _gid, (_k, g, r) in best.items()})
+    return out
+
+
+def gismo_table(path):
+    """identifiant Ensembl et symbole -> GISMO, GISMO-mis et leurs déciles"""
+    import pandas as pd
+    files = [path] if path.is_file() else sorted(
+        f for f in path.rglob("*") if f.is_file() and re.search(
+            r"\.(tsv|csv|txt|xlsx)(\.gz)?$", f.name, re.I))
+    norm = lambda x: re.sub(r"[^a-z0-9]", "", str(x).lower())
+    best = None
+    for f in files:
+        try:
+            if f.name.lower().endswith(".xlsx"):
+                tabs = pd.read_excel(f, sheet_name=None)
+            else:
+                sep = "," if ".csv" in f.name.lower() else "\t"
+                tabs = {"": pd.read_csv(f, sep=sep, low_memory=False)}
+        except Exception as e:  # tables of every kind
+            print(f"GISMO : {f.name} illisible ({type(e).__name__})")
+            continue
+        for sheet, t in tabs.items():
+            cols = {norm(c): c for c in t.columns}
+            g = next((cols[k] for k in ("gismo", "gismoscore") if k in cols), None)
+            m = next((cols[k] for k in ("gismomis", "gismomisscore") if k in cols), None)
+            if g is None and m is None:
+                continue
+            key = None
+            for c in t.columns:
+                v = t[c].astype(str).head(200)
+                if v.str.match(r"^ENSG\d{11}").mean() > 0.5:
+                    key = c
+                    break
+            sym = next((cols[k] for k in ("gene", "genename", "symbol", "genesymbol",
+                                          "hgncsymbol") if k in cols), None)
+            if key is None and sym is None:
+                continue
+            n = len(t)
+            if best is None or n > best[0]:
+                best = (n, f, sheet, t, g, m, key, sym)
+    if best is None:
+        print("GISMO : aucune table avec une colonne GISMO ou GISMO-mis")
+        return {}
+    n, f, sheet, t, g, m, key, sym = best
+    print(f"GISMO : {f.name}{' / ' + str(sheet) if sheet else ''}, {n} gènes, "
+          f"colonnes {g!r}, {m!r}, clé {key or sym!r}")
+    out_t = pd.DataFrame(index=t.index)
+    for col, name in ((g, "gismo"), (m, "gismo_mis")):
+        if col is None:
+            out_t[name] = ""
+            out_t[name + "_decile"] = ""
+            continue
+        x = pd.to_numeric(t[col], errors="coerce")
+        out_t[name] = x.map(lambda v: "" if v != v else f"{v:.4g}")
+        d = pd.qcut(x.rank(method="first"), 10, labels=False) + 1
+        out_t[name + "_decile"] = d.map(lambda v: "" if v != v else str(int(v)))
+    res = {}
+    for i in t.index:
+        r = {c: out_t.at[i, c] for c in GISMO_OUT}
+        if key is not None:
+            res[str(t.at[i, key]).split(".")[0]] = r
+        if sym is not None:
+            res.setdefault(str(t.at[i, sym]), r)
+    return res
+
+
+def phylop_cut(bw, bedgraph, rb, path):
+    """phyloP des régions (fusionnées) en bedGraph : chrom, start, end,
+    valeur ; les bases consécutives de même valeur forment un intervalle"""
+    win = Windows([(c, s, e) for c, s, e, _g, _k in rb], 0)
+    rows = []
+    if bw and bw.exists():
+        import pyBigWig
+        f = pyBigWig.open(str(bw))
+        chroms = f.chroms()
+        for c, (st, en) in win.d.items():
+            name = c if c in chroms else ("chr" + c if "chr" + c in chroms else
+                                          ("chrM" if c == "MT" else None))
+            if name is None:
+                continue
+            for s, e in zip(st, en):
+                e = min(e, chroms[name])
+                for a_, b_, v in f.intervals(name, s, e) or []:
+                    rows.append([name, max(a_, s), min(b_, e), f"{v:.3f}"])
+        f.close()
+    elif bedgraph and bedgraph.exists():
+        rows = subset(bedgraph, win, lambda f, s, e: [f[0], s, e, f[3]])
+    if not rows:
+        return 0
+    rows.sort(key=lambda r: (chrom_key(r[0]), int(r[1])))
+    merged = []
+    for r in rows:
+        if merged and merged[-1][0] == r[0] and merged[-1][2] == r[1] \
+                and merged[-1][3] == r[3]:
+            merged[-1][2] = r[2]
+        else:
+            merged.append(list(r))
+    with open(path, "w") as fh:
+        for r in merged:
+            fh.write("\t".join(str(x) for x in r) + "\n")
+    return len(merged)
+
+
 def l1_class(r, high, low):
     """la règle de l1_score.py, pour un l1.tsv qui n'a pas la colonne"""
     if not str(r.get("status", "")).startswith("estimable"):
@@ -144,6 +311,11 @@ def main():
     p.add_argument("--jaspar", type=Path)
     p.add_argument("--tfs", default="NRF1,GABPA,YY1,ESRRA,SP1,NFYA,CREB1,CTCF,TBP")
     p.add_argument("--margin", type=int, default=1000)
+    p.add_argument("--gtf", type=Path)
+    p.add_argument("--gnomad", type=Path)
+    p.add_argument("--gismo", type=Path)
+    p.add_argument("--phylop", type=Path)
+    p.add_argument("--phylop-bedgraph", type=Path)
     p.add_argument("--class-high", type=float, default=0.5)
     p.add_argument("--class-low", type=float, default=0.3)
     p.add_argument("--out", required=True, type=Path)
@@ -159,8 +331,13 @@ def main():
         if a.fibroblast and a.fibroblast.exists() else {}
     regs = [r for r in read_table(a.regions) if r.get("class") not in DROP]
     in_regions = {r["gene"] for r in regs}
+    ens = gtf_ids(a.gtf) if a.gtf and a.gtf.exists() else {}
+    gn = gnomad_table(a.gnomad) if a.gnomad and a.gnomad.exists() else {}
+    gm = gismo_table(a.gismo) if a.gismo and a.gismo.exists() else {}
     cols = ["gene", "gene_id", "l1_class", "l1", "ci_low", "ci_high", "status",
-            "complex", "protein_coupling", "rna_coupling", "fibroblast_r"]
+            "complex", "protein_coupling", "rna_coupling", "fibroblast_r"] + \
+        GNOMAD_OUT + GISMO_OUT
+    n_gn = n_gm = 0
     n_cls = defaultdict(int)
     with open(out / "genes.tsv", "w") as fh:
         fh.write("\t".join(cols) + "\n")
@@ -168,13 +345,20 @@ def main():
             r = l1.get(g, {})
             cls = r.get("l1_class") or l1_class(r, a.class_high, a.class_low)
             n_cls[cls] += 1
-            row = [g, r.get("gene_id", ""), cls, r.get("score", ""),
+            gid = (r.get("gene_id") or ens.get(g, "")).split(".")[0]
+            x = gn.get(gid) or gn.get(g) or {}
+            y = gm.get(gid) or gm.get(g) or {}
+            n_gn += bool(x)
+            n_gm += bool(y)
+            row = [g, gid, cls, r.get("score", ""),
                    r.get("ci_low", ""), r.get("ci_high", ""),
                    r.get("status", "absent_du_proteome"), r.get("complex", ""),
                    r.get("protein_coupling", ""), r.get("rna_coupling", ""),
-                   fib.get(g, {}).get("fibroblast_r", "")]
+                   fib.get(g, {}).get("fibroblast_r", "")] + \
+                [x.get(c, "") for c in GNOMAD_OUT] + [y.get(c, "") for c in GISMO_OUT]
             fh.write("\t".join("" if x in ("NA", "nan") else str(x) for x in row) + "\n")
     print("classes L1 : " + ", ".join(f"{k} {v}" for k, v in sorted(n_cls.items())))
+    print(f"gnomAD : {n_gn} gènes ; GISMO : {n_gm} gènes")
     manifest.append(("genes.tsv", sum(n_cls.values()), str(a.l1)))
 
     # régions
@@ -212,6 +396,20 @@ def main():
     for spec in a.chromhmm:
         tissue, path = spec.split("=", 1)
         put(f"chromhmm_{tissue}", path, lambda f, s, e: [f[0], s, e, f[3]])
+
+    # phyloP 241 mammifères, base par base sur les régions (sans marge)
+    pb = out / "annotations" / "phylop.bedgraph"
+    n_ph = phylop_cut(a.phylop, a.phylop_bedgraph, rb, pb)
+    if n_ph:
+        import pysam
+        pysam.tabix_compress(str(pb), str(pb) + ".gz", force=True)
+        pysam.tabix_index(str(pb) + ".gz", preset="bed", force=True)
+        pb.unlink()
+        print(f"phyloP : {n_ph} intervalles (bgzip + tabix)")
+        manifest.append(("annotations/phylop.bedgraph.gz", n_ph,
+                         str(a.phylop or a.phylop_bedgraph)))
+    else:
+        print("phyloP absent : pas de colonne MITO_phyloP")
 
     # motifs JASPAR des facteurs gardés
     want = {t.upper() for t in a.tfs.split(",") if t}

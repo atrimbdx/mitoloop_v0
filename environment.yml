@@ -16,6 +16,7 @@ dependencies:
   - bcftools          # normalisation of the VCFs before vcf_annotate.py
   - xlrd              # regulome.py, MitoCarta3.0 .xls
   - openpyxl          # jiang2020_tables.py, Jiang 2020 .xlsx
+  - pybigwig          # reannot/mitoloop_paquet.py, phyloP 241 mammals
   - libcurl           # hic-straw is built from source
   - cxx-compiler
   - pybind11

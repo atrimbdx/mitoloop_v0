@@ -40,8 +40,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ajout_mitoloop import (Intervals, annotate, fetch_seqs, load_genes,  # noqa: E402
-                            read_motifs)
+from ajout_mitoloop import (Intervals, annotate, fetch_phylop, fetch_seqs,  # noqa: E402
+                            load_genes, read_motifs)
 
 
 def main():
@@ -54,7 +54,8 @@ def main():
     p.add_argument("--background", type=float, default=0.05)
     p.add_argument("--out", required=True, type=Path)
     a = p.parse_args()
-    opt = SimpleNamespace(min_biosamples=5, min_rel=0.8, min_ic=1.0, min_delta=1.0)
+    opt = SimpleNamespace(min_biosamples=5, min_rel=0.8, min_ic=1.0, min_delta=1.0,
+                          min_phylop=2.27)
     D = a.data
     genes = load_genes(D / "genes.tsv")
     by_id = {r["gene_id"].split(".")[0]: g for g, r in genes.items() if r.get("gene_id")}
@@ -105,6 +106,8 @@ def main():
     need = {f"{v[0]}:{max(1, v[1] - 30)}-{v[1] + 30}" for v in variants
             if len(v[2]) == 1 and len(v[3]) == 1}
     seqs = fetch_seqs(a.fasta, a.samtools, sorted(need)) if mats else {}
+    phy = fetch_phylop(D / "annotations" / "phylop.bedgraph.gz", "tabix",
+                       {(v[0], v[1]) for v in variants})
     args_of = {}
     for (t, g, s), (ca, bg) in keep.items():
         for v in ca + bg:
@@ -114,7 +117,7 @@ def main():
             hit = regions.query(v[0], v[1] - 1, v[1] - 1 + len(v[2]))
             hit = [h for h in hit if h[2][0] == g]
             r = annotate(row, 0, 1, 2, 3, 4, hit, genes, ann, chrom_ann,
-                         mats, tfs, seqs, opt)
+                         mats, tfs, seqs, opt, phy)
             al = [x for x in r["MITO_arguments"].split(",") if x not in (".", "")]
             # L1 est le même pour tout le signal
             args_of[(v, g)] = {x for x in al if x != "L1_transmis"}

@@ -44,8 +44,8 @@ with open("regions.bed", "w") as fh:
     fh.write("chr1\t13600\t13800\tGENEM\telement\tre2g\t13000\t-\t\n")
 with open("l1.tsv", "w") as fh:
     fh.write("gene\tgene_id\tset\tstatus\tscore\tci_low\tci_high\tcomplex\tprotein_coupling\trna_coupling\tl1_class\n")
-    fh.write("GENEP\tENSG1\tmito\testimable\t0.9\t0.7\t0.99\tCI subunits\t0.95\t0.5\ttransmitted\n")
-    fh.write("GENEM\tENSG2\tmito\tflat\tNA\tNA\tNA\t\t\t\tnot_estimable\n")
+    fh.write("GENEP\tENSG00000000001\tmito\testimable\t0.9\t0.7\t0.99\tCI subunits\t0.95\t0.5\ttransmitted\n")
+    fh.write("GENEM\tENSG00000000002\tmito\tflat\tNA\tNA\tNA\t\t\t\tnot_estimable\n")
 open("patient_genes.tsv", "w").write("gene\tfibroblast_r\nGENEP\t0.41\n")
 # EPDnew: spaces, -49..+10 around the TSS
 open("epd.bed", "w").write("chr1 4951 5011 GENEP_1 900 +\nchr1 12990 13050 GENEM_1 900 -\n")
@@ -62,6 +62,27 @@ with open("jaspar.txt", "w") as fh:
          "G": [20,0,20,0,0,0,20,0,20,0], "T": [0,0,0,0,0,20,0,0,0,0]}
     fh.write(">MA0506.3\tNRF1\n" + "".join(f"{b}  [ {' '.join(map(str, m[b]))} ]\n" for b in "ACGT"))
     fh.write(">MA0079.5\tSP1\nA  [ 1 1 ]\nC  [ 1 1 ]\nG  [ 9 9 ]\nT  [ 1 1 ]\n")
+# gnomAD v4.1 constraint (MANE Select row first), GISMO (20 genes, CSV)
+with open("gnomad.tsv", "w") as fh:
+    fh.write("gene\tgene_id\ttranscript\tcanonical\tmane_select\tlof.obs\tlof.exp\tlof.oe\t"
+             "lof.pLI\tlof.oe_ci.upper\tmis.oe\tmis.z_score\n")
+    fh.write("GENEP\t1234\tNM_1\ttrue\ttrue\t1\t20\t0.05\t0.99\t0.12\t0.5\t3.1\n")
+    fh.write("GENEP\tENSG00000000001\tENST9\tfalse\tfalse\t9\t10\t0.9\t0\t1.5\t1\t0\n")
+    fh.write("GENEP\tENSG00000000001\tENST1\ttrue\ttrue\t2\t25\t0.08\t0.97\t0.21\t0.61\t2.8\n")
+    fh.write("GENEM\tENSG00000000002\tENST2\ttrue\ttrue\t30\t28\t1.07\t0\t1.4\t1.02\t-0.2\n")
+with open("gismo.csv", "w") as fh:
+    fh.write("ensembl_gene_id,hgnc_symbol,GISMO,GISMO-mis\n")
+    fh.write("ENSG00000000001,GENEP,0.001,0.05\n")
+    for i in range(3, 21):
+        fh.write(f"ENSG{i:011d},G{i},{0.01 * i:.3f},{0.1 * i:.3f}\n")
+    fh.write("ENSG00000000002,GENEM,0.9,0.95\n")
+# phyloP: 3.5 over the NRF1 site and its flanks, -1 elsewhere
+import pyBigWig
+bw = pyBigWig.open("phylop.bw", "w")
+bw.addHeader([("chr1", 20000)])
+bw.addEntries(["chr1", "chr1", "chr1"], [0, s0 - 10, s0 + 20], ends=[s0 - 10, s0 + 20, 20000],
+              values=[-1.0, 3.5, -1.0])
+bw.close()
 # reannot table: site position 2 of the motif (C at 0-based s0+1) -> 1-based s0+2
 ref_tss_m = seq[13000]
 with open("run.final.tsv", "w") as fh:
@@ -78,7 +99,12 @@ PY
 python3 "$R/mitoloop_paquet.py" --genes genes.txt --l1 l1.tsv \
     --fibroblast patient_genes.tsv --regions regions.bed --epd epd.bed \
     --cage cage.bed.gz --remap NRF1=remap_NRF1.bed.gz --chromhmm muscle=e108.bed.gz \
-    --jaspar jaspar.txt --tfs NRF1,YY1 --out pkg > paquet.log || { cat paquet.log; fail "paquet"; }
+    --jaspar jaspar.txt --tfs NRF1,YY1 --gnomad gnomad.tsv --gismo gismo.csv \
+    --phylop phylop.bw --out pkg > paquet.log || { cat paquet.log; fail "paquet"; }
+grep -q "gnomAD : 2 gènes ; GISMO : 2 gènes" paquet.log || { cat paquet.log; fail "gene constraints"; }
+grep -q "GISMO : gismo.csv, 20 gènes, colonnes 'GISMO', 'GISMO-mis', clé 'ensembl_gene_id'" paquet.log \
+    || { cat paquet.log; fail "GISMO table"; }
+[ -s pkg/annotations/phylop.bedgraph.gz.tbi ] || { cat paquet.log; fail "phyloP index"; }
 grep -q "régions : 3 (element, promoter)" paquet.log || { cat paquet.log; fail "regions"; }
 grep -q "remap_NRF1 : 2 intervalles" paquet.log || { cat paquet.log; fail "ReMap cut to the regions"; }
 grep -q "motifs JASPAR : NRF1 (absents : YY1)" paquet.log || { cat paquet.log; fail "JASPAR subset"; }
@@ -105,6 +131,11 @@ for x in ("L1_transmis", "promoteur_minimal", "fixation_NRF1", "site_NRF1", "chr
     assert x in args, (x, args)
 assert "pic_CAGE" not in args
 assert a["MITO_n_arguments"] == str(len(args))
+assert a["MITO_phyloP"] == "3.50" and "conservation_mammiferes" in args, a
+assert a["MITO_gnomAD"] == "LoF=2/25;oe_LoF=0.08;LOEUF=0.21;pLI=0.97;oe_mis=0.61;z_mis=2.8", a["MITO_gnomAD"]
+assert a["MITO_GISMO"] == "GISMO=0.001(d1);GISMO-mis=0.05(d1)", a["MITO_GISMO"]
+assert v["v2"]["MITO_phyloP"] == "-1.00" and "conservation" not in v["v2"]["MITO_arguments"]
+assert v["v2"]["MITO_GISMO"] == "GISMO=0.9(d10);GISMO-mis=0.95(d5)", v["v2"]["MITO_GISMO"]
 b = v["v2"]
 assert b["MITO_gene"] == "GENEM:promoter" and b["MITO_dist_TSS"] == "0", b
 assert b["MITO_L1_classe"] == "not_estimable" and b["MITO_fixation"] == "NRF1(1)", b
@@ -127,11 +158,11 @@ with gzip.open("dapg.txt.gz", "wt") as fh:
     fh.write("tissue_id\tgene_id\tcluster_id\tcluster_pip\tvariant_id\tvariant_pip\n")
     for k in range(30):
         p = 4970 + 1 + random.choice([0, 2, 6, 8])          # informative NRF1 positions
-        fh.write(f"T{k}\tENSG1.5\t1\t1\tchr1_{p}_{seq[p-1]}_{comp[seq[p-1]]}_b38\t0.9\n")
+        fh.write(f"T{k}\tENSG00000000001.5\t1\t1\tchr1_{p}_{seq[p-1]}_{comp[seq[p-1]]}_b38\t0.9\n")
         for _ in range(3):
             q = random.randint(4100, 4800)
-            fh.write(f"T{k}\tENSG1.5\t1\t1\tchr1_{q}_{seq[q-1]}_{comp[seq[q-1]]}_b38\t0.01\n")
-        fh.write(f"T{k}\tENSG9.1\t1\t1\tchr1_4975_A_G_b38\t0.9\n")   # another gene
+            fh.write(f"T{k}\tENSG00000000001.5\t1\t1\tchr1_{q}_{seq[q-1]}_{comp[seq[q-1]]}_b38\t0.01\n")
+        fh.write(f"T{k}\tENSG00000000009.1\t1\t1\tchr1_4975_A_G_b38\t0.9\n")   # another gene
 PY
 python3 "$R/validation_eqtl.py" --data pkg --dapg dapg.txt.gz --fasta genome.fa \
     --samtools no-samtools-here --out val.tsv > val.log || { cat val.log; fail "validation"; }

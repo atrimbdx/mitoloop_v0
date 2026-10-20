@@ -43,7 +43,10 @@ priorités habituelles.
 | MITO_fixation | facteurs fixés (ReMap 2022) et nombre de types cellulaires |
 | MITO_motifs | sites JASPAR touchés : position, information (bits), variation du score |
 | MITO_chromatine | état ChromHMM (muscle E108, cerveau E073) |
-| MITO_arguments, MITO_n_arguments | arguments réunis |
+| MITO_phyloP | conservation de la base sur 241 mammifères (Zoonomia) ; argument au-dessus de 2,27 |
+| MITO_gnomAD | gène : LoF observés/attendus, o/e LoF, LOEUF, pLI, o/e et z faux-sens (gnomAD v4.1, MANE Select) |
+| MITO_GISMO | gène : GISMO et GISMO-mis (Liao et al. 2026) et leur décile ; déciles 1-4 de GISMO pour les gènes récessifs |
+| MITO_arguments, MITO_n_arguments | arguments réunis (les contraintes du gène, gnomAD et GISMO, n'en font pas partie) |
 
 ## Sens et limites de L1
 
