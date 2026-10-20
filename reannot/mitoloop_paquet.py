@@ -30,10 +30,11 @@ Entrées (produites par run_mcia.sh de mitoloop_v0)
                  upper.ci et son décile publiés (Supplementary Table 2 :
                  lower.ci, median, upper.ci, gene, decile ; 1 = le moins de
                  pertes d'orthologue, le plus contraint ; virgule décimale
-                 acceptée) ; GISMO-mis et son décile 'dec' de la table de
-                 consensus des auteurs (Zenodo 20547722,
-                 gismo-mis_consensus_genenames_*.txt, transcrit MANE Select),
-                 ou d'une table publiée avec une colonne GISMO-mis
+                 acceptée) ; GISMO-mis = gismo.mis et son décile 'dec'
+                 publiés (Supplementary Table 3 : gene = transcrit ENST,
+                 mean.mis, mean.syn, gismo.mis, dec, genename ; transcrit
+                 MANE Select du gène), à défaut la table de consensus des
+                 auteurs (Zenodo 20547722, gismo-mis_consensus_genenames_*.txt)
   --phylop       bigWig phyloP 241 mammifères (Zoonomia) ; ou
                  --phylop-bedgraph, un bedGraph déjà réduit : extrait sur les
                  régions, bgzip + tabix (annotations/phylop.bedgraph.gz)
@@ -206,8 +207,10 @@ def gismo_table(path, mane=frozenset()):
     `mane` : transcrits préférés quand la table donne plusieurs transcrits par gène.
     GISMO et GISMO-mis viennent chacun de la meilleure table qui les porte :
     Supplementary Table 2 de Liao et al. (lower.ci, median, upper.ci, gene,
-    decile ; GISMO = upper.ci, décile repris tel quel), une table avec des
-    colonnes GISMO / GISMO-mis, ou la table de consensus des auteurs (GISMO-mis)"""
+    decile ; GISMO = upper.ci, décile repris tel quel), Supplementary Table 3
+    (transcrit ENST, mean.mis, mean.syn, gismo.mis, dec, genename ; GISMO-mis
+    du transcrit MANE Select), une table avec des colonnes GISMO / GISMO-mis,
+    ou la table de consensus des auteurs (GISMO-mis)"""
     import pandas as pd
     # gismo_genes*.tsv : recalcul de contrôle (gismo_scores.py), jamais pris pour la table publiée
     files = [path] if path.is_file() else sorted(
@@ -238,17 +241,18 @@ def gismo_table(path, mane=frozenset()):
                 g, gd = cols["upperci"], cols["decile"]   # Supplementary Table 2
             elif g is None and m is None and all(k in cols for k in ("miscal", "dec", "genename")):
                 m, md, rank = cols["miscal"], cols["dec"], 1   # consensus des auteurs (Zenodo)
-                tx = next((c for c in t.columns if t[c].astype(str).head(200)
-                           .str.match(r"^ENST\d{11}").mean() > 0.5), None)
-                if tx is not None:   # transcrit MANE Select d'abord pour chaque gène
-                    first = ~t[tx].astype(str).str.split(".").str[0].isin(mane)
-                    t = t.assign(_o=first).sort_values("_o", kind="stable").drop(columns="_o")
+            elif m is not None and md is None and "dec" in cols:
+                md = cols["dec"]                          # Supplementary Table 3 (gismo.mis, dec)
             if g is None and m is None:
                 continue
-            key = next((c for c in t.columns if t[c].astype(str).head(200)
-                        .str.match(r"^ENSG\d{11}").mean() > 0.5), None)
-            sym = next((cols[k] for k in ("gene", "genename", "symbol", "genesymbol",
-                                          "hgncsymbol") if k in cols and cols[k] != key), None)
+            ens = lambda c, pat: t[c].astype(str).head(200).str.match(pat).mean() > 0.5
+            key = next((c for c in t.columns if ens(c, r"^ENSG\d{11}")), None)
+            tx = next((c for c in t.columns if ens(c, r"^ENST\d{11}")), None)
+            if tx is not None:   # transcrit MANE Select d'abord pour chaque gène
+                first = ~t[tx].astype(str).str.split(".").str[0].isin(mane)
+                t = t.assign(_o=first).sort_values("_o", kind="stable").drop(columns="_o")
+            sym = next((cols[k] for k in ("gene", "genename", "symbol", "genesymbol", "hgncsymbol")
+                        if k in cols and cols[k] not in (key, tx)), None)
             if key is None and sym is None:
                 continue
             for name, col, dcol in (("gismo", g, gd), ("gismo_mis", m, md)):

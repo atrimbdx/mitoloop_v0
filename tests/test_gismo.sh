@@ -83,6 +83,8 @@ unzip -q -o GISMO-GISMO.zip -d d1/sub
 unzip -q -o GISMO-GISMO.zip -d d2
 mkdir -p d3 && unzip -q -o GISMO-GISMO.zip -d d3   # Supplementary Table 2 (virgule décimale) + consensus
 printf 'lower.ci\tmedian\tupper.ci\tgene\tdecile\n0\t0,001\t0,0034\tENSG00000000000\t1\n0,14\t0,15\t0,17\tENSG00000000001\t10\n' > d3/supp_table_2.tsv
+mkdir -p d4 && cp -r d3/. d4/   # + Supplementary Table 3 (transcrits, virgule décimale) : prioritaire sur le consensus
+printf 'gene\tmean.mis\tmean.syn\tgismo.mis\tdec\tgenename\nENST00000000001\t1\t10\t0,1\t1\tGENE0\nENST00000000002\t3\t10\t0,3\t4\tGENE0\nENST00000000003\t0\t0\tNA\tNA\tGENE1\n' > d4/supp_table_3.tsv
 printf 'Gene\tEnsembl gene ID\tGISMO\tGISMO decile\tGISMO-mis\tGISMO-mis decile\nGENE0\tENSG00000000000\t0.01\t2\t0.4\t6\nGENE1\tENSG00000000001\t0.2\t9\t0.3\t4\n' > d2/published.tsv
 python3 - "$HERE/../reannot" <<'PY' || exit 1
 import sys
@@ -102,6 +104,11 @@ ok(r["ENSG00000000000"]["gismo"] == "0.0034" and r["ENSG00000000000"]["gismo_dec
 ok(r["ENSG00000000001"]["gismo_decile"] == "10", "table 2 : décile repris tel quel")
 ok(r["GENE0"]["gismo_mis_decile"] == "7" and r["ENSG00000000000"]["gismo_mis"] == "",
    "GISMO-mis du consensus (MANE) gardé à côté de la table 2")
+r = mp.gismo_table(Path("d4"), mp.gtf_mane(Path("mini.gtf.gz")))
+ok(r["GENE0"]["gismo_mis"] == "0.3" and r["GENE0"]["gismo_mis_decile"] == "4",
+   "table 3 : gismo.mis et dec du transcrit MANE, prioritaire sur le consensus")
+ok(r["GENE1"]["gismo_mis"] == "" and r["ENSG00000000000"]["gismo"] == "0.0034",
+   "table 3 : NA vide, GISMO de la table 2 gardé")
 PY
 
 echo "PASS test_gismo"
