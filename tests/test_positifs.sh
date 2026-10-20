@@ -25,7 +25,8 @@ import gzip, json
 h = "#NCBI_GeneID\tEnsembl_Gene\tHGNC_ID\tsymbol\tname\tRefSeq_nuc\tRefSeq_prot\tEnsembl_nuc\tEnsembl_prot\tMANE_status\tGRCh38_chr\tchr_start\tchr_end\tchr_strand\n"
 rows = [("ETFA", "NM_000126.4", "ENST00000557943.6"), ("RARS2", "NM_020320.5", "ENST00000369536.10"),
         ("BCS1L", "NM_004328.5", "ENST00000359273.8"), ("NDUFS4", "NM_002495.4", "ENST00000296684.10"),
-        ("TP53", "NM_000546.6", "ENST00000269305.9")]
+        ("TP53", "NM_000546.6", "ENST00000269305.9"),
+        ("RRM2B", "NM_015713.5", "ENST00000251810.8")]
 with gzip.open("mane.txt.gz", "wt") as fh:
     fh.write(h)
     for g, nm, en in rows:
@@ -37,6 +38,7 @@ cache = {
     "NM_004328:c.-122G>T": [["2", "218658000", "G", "T"]],
     "NM_002495.4:c.*30A>G": [["5", "53560000", "A", "G"]],
     "NM_002495.4:c.-10C>T": [["5", "53460000", "C", "T"]],
+    "GRCh37:8:103160286:G>T": [["8", "102148058", "G", "T"]],
 }
 json.dump(cache, open("cache.json", "w"))
 v = ["##fileformat=VCFv4.1", "##fileDate=2026-10-01",
@@ -79,7 +81,9 @@ k = {(r["chrom"], r["pos"]): r for r in rows}
 def ok(c, m):
     if not c:
         sys.exit("FAIL test_positifs: " + m)
-ok(len(rows) == 6, f"6 variants attendus, {len(rows)}: {sorted(k)}")
+r = k[("chr8", "102148058")]
+ok(r["gene"] == "RRM2B" and r["categorie"] == "intergenique" and r["notation_publiee"].startswith("GRCh37:"), "RRM2B")
+ok(len(rows) == 7, f"7 variants attendus, {len(rows)}: {sorted(k)}")
 e = k[("chr15", "76311000")]
 ok("litterature" in e["source"] and "clinvar" in e["source"] and e["clinvar_id"] == "101", "fusion ETFA")
 ok(e["transcrit"] == "ENST00000557943" and e["transcrit_suppose"] == "oui", "transcrit ETFA")
@@ -103,6 +107,25 @@ grep -q $'\t53460600\t' pos2.tsv || fail "intron avec --avec-introniques"
 python3 "$R/preparer_entree.py" pos.tsv e.tsv > p.log || { cat p.log; fail "preparer"; }
 grep -q "chrom=1, pos=2, ref=3, alt=4, transcrit 5" p.log || { cat p.log; fail "colonnes reconnues"; }
 grep -q $'^ENST00000557943\tchr15:g.76311000C>T$' e.tsv || { cat e.tsv; fail "entrée reannot"; }
-[ "$(wc -l < e.tsv)" -eq 6 ] || fail "6 lignes d'entrée"
+[ "$(wc -l < e.tsv)" -eq 7 ] || fail "7 lignes d'entrée"
+
+# conversion GRCh37 -> GRCh38 et contrôle de la référence (réponses Ensembl simulées)
+python3 - "$S" <<'PY' || fail "genomic"
+import sys
+sys.path[:0] = [sys.argv[1], sys.argv[1] + "/../reannot"]
+import positifs_mitoloop as p
+seq = {"G": "G"}
+def fake(path):
+    if path.startswith("/map/"):
+        return {"mappings": [{"mapped": {"seq_region_name": "8", "start": 102148058, "end": 102148058, "strand": 1}}]}
+    return {"seq": seq["G"]}
+p.get_json = fake
+assert p.genomic("GRCh37:8:103160286:G>T") == [["8", "102148058", "G", "T"]]
+seq["G"] = "A"
+try:
+    p.genomic("GRCh37:8:103160286:G>T"); sys.exit("référence fausse acceptée")
+except ValueError:
+    pass
+PY
 
 echo "PASS test_positifs"

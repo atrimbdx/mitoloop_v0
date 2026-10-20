@@ -38,7 +38,9 @@ Usage
       [--renamed data/genes_renamed.tsv] [--tables S1.xlsx S2.tsv ...]
       [--litterature-extra extra.tsv] [--avec-introniques] [--etoiles-min 0]
       [--clinvar clinvar.vcf.gz] [--mane MANE.summary.txt.gz] [--datadir data/positifs]
---litterature-extra : TSV gene, notation (NM_...:c... ou c...), source, preuve.
+--litterature-extra : TSV gene, notation, source, preuve ; notation NM_...:c..., c...
+(transcrit MANE) ou position publiée GRCh37:8:103160286:G>T (convertie en GRCh38,
+allèle de référence vérifié).
 Bibliothèque standard uniquement.
 """
 
@@ -60,6 +62,9 @@ sys.path.insert(0, str(HERE.parent / "reannot"))
 CLINVAR_URL = "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh38/clinvar.vcf.gz"
 MANE_DIR = "https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/current/"
 RECODER = "https://rest.ensembl.org/variant_recoder/homo_sapiens?fields=vcf_string"
+ENSEMBL = "https://rest.ensembl.org"
+# position génomique publiée : ASSEMBLAGE:chrom:pos:REF>ALT (GRCh37 converti en GRCh38)
+GEN_RE = re.compile(r"^(GRCh3[78]):(?:chr)?([0-9XY]{1,2}):(\d+):([ACGT]+)>([ACGT]+)$")
 
 # Variants publiés, effet sur l'expression démontré (PubMed)
 LITTERATURE = [
@@ -77,6 +82,8 @@ LITTERATURE = [
      "5'UTR, en trans de c.770C>G ; sous-expression ARN et protéine (Kopajtich 2021 medRxiv "
      "doi:10.1101/2021.03.09.21253187) ; Leigh, déficit en complexes I et IV ; ATTENTION Kopajtich "
      "écrit c.1-174del127 (127 pb, soit c.-174_-48del) : à vérifier dans Yépez, fichier additionnel 1"),
+    ("RRM2B", "GRCh37:8:103160286:G>T", "Yépez 2022 tableau 1 (cas 28), position hg19 du fichier additionnel 1",
+     "intergénique (c.?), en trans de c.328C>T ; sous-expression ARN et expression mono-allélique"),
     ("UFM1", "NM_016617.2:c.-273_-271del", "Yépez 2022 tableau 1 (cas 13) ; Hamilton 2017 Neurology",
      "homozygote promoteur, fondateur Rom ; sous-expression ARN, activité promotrice diminuée ; "
      "UFM1 n'est pas un gène mitochondrial (contrôle hors périmètre)"),
@@ -173,7 +180,14 @@ class Recoder:
         self.mem = json.loads(cache.read_text()) if cache.exists() else {}
 
     def __call__(self, hgvs_list):
-        todo = [h for h in dict.fromkeys(hgvs_list) if h not in self.mem]
+        for g in [h for h in dict.fromkeys(hgvs_list) if h not in self.mem and GEN_RE.match(h)]:
+            try:
+                self.mem[g] = genomic(g)
+            except Exception as e:                      # réseau, API, allèle de référence
+                log(f"  {g} non converti ({e})")
+                continue
+            self.cache.write_text(json.dumps(self.mem, indent=0))
+        todo = [h for h in dict.fromkeys(hgvs_list) if h not in self.mem and not GEN_RE.match(h)]
         for i in range(0, len(todo), 100):
             batch = todo[i:i + 100]
             try:
@@ -194,6 +208,33 @@ class Recoder:
                                               "Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=120) as r:
             return parse_recoder(json.loads(r.read()))
+
+
+def get_json(path):
+    req = urllib.request.Request(ENSEMBL + path, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read())
+
+
+def genomic(notation):
+    """ASSEMBLAGE:chrom:pos:REF>ALT -> [[chrom, pos GRCh38, ref, alt]] ; l'allèle de
+    référence est vérifié sur GRCh38 (erreur sinon)"""
+    asm, c, pos, ref, alt = GEN_RE.match(notation).groups()
+    pos = int(pos)
+    if asm == "GRCh37":
+        end = pos + len(ref) - 1
+        m = get_json(f"/map/human/GRCh37/{c}:{pos}..{end}:1/GRCh38?content-type=application/json")
+        hits = [x["mapped"] for x in m.get("mappings", [])]
+        if len(hits) != 1 or hits[0]["end"] - hits[0]["start"] != end - pos:
+            raise ValueError(f"conversion GRCh37 -> GRCh38 ambiguë : {hits}")
+        c, pos = hits[0]["seq_region_name"], hits[0]["start"]
+        if hits[0].get("strand", 1) != 1:
+            raise ValueError("conversion sur le brin opposé")
+    seq = get_json(f"/sequence/region/human/{c}:{pos}..{pos + len(ref) - 1}:1"
+                   "?coord_system_version=GRCh38;content-type=application/json")["seq"].upper()
+    if seq != ref:
+        raise ValueError(f"référence GRCh38 {seq}, publiée {ref}")
+    return [[c, str(pos), ref, alt]]
 
 
 def parse_recoder(data):
@@ -307,13 +348,20 @@ def main():
     recode = Recoder(a.cache or a.datadir / "variant_recoder.json")
 
     # notations c. -> à convertir
-    todo = [dict(gene=g, c=C_RE.search(v).group(0),
+    todo = [dict(gene=g, c=v, tx=None, genomique=True, categorie="intergenique",
+                 source="litterature", preuve=f"{ref} ; {note}") if GEN_RE.match(v) else
+            dict(gene=g, c=C_RE.search(v).group(0),
                  tx=TX_RE.search(v).group(1) if TX_RE.search(v) else None,
                  categorie=categorie_c(v, True), source="litterature",
                  preuve=f"{ref} ; {note}") for g, v, ref, note in LITTERATURE]
     if a.litterature_extra:
         for r in csv.reader(open(a.litterature_extra), delimiter="\t"):
             if len(r) < 2 or r[0].startswith("#") or r[0].lower() == "gene":
+                continue
+            if GEN_RE.match(r[1]):
+                todo.append(dict(gene=r[0], c=r[1], tx=None, genomique=True, categorie="intergenique",
+                                 source=r[2] if len(r) > 2 else "litterature",
+                                 preuve=r[3] if len(r) > 3 else "."))
                 continue
             tx = TX_RE.search(r[1])
             todo.append(dict(gene=r[0], c=C_RE.search(r[1]).group(0), tx=tx.group(1) if tx else None,
@@ -328,6 +376,9 @@ def main():
 
     rows, bad = [], []
     for r in todo:
+        if r.get("genomique"):
+            r["suppose"], r["hgvs"] = ".", r["c"]
+            continue
         r["suppose"] = "non" if r["tx"] else "oui"
         if not r["tx"]:
             if r["gene"] not in mane:
@@ -354,7 +405,7 @@ def main():
             rows.append(dict(chrom=c, pos=pos, ref=ref, alt=alt, gene=r["gene"],
                              categorie=r["categorie"], source=r["source"], etoiles=".",
                              clinvar_id=".", transcrit_suppose=r["suppose"],
-                             notation_publiee=f"{r['tx']} ({r['c']})", preuve=r["preuve"]))
+                             notation_publiee=r["c"] if r.get("genomique") else f"{r['tx']} ({r['c']})", preuve=r["preuve"]))
 
     if not a.sans_clinvar:
         cv = a.clinvar or download(CLINVAR_URL, a.datadir / "clinvar.vcf.gz")
