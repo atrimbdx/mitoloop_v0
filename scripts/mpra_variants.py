@@ -4,8 +4,10 @@ mpra_variants.py — MCIA. Variants non codants dont l'effet sur l'activité d'u
 promoteur, d'un enhancer ou d'un UTR a été mesuré expérimentalement (MPRA,
 mutagenèse à saturation), pour tester les annotations de MitoLoop qui portent
 sur l'allèle (classe C : variation du score d'un site JASPAR, site_<TF>,
-SpliceAI, MORFEE) contre celles qui portent sur la position
-(classe B : phyloP, CAGE, fixation ReMap, chromatine).
+CpG, MORFEE) contre celles qui portent sur la position
+(classe B : phyloP, CAGE, fixation ReMap, chromatine). SpliceAI, SpliceAI2 et
+AlphaGenome n'y sont pas évalués : selon leurs conditions d'utilisation, leurs
+sorties ne servent ni à entraîner ni à ajuster des seuils.
 
 Sources (téléchargées dans --datadir si absentes ; une source illisible est
 sautée, avec un message)
@@ -719,16 +721,13 @@ def features(r):
             f["CpG_oe_perte"] = ("C", float(m.group(1)) - float(m.group(2)))
     if args is not None:
         f["CpG_site_TF"] = ("C", float("CpG_site_" in args))
-    pr = r.get("MITO_priorite")
-    if pr and pr[0] in "1234":
-        f["priorite_MitoLoop"] = ("C", 5.0 - float(pr[0]))      # 1_fort -> 4
-    sai = [num(r.get(k)) for k in r if k and k.startswith(("SpliceAI_pred_DS_", "SpliceAI_DS_",
-                                                           "SpliceAI2_DS_"))]
-    sai = [x for x in sai if x is not None]
-    if sai:
-        f["SpliceAI_DS_max"] = ("C", max(sai))
-    # les colonnes AlphaGenome (AG_*) ne sont pas évaluées ici : selon ses
-    # conditions d'utilisation, ses sorties ne servent pas à ajuster des seuils
+    ev = r.get("MITO_evenements")
+    if ev is not None:                 # événements propres à MitoLoop : fort 2, modéré 1
+        own = [e for e in ev.split(",") if e.startswith(("site_", "CpG_site_", "bascule_"))]
+        f["evenements_MitoLoop"] = ("C", float(sum(2 if e.endswith("[fort]") else 1 for e in own)))
+    # SpliceAI, SpliceAI2 (colonnes SpliceAI*) et AlphaGenome (AG_*) ne sont pas
+    # évalués ici : selon leurs conditions d'utilisation, leurs sorties ne
+    # servent ni à entraîner ni à ajuster des seuils
     for k, v in r.items():
         if k and k.startswith("MORFEE_") and k.endswith("creation"):
             f[k] = ("C", float(v not in (None, "", ".", "NA")))
@@ -807,7 +806,7 @@ def cmd_evaluer(a):
             fh.write("\t".join(str(x) for x in r) + "\n")
     log(f"{a.out} : {len(out)} lignes")
     for r in out:
-        if r[1] == "toutes" and r[2] in ("perte_site", "site_TF", "phyloP", "SpliceAI_DS_max"):
+        if r[1] == "toutes" and r[2] in ("perte_site", "site_TF", "phyloP", "evenements_MitoLoop"):
             log(f"  {r[0]:28s} {r[2]:18s} AUC {r[6]:>6s}  même position {r[8]:>6s} "
                 f"({r[7]} paires)  Spearman |effet| {r[10]}")
 

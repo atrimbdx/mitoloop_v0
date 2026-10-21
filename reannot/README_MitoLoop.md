@@ -88,7 +88,10 @@ perte d'uTIS/uSTOP, dTIS/dSTOP) ; AlphaGenome au-dessus de `--alphagenome-fort`
 sorties d'AlphaGenome, comme l'exigent ses conditions d'utilisation) ; site_TF d'au moins 2 (log2)
 sur une position d'au moins 1,5 bits ; un événement modéré du promoteur minimal.
 Modéré : SpliceAI ou SpliceAI2 ≥ 0,2 ; site_TF ; CpG_site_TF ;
-bascule_ilot_CpG. Les seuils sont des options de `ajout_mitoloop.py`. Les
+bascule_ilot_CpG. Les seuils sont des options de `ajout_mitoloop.py`. Ceux de
+SpliceAI/SpliceAI2 (0,5 et 0,2, seuils publiés) et d'AlphaGenome sont fixés à
+la main : leurs sorties ne servent jamais à entraîner ni à ajuster un
+paramètre, comme l'exigent leurs conditions d'utilisation. Les
 variants hors des régions MitoLoop reçoivent aussi les événements d'épissage,
 MORFEE et AlphaGenome. Trier sur `MITO_priorite`, puis sur `MITO_n_arguments`.
 

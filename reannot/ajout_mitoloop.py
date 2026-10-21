@@ -83,7 +83,10 @@ Priorité (MITO_evenements, MITO_priorite). Les annotations du gène et de la
 position sont les mêmes pour un variant pathogène et un variant bénin au même
 endroit ; seules celles de l'allèle les séparent. Les événements de l'allèle,
 de tous les outils de la table, sont donc réunis et classés :
-  fort     épissage : SpliceAI ou SpliceAI2 >= --spliceai-fort (0,5)
+  fort     épissage : SpliceAI ou SpliceAI2 >= --spliceai-fort (0,5 ; 0,2 pour
+                       modéré : seuils publiés par les auteurs de SpliceAI,
+                       fixés à la main ; selon les conditions d'utilisation,
+                       ses sorties ne servent ni à entraîner ni à ajuster)
            uORF/dORF : un champ MORFEE renseigné (création ou perte d'un
                        uTIS/uSTOP, dTIS/dSTOP)
            AlphaGenome : |AG_*| >= --alphagenome-fort (seulement si donné ;
