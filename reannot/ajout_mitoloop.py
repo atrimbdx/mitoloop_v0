@@ -83,21 +83,21 @@ Priorité (MITO_evenements, MITO_priorite). Les annotations du gène et de la
 position sont les mêmes pour un variant pathogène et un variant bénin au même
 endroit ; seules celles de l'allèle les séparent. Les événements de l'allèle,
 de tous les outils de la table, sont donc réunis et classés :
-  fort     épissage : SpliceAI ou SpliceAI2 >= --spliceai-fort (0,5 ; 0,2 pour
-                       modéré : seuils publiés par les auteurs de SpliceAI,
-                       fixés à la main ; selon les conditions d'utilisation,
-                       ses sorties ne servent ni à entraîner ni à ajuster)
-           uORF/dORF : un champ MORFEE renseigné (création ou perte d'un
-                       uTIS/uSTOP, dTIS/dSTOP)
-           AlphaGenome : |AG_*| >= --alphagenome-fort (seulement si donné ;
-                       seuil fixé à la main : selon leurs conditions
-                       d'utilisation, les sorties d'AlphaGenome ne servent à
-                       entraîner ni à ajuster aucun paramètre)
+  fort     épissage : SpliceAI >= --spliceai-seuil (0,2) ou SpliceAI2 >=
+                       --spliceai2-seuil (0,1)
+           5'UTR : un champ MORFEE du 5' renseigné (uTIS, uSTOP,
+                       uSTOP_creation : création ou perte d'une uORF, qui
+                       freine la traduction de la protéine)
+           AlphaGenome : |AG_*| >= --alphagenome-seuil (20)
+           Ces seuils sont fixés à la main : selon leurs conditions
+           d'utilisation, les sorties de SpliceAI, SpliceAI2 et AlphaGenome
+           ne servent ni à entraîner ni à ajuster aucun paramètre.
            site_<TF> d'au moins --site-fort-delta (2, log2) sur une position
                        d'au moins --site-fort-ic (1,5 bits)
            un événement modéré dans le promoteur minimal (-50 à +10 d'un TSS)
-  modéré   SpliceAI ou SpliceAI2 >= --spliceai-modere (0,2) ; site_<TF> ;
-           CpG_site_<TF> ; bascule_ilot_CpG
+  modéré   3'UTR : un champ MORFEE du 3' renseigné (dTIS, dSTOP,
+           dSTOP_creation : ORF en aval du codon stop, effet plus faible) ;
+           site_<TF> ; CpG_site_<TF> ; bascule_ilot_CpG
   1_fort      au moins un événement fort, dans un gène dont la classe L1 n'est
               pas not_transmitted
   2_modere    un événement modéré, ou fort dans un gène not_transmitted
@@ -338,13 +338,14 @@ def main():
     p.add_argument("--min-ic", type=float, default=1.0)
     p.add_argument("--min-delta", type=float, default=1.0)
     p.add_argument("--min-phylop", type=float, default=2.27)
-    p.add_argument("--spliceai-fort", type=float, default=0.5)
-    p.add_argument("--spliceai-modere", type=float, default=0.2)
+    p.add_argument("--spliceai-seuil", type=float, default=0.2,
+                   help="SpliceAI (DS max) d'un événement d'épissage (fort)")
+    p.add_argument("--spliceai2-seuil", type=float, default=0.1,
+                   help="SpliceAI2 (max) d'un événement d'épissage (fort)")
     p.add_argument("--site-fort-delta", type=float, default=2.0)
     p.add_argument("--site-fort-ic", type=float, default=1.5)
-    p.add_argument("--alphagenome-fort", type=float,
-                   help="|score AlphaGenome| d'un événement fort (sans cette option, "
-                        "AlphaGenome n'entre pas dans la priorité)")
+    p.add_argument("--alphagenome-seuil", type=float, default=20.0,
+                   help="|score AlphaGenome| d'un événement fort")
     p.add_argument("--tabix", default=os.environ.get("TABIX", "tabix"))
     a = p.parse_args()
     D = a.data
@@ -669,28 +670,29 @@ def priority(row, v, events, a):
     row : colonnes de la table en minuscules"""
     ev = list(events)
     # épissage : SpliceAI (VEP) et SpliceAI2
-    for tool, keys in (("SpliceAI", ("spliceai_ds_max", "spliceai_ds_ag", "spliceai_ds_al",
-                                     "spliceai_ds_dg", "spliceai_ds_dl")),
-                       ("SpliceAI2", ("spliceai2_max", "spliceai2_ds_ag", "spliceai2_ds_al",
-                                      "spliceai2_ds_dg", "spliceai2_ds_dl"))):
+    for tool, seuil, keys in (
+            ("SpliceAI", a.spliceai_seuil, ("spliceai_ds_max", "spliceai_ds_ag", "spliceai_ds_al",
+                                            "spliceai_ds_dg", "spliceai_ds_dl")),
+            ("SpliceAI2", a.spliceai2_seuil, ("spliceai2_max", "spliceai2_ds_ag", "spliceai2_ds_al",
+                                              "spliceai2_ds_dg", "spliceai2_ds_dl"))):
         x = [fnum(row.get(k)) for k in keys]
         x = [y for y in x if y is not None]
-        if x and max(x) >= a.spliceai_modere:
-            ev.append(("fort" if max(x) >= a.spliceai_fort else "modere",
-                       f"{tool}={max(x):.2f}"))
-    # MORFEE : création ou perte d'un uTIS / uSTOP / dTIS / dSTOP
+        if x and max(x) >= seuil:
+            ev.append(("fort", f"{tool}={max(x):.2f}"))
+    # MORFEE : uORF du 5'UTR (uTIS, uSTOP) forte, ORF du 3'UTR (dTIS, dSTOP) modérée
     mf = [k[len("morfee_"):] for k, x in row.items() if k.startswith("morfee_")
           and x not in (None, "", ".", "NA", "na", "-")]
-    if mf:
-        ev.append(("fort", "MORFEE:" + "+".join(mf)))
-    # AlphaGenome : seulement avec un seuil
-    if a.alphagenome_fort is not None:
-        x = [(k, fnum(y)) for k, y in row.items() if k.startswith("ag_")]
-        x = [(k, y) for k, y in x if y is not None]
-        if x:
-            k, y = max(x, key=lambda t: abs(t[1]))
-            if abs(y) >= a.alphagenome_fort:
-                ev.append(("fort", f"AlphaGenome:{k[3:]}={y:.3g}"))
+    for side, force in (("u", "fort"), ("d", "modere")):
+        m = [x for x in mf if x.startswith(side)]
+        if m:
+            ev.append((force, "MORFEE:" + "+".join(m)))
+    # AlphaGenome : le score de plus grande valeur absolue
+    x = [(k, fnum(y)) for k, y in row.items() if k.startswith("ag_")]
+    x = [(k, y) for k, y in x if y is not None]
+    if x:
+        k, y = max(x, key=lambda t: abs(t[1]))
+        if abs(y) >= a.alphagenome_seuil:
+            ev.append(("fort", f"AlphaGenome:{k[3:]}={y:.3g}"))
     args = (v.get("MITO_arguments") or ".").split(",")
     if "promoteur_minimal" in args:      # un événement du promoteur minimal compte comme fort
         ev = [("fort" if s == "modere" and not t.startswith(("SpliceAI", "MORFEE"))

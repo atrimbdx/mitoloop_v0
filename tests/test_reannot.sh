@@ -86,14 +86,14 @@ bw.close()
 # reannot table: site position 2 of the motif (C at 0-based s0+1) -> 1-based s0+2
 ref_tss_m = seq[13000]
 with open("run.final.tsv", "w") as fh:
-    fh.write("transcrit\tvariant_entree\tchrom\tpos\tref\talt\tgene\tstatut\tSpliceAI_DS_max\tMORFEE_uTIS\n")
-    fh.write(f"ENST1\tv1\tchr1\t{s0 + 2}\tC\tA\tGENEP\tok\t0.01\t.\n")
-    fh.write(f"ENST2\tv2\tchr1\t13001\t{ref_tss_m}\t{'A' if ref_tss_m != 'A' else 'C'}\tGENEM\tok\t.\tuTIS_creation\n")
-    fh.write(f"ENST3\tv3\tchr1\t11000\t{seq[10999]}\tA\tGENEX\tok\t0.81\t.\n")
-    fh.write(f"ENST4\tv4\tchr1\t{s0 + 2}\tC\tCT\tGENEP\tok\t.\t.\n")
+    fh.write("transcrit\tvariant_entree\tchrom\tpos\tref\talt\tgene\tstatut\tSpliceAI_DS_max\tMORFEE_uTIS\tSpliceAI2_max\tAG_SCORE\tMORFEE_dSTOP\n")
+    fh.write(f"ENST1\tv1\tchr1\t{s0 + 2}\tC\tA\tGENEP\tok\t0.01\t.\t.\t.\t.\n")
+    fh.write(f"ENST2\tv2\tchr1\t13001\t{ref_tss_m}\t{'A' if ref_tss_m != 'A' else 'C'}\tGENEM\tok\t.\tuTIS_creation\t.\t.\t.\n")
+    fh.write(f"ENST3\tv3\tchr1\t11000\t{seq[10999]}\tA\tGENEX\tok\t0.81\t.\t.\t.\t.\n")
+    fh.write(f"ENST4\tv4\tchr1\t{s0 + 2}\tC\tCT\tGENEP\tok\t.\t.\t0.12\t-25\tdSTOP_creation\n")
     bad = "A" if seq[s0 + 6] != "A" else "C"
-    fh.write(f"ENST5\tv5\tchr1\t{s0 + 7}\t{bad}\tG\tGENEP\tok\t.\t.\n")
-    fh.write("ENST6\tv6\tNA\tNA\tNA\tNA\tNA\tnon_converti\tNA\tNA\n")
+    fh.write(f"ENST5\tv5\tchr1\t{s0 + 7}\t{bad}\tG\tGENEP\tok\t0.19\t.\t0.09\t19.5\t.\n")
+    fh.write("ENST6\tv6\tNA\tNA\tNA\tNA\tNA\tnon_converti\tNA\tNA\tNA\tNA\tNA\n")
 # GTF: GENEP (+, TSS 5000), a lncRNA on the - strand whose TSS is 201 bp upstream
 with gzip.open("genes.gtf.gz", "wt") as fh:
     fh.write('chr1\tx\tgene\t5001\t9000\t.\t+\t.\tgene_id "ENSG00000000001.1"; gene_type "protein_coding"; gene_name "GENEP";\n')
@@ -161,6 +161,10 @@ assert c["MITO_evenements"] == "SpliceAI=0.81[fort]" and c["MITO_priorite"] == "
 assert c["MITO_gene"] == "." and c["MITO_CpG"] == ".", c
 assert v["v4"]["MITO_CpG"].startswith("CpG_detruit") or v["v4"]["MITO_CpG"].startswith("oe="), v["v4"]
 assert v["v5"]["MITO_CpG"] == "REF_discordante", v["v5"]
+assert v["v4"]["MITO_evenements"].split(",")[:2] == ["SpliceAI2=0.12[fort]", "AlphaGenome:score=-25[fort]"], v["v4"]
+assert "MORFEE:dstop[modere]" in v["v4"]["MITO_evenements"], v["v4"]["MITO_evenements"]
+assert v["v5"]["MITO_evenements"] in (".",) or "SpliceAI" not in v["v5"]["MITO_evenements"], v["v5"]
+assert "AlphaGenome" not in v["v5"]["MITO_evenements"], v["v5"]
 assert v["v6"]["MITO_priorite"] == ".", v["v6"]
 assert v["v4"]["MITO_motifs"] == "." and v["v4"]["MITO_statut"] == "annote"
 assert v["v5"]["MITO_motifs"] == "REF_discordante", v["v5"]

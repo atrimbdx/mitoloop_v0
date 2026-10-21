@@ -65,7 +65,7 @@ l'intérieur des priorités habituelles.
 | MITO_gnomAD | gène : LoF observés/attendus, o/e LoF, LOEUF, pLI, o/e et z faux-sens (gnomAD v4.1, MANE Select) |
 | MITO_GISMO | gène : GISMO et GISMO-mis (Liao et al. 2026) et leur décile ; déciles 1-4 de GISMO pour les gènes récessifs |
 | MITO_arguments, MITO_n_arguments | arguments réunis (les contraintes du gène, gnomAD et GISMO, n'en font pas partie) |
-| MITO_evenements | événements portés par l'allèle, tous outils réunis, avec leur force : SpliceAI/SpliceAI2, MORFEE, AlphaGenome (avec `--alphagenome-fort`), site_TF, CpG_site_TF, bascule_ilot_CpG |
+| MITO_evenements | événements portés par l'allèle, tous outils réunis, avec leur force : SpliceAI/SpliceAI2, MORFEE, AlphaGenome, site_TF, CpG_site_TF, bascule_ilot_CpG |
 | MITO_priorite | 1_fort, 2_modere, 3_contexte, 4_aucun |
 
 ## Priorité
@@ -82,18 +82,18 @@ outils de la table, et `MITO_priorite` les classe :
 | 3_contexte | pas d'événement de l'allèle, au moins deux arguments de position (promoteur minimal, CAGE, fixation, chromatine active, conservation) |
 | 4_aucun | le reste |
 
-Fort : SpliceAI ou SpliceAI2 ≥ 0,5 ; un champ MORFEE renseigné (création ou
-perte d'uTIS/uSTOP, dTIS/dSTOP) ; AlphaGenome au-dessus de `--alphagenome-fort`
-(seulement si donné ; seuil fixé à la main, jamais appris ni ajusté sur les
-sorties d'AlphaGenome, comme l'exigent ses conditions d'utilisation) ; site_TF d'au moins 2 (log2)
-sur une position d'au moins 1,5 bits ; un événement modéré du promoteur minimal.
-Modéré : SpliceAI ou SpliceAI2 ≥ 0,2 ; site_TF ; CpG_site_TF ;
-bascule_ilot_CpG. Les seuils sont des options de `ajout_mitoloop.py`. Ceux de
-SpliceAI/SpliceAI2 (0,5 et 0,2, seuils publiés) et d'AlphaGenome sont fixés à
-la main : leurs sorties ne servent jamais à entraîner ni à ajuster un
-paramètre, comme l'exigent leurs conditions d'utilisation. Les
-variants hors des régions MitoLoop reçoivent aussi les événements d'épissage,
-MORFEE et AlphaGenome. Trier sur `MITO_priorite`, puis sur `MITO_n_arguments`.
+Fort : SpliceAI ≥ 0,2 ; SpliceAI2 ≥ 0,1 ; |AlphaGenome| ≥ 20 ; un champ
+MORFEE du 5'UTR renseigné (uTIS, uSTOP, uSTOP_creation : création ou perte
+d'une uORF, qui freine la traduction) ; site_TF d'au moins 2 (log2) sur une
+position d'au moins 1,5 bits ; un événement modéré du promoteur minimal.
+Modéré : un champ MORFEE du 3'UTR renseigné (dTIS, dSTOP, dSTOP_creation) ;
+site_TF ; CpG_site_TF ; bascule_ilot_CpG. Les seuils sont des options de
+`ajout_mitoloop.py` (`--spliceai-seuil`, `--spliceai2-seuil`,
+`--alphagenome-seuil`...). Ceux de SpliceAI, SpliceAI2 et AlphaGenome sont
+fixés à la main : leurs sorties ne servent jamais à entraîner ni à ajuster un
+paramètre, comme l'exigent leurs conditions d'utilisation ; la priorisation
+qui les utilise se fait sur la VM. Les variants hors des régions MitoLoop
+reçoivent aussi les événements d'épissage, MORFEE et AlphaGenome. Trier sur `MITO_priorite`, puis sur `MITO_n_arguments`.
 
 ## Sens et limites de L1
 
