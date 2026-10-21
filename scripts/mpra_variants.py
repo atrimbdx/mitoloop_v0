@@ -286,6 +286,8 @@ def src_kircher(d, fasta):
             p, eff = num(r.get("pValue")), num(r.get("Coefficient"))
             if p is None or eff is None:
                 continue
+            if not r.get("Pos", "").isdigit():      # lignes sans position (NA) du fichier des auteurs
+                continue
             c, pos, ref, alt = chrom_ok(r["Chrom"]), int(r["Pos"]), r["Ref"], r["Alt"]
             if c is None:
                 continue
@@ -304,7 +306,9 @@ def src_kircher(d, fasta):
 
 def sure_rows(path):
     with opener(path) as fh:
-        yield from csv.DictReader(fh, delimiter="\t")
+        for r in csv.DictReader(fh, delimiter="\t"):
+            if (r.get("SNPabspos") or "").isdigit():
+                yield r
 
 
 def sure_effect(r, cell):

@@ -46,6 +46,7 @@ for alt, eff, pv in (("C", -1.2, 1e-9), ("T", -1.0, 1e-8), ("G", -0.05, 0.6)):
     rows.append(f"1\t{p}\tA\t{alt}\t50\t100\t100\t{eff}\t{pv}\tTERT-HEK\tGRCh38")
     rows.append(f"1\t{p + 7}\tA\t{alt}\t50\t100\t100\t{eff}\t{pv}\tTERT-HEK\tGRCh37")   # other build: ignored
 rows.append(f"1\t{p}\tA\t-\t50\t100\t100\t-0.8\t1e-6\tTERT-HEK\tGRCh38")              # deletion
+rows.append("NA\tNA\tNA\tNA\t50\t100\t100\t-0.1\t0.9\tTERT-HEK\tGRCh38")                 # no position: skipped
 rows.append(f"1\t3000\t{b38(3000)}\t{'A' if b38(3000) != 'A' else 'C'}\t9\t9\t9\t0.01\t0.9\tTERT-HEK\tGRCh38")
 rows.append(f"1\t3001\t{b38(3001)}\t{'A' if b38(3001) != 'A' else 'C'}\t9\t9\t9\t0.3\t0.001\tTERT-HEK\tGRCh38")  # intermediate
 with gzip.open("dl/kircher2019_elements.tsv.gz", "wt") as fh:
