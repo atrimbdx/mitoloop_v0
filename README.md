@@ -509,7 +509,9 @@ the annotations on variants whose effect on expression was measured by
 experiment: the saturation mutagenesis of 20 promoters and enhancers (Kircher
 et al. 2019), the SuRE raQTL and SNP without effect (van Arensbergen et al.
 2019, hg19 lifted to GRCh38), MPRAVarDB (18 MPRA studies) and 5'UTR variants
-(Sample et al. 2019), plus tables put in `data/mpra/tables_hg38/` or
+(Sample et al. 2019), the muscle methylation QTL of GTEx (Oliva et al.
+2023, variants 50 to 1000 bp from the measured CpG, for the MITO_CpG
+annotations), plus tables put in `data/mpra/tables_hg38/` or
 `data/mpra/tables_hg19/` (chrom, pos, ref, alt, effet, p, signif). Every
 variant is annotated by MitoLoop with an evaluation package (regions around
 the variants), then `scripts/mpra_variants.py evaluer` writes

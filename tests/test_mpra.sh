@@ -110,6 +110,17 @@ with gzip.open("dl/GSM3130443_designed_library.csv.gz", "wt") as fh:
     fh.write(f"1,ACGTTCGT,4.2,NC_000001.11:g.7000{b}>{alt_of(b)},rs77,snv,ACGTACGT\n")
     fh.write("2,ACGTTCGA,4.0,NC_000001.11:g.7001C>T,rs78,snv,UNKNOWN\n")
 
+# GTEx muscle mQTL (top variant per CpG) and the EPIC hg38 manifest
+with gzip.open("dl/EPIC.hg38.manifest.tsv.gz", "wt") as fh:
+    fh.write("CpG_chrm\tCpG_beg\tCpG_end\tProbe_ID\n")
+    fh.write("chr1\t9999\t10001\tcg00000001\nchr1\t11999\t12001\tcg00000002\nchr1\t13999\t14001\tcg00000003\n")
+with open("dl/MuscleSkeletal.regular.perm.fdr.txt", "w") as fh:
+    fh.write("cpg_id\tvariant_id\tmaf\tslope\tslope_se\tpval_nominal\tpval_permuted\tqval\n")
+    for cg, p, q in (("cg00000001", 10200, 1e-6), ("cg00000002", 12020, 1e-9), ("cg00000003", 14300, 0.9),
+                     ("cg00000003", 19000, 0.9)):
+        b = b38(p)
+        fh.write(f"{cg}\tchr1_{p}_{b}_{alt_of(b)}_b38\t0.3\t0.8\t0.1\t1e-8\t1e-6\t{q}\n")
+
 # hand table in hg19 (Griesemer-like)
 with open("griesemer.tsv", "w") as fh:
     r, a = plus(8000)
@@ -166,6 +177,9 @@ assert [r["signif"] for r in sorted(m, key=lambda r: int(r["pos"]))] == ["1", "0
 assert "mpravardb:X" not in src
 sa = src["sample2019"]
 assert len(sa) == 1 and sa[0]["pos"] == "7000" and abs(float(sa[0]["effet"]) + 0.8) < 1e-6, sa
+mq = sorted(src["mqtl_muscle_gtex"], key=lambda r: int(r["pos"]))
+assert [(r["pos"], r["signif"], r["element"]) for r in mq] == \
+    [("10200", "1", "cg00000001(+200)"), ("14300", "0", "cg00000003(+300)")], mq   # 20 pb : sonde ; 5 kb : trop loin
 g = src["griesemer"]
 assert len(g) == 1 and g[0]["pos"] == "8100" and g[0]["signif"] == "1", g
 PY

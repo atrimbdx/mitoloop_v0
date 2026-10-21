@@ -28,6 +28,15 @@ sautée, avec un message)
   sample     Sample et al. 2019, Nat Biotechnol 37:803 : charge en ribosomes
              (MRL) de 5'UTR humains et de leurs SNV ; effet = MRL alt - MRL
              du 5'UTR de référence ; pas de significativité.
+  mqtl       mQTL du muscle squelettique de GTEx (Oliva et al. 2023, Nat Genet
+             55:112 ; puces EPIC, hg38) : variant de tête de chaque CpG,
+             effet = pente sur la méthylation (normalisée). Significatif :
+             q < 0,05 ; sans effet : q > 0,5. Seuls les variants à plus de
+             50 pb (ils peuvent fausser l'hybridation de la sonde) et à
+             moins de --mqtl-distance pb (1000) du CpG mesuré sont gardés,
+             coordonnées des CpG par le manifeste EPIC hg38 de Zhou et al.
+             Teste les annotations de méthylation (MITO_CpG) ; « element »
+             = le CpG mesuré.
   --table    toute autre table (Griesemer 2021 3'UTR, Tewhey 2016, Abell 2022,
              tableaux d'un article...) : TSV avec en-tête chrom, pos, ref, alt
              et, si connus, effet, p, signif (1/0), element, cellule ;
@@ -94,12 +103,17 @@ URLS = {
     "mpravardb": "https://hgdownload.soe.ucsc.edu/gbdb/hg38/mpra/mpravardb/mpravardb.bb",
     "sample": "https://ftp.ncbi.nlm.nih.gov/geo/samples/GSM3130nnn/GSM3130443/suppl/"
               "GSM3130443_designed_library.csv.gz",
+    "mqtl": "https://storage.googleapis.com/egtex/methylation/epic-arrays/mQTLs/"
+            "MuscleSkeletal.regular.perm.fdr.txt",
+    "epic": "https://raw.githubusercontent.com/zhou-lab/InfiniumAnnotationV1/main/Anno/EPIC/"
+            "EPIC.hg38.manifest.tsv.gz",
 }
 FILES = {"kircher": "kircher2019_elements.tsv.gz", "sure_k562": "sure_k562.sign.txt.gz",
          "sure_hepg2": "sure_hepg2.sign.txt.gz", "sure_table": "SuRE_SNP_table_LP190708.txt.gz",
          "chain": "hg19ToHg38.over.chain.gz", "mpravardb": "mpravardb.bb",
-         "sample": "GSM3130443_designed_library.csv.gz"}
-SOURCES = ("kircher", "sure", "mpravardb", "sample")
+         "sample": "GSM3130443_designed_library.csv.gz",
+         "mqtl": "MuscleSkeletal.regular.perm.fdr.txt", "epic": "EPIC.hg38.manifest.tsv.gz"}
+SOURCES = ("kircher", "sure", "mpravardb", "sample", "mqtl")
 COLS = ["chrom", "pos", "ref", "alt", "source", "element", "cellule", "effet", "p", "signif"]
 COMP = str.maketrans("ACGTN", "TGCAN")
 ACTIVE = re.compile(r"(^|_)(TssA|TssAFlnk|Enh|EnhG|TxFlnk)$")
@@ -435,6 +449,33 @@ def src_sample(d):
     return out
 
 
+def src_mqtl(d, max_dist, min_dist=50):
+    pos = {}
+    with opener(d / FILES["epic"]) as fh:
+        for r in csv.DictReader(fh, delimiter="\t"):
+            c = chrom_ok(r.get("CpG_chrm", ""))
+            if c and r.get("CpG_beg", "NA") != "NA":
+                pos[r["Probe_ID"]] = (c, int(r["CpG_beg"]) + 1)     # C du CpG, 1-based
+    n_far = 0
+    rows = []
+    with opener(d / FILES["mqtl"]) as fh:
+        for r in csv.DictReader(fh, delimiter="\t"):
+            q, cg = num(r.get("qval")), pos.get(r["cpg_id"].split(":")[0])
+            m = re.fullmatch(r"(chr\w+)_(\d+)_([ACGT]+)_([ACGT]+)_b38", r.get("variant_id", ""))
+            if q is None or cg is None or not m or m.group(1) != cg[0]:
+                continue
+            dist = int(m.group(2)) - cg[1]
+            if not (min_dist < abs(dist) <= max_dist):
+                n_far += 1
+                continue
+            sig = "1" if q < 0.05 else "0" if q > 0.5 else "."
+            rows.append(row(m.group(1), m.group(2), m.group(3), m.group(4), "mqtl_muscle_gtex",
+                            f"{r['cpg_id']}({dist:+d})", "muscle", num(r.get("slope")), q, sig))
+    log(f"mqtl : {len(rows)} paires variant-CpG à {min_dist}-{max_dist} pb ({n_far} hors distance ; "
+        f"{len(pos)} sondes EPIC)")
+    return rows
+
+
 def src_table(path, build, chain):
     out, lost = [], 0
     with opener(path) as fh:
@@ -463,7 +504,7 @@ def cmd_build(a):
     fasta = Fasta(a.fasta)
     want = set(a.sources)
     need = {"kircher": ["kircher"], "sure": ["sure_k562", "sure_hepg2", "sure_table", "chain"],
-            "mpravardb": ["mpravardb"], "sample": ["sample"]}
+            "mpravardb": ["mpravardb"], "sample": ["sample"], "mqtl": ["mqtl", "epic"]}
     if a.table_hg19:
         need.setdefault("table", ["chain"])
         want.add("table")
@@ -477,7 +518,8 @@ def cmd_build(a):
     rows = []
     for s, f in (("kircher", lambda: src_kircher(d, fasta)),
                  ("sure", lambda: src_sure(d, fasta, chain, a.ratio_negatifs, a.seed)),
-                 ("mpravardb", lambda: src_mpravardb(d)), ("sample", lambda: src_sample(d))):
+                 ("mpravardb", lambda: src_mpravardb(d)), ("sample", lambda: src_sample(d)),
+                 ("mqtl", lambda: src_mqtl(d, a.mqtl_distance))):
         if s not in want:
             continue
         if s == "sure" and chain is None:
@@ -781,6 +823,8 @@ def main():
     b.add_argument("--table", type=Path, action="append", default=[], help="table en GRCh38")
     b.add_argument("--table-hg19", type=Path, action="append", default=[], help="table en hg19")
     b.add_argument("--ratio-negatifs", type=int, default=3)
+    b.add_argument("--mqtl-distance", type=int, default=1000,
+                   help="distance maximale variant-CpG des mQTL gardés (pb)")
     b.add_argument("--max", type=int, default=0, help="variants par source au plus (0 : tous)")
     b.add_argument("--seed", type=int, default=1)
     r = sub.add_parser("regions")
