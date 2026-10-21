@@ -40,8 +40,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ajout_mitoloop import (Intervals, annotate, fetch_phylop, fetch_seqs,  # noqa: E402
-                            load_genes, read_motifs)
+from ajout_mitoloop import (W_CPG, Intervals, annotate, fetch_phylop,  # noqa: E402
+                            fetch_seqs, load_genes, read_motifs)
 
 
 def main():
@@ -55,7 +55,7 @@ def main():
     p.add_argument("--out", required=True, type=Path)
     a = p.parse_args()
     opt = SimpleNamespace(min_biosamples=5, min_rel=0.8, min_ic=1.0, min_delta=1.0,
-                          min_phylop=2.27)
+                          min_phylop=2.27, site_fort_ic=1.5, site_fort_delta=2.0)
     D = a.data
     genes = load_genes(D / "genes.tsv")
     by_id = {r["gene_id"].split(".")[0]: g for g, r in genes.items() if r.get("gene_id")}
@@ -103,9 +103,8 @@ def main():
         return
 
     # 2. arguments de chaque variant (gène du signal)
-    need = {f"{v[0]}:{max(1, v[1] - 30)}-{v[1] + 30}" for v in variants
-            if len(v[2]) == 1 and len(v[3]) == 1}
-    seqs = fetch_seqs(a.fasta, a.samtools, sorted(need)) if mats else {}
+    need = {f"{v[0]}:{max(1, v[1] - W_CPG)}-{v[1] + len(v[2]) + W_CPG}" for v in variants}
+    seqs = fetch_seqs(a.fasta, a.samtools, sorted(need))
     phy = fetch_phylop(D / "annotations" / "phylop.bedgraph.gz", "tabix",
                        {(v[0], v[1]) for v in variants})
     args_of = {}

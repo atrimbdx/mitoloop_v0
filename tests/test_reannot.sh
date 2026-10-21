@@ -86,20 +86,25 @@ bw.close()
 # reannot table: site position 2 of the motif (C at 0-based s0+1) -> 1-based s0+2
 ref_tss_m = seq[13000]
 with open("run.final.tsv", "w") as fh:
-    fh.write("transcrit\tvariant_entree\tchrom\tpos\tref\talt\tgene\tstatut\n")
-    fh.write(f"ENST1\tv1\tchr1\t{s0 + 2}\tC\tA\tGENEP\tok\n")
-    fh.write(f"ENST2\tv2\tchr1\t13001\t{ref_tss_m}\t{'A' if ref_tss_m != 'A' else 'C'}\tGENEM\tok\n")
-    fh.write(f"ENST3\tv3\tchr1\t11000\t{seq[10999]}\tA\tGENEX\tok\n")
-    fh.write(f"ENST4\tv4\tchr1\t{s0 + 2}\tC\tCT\tGENEP\tok\n")
+    fh.write("transcrit\tvariant_entree\tchrom\tpos\tref\talt\tgene\tstatut\tSpliceAI_DS_max\tMORFEE_uTIS\n")
+    fh.write(f"ENST1\tv1\tchr1\t{s0 + 2}\tC\tA\tGENEP\tok\t0.01\t.\n")
+    fh.write(f"ENST2\tv2\tchr1\t13001\t{ref_tss_m}\t{'A' if ref_tss_m != 'A' else 'C'}\tGENEM\tok\t.\tuTIS_creation\n")
+    fh.write(f"ENST3\tv3\tchr1\t11000\t{seq[10999]}\tA\tGENEX\tok\t0.81\t.\n")
+    fh.write(f"ENST4\tv4\tchr1\t{s0 + 2}\tC\tCT\tGENEP\tok\t.\t.\n")
     bad = "A" if seq[s0 + 6] != "A" else "C"
-    fh.write(f"ENST5\tv5\tchr1\t{s0 + 7}\t{bad}\tG\tGENEP\tok\n")
-    fh.write("ENST6\tv6\tNA\tNA\tNA\tNA\tNA\tnon_converti\n")
+    fh.write(f"ENST5\tv5\tchr1\t{s0 + 7}\t{bad}\tG\tGENEP\tok\t.\t.\n")
+    fh.write("ENST6\tv6\tNA\tNA\tNA\tNA\tNA\tnon_converti\tNA\tNA\n")
+# GTF: GENEP (+, TSS 5000), a lncRNA on the - strand whose TSS is 201 bp upstream
+with gzip.open("genes.gtf.gz", "wt") as fh:
+    fh.write('chr1\tx\tgene\t5001\t9000\t.\t+\t.\tgene_id "ENSG00000000001.1"; gene_type "protein_coding"; gene_name "GENEP";\n')
+    fh.write('chr1\tx\tgene\t3000\t4800\t.\t-\t.\tgene_id "ENSG00000000077.1"; gene_type "lncRNA"; gene_name "PARTNERX";\n')
+    fh.write('chr1\tx\tgene\t10000\t13001\t.\t-\t.\tgene_id "ENSG00000000002.1"; gene_type "protein_coding"; gene_name "GENEM";\n')
 PY
 
 python3 "$R/mitoloop_paquet.py" --genes genes.txt --l1 l1.tsv \
     --fibroblast patient_genes.tsv --regions regions.bed --epd epd.bed \
     --cage cage.bed.gz --remap NRF1=remap_NRF1.bed.gz --chromhmm muscle=e108.bed.gz \
-    --jaspar jaspar.txt --tfs NRF1,YY1 --gnomad gnomad.tsv --gismo gismo.csv \
+    --jaspar jaspar.txt --tfs NRF1,YY1 --gnomad gnomad.tsv --gismo gismo.csv --gtf genes.gtf.gz \
     --phylop phylop.bw --out pkg > paquet.log || { cat paquet.log; fail "paquet"; }
 grep -q "gnomAD : 2 gènes ; GISMO : 2 gènes" paquet.log || { cat paquet.log; fail "gene constraints"; }
 grep -q "GISMO : gismo_mis <- gismo.csv, 20 lignes, colonne 'GISMO-mis', décile 'calculé', clé 'ensembl_gene_id'" paquet.log \
@@ -142,6 +147,21 @@ assert b["MITO_L1_classe"] == "not_estimable" and b["MITO_fixation"] == "NRF1(1)
 assert "fixation_NRF1" not in b["MITO_arguments"] and "promoteur_minimal" in b["MITO_arguments"], b
 assert b["MITO_chromatine"] == "muscle:15_Quies", b
 assert v["v3"]["MITO_statut"] == "hors_regions_mito"
+# bidirectional partner, CpG and methylation, events and priority
+assert a["MITO_bidirectionnel"] == "GENEP<>PARTNERX(201 pb,lncRNA)", a["MITO_bidirectionnel"]
+assert b["MITO_bidirectionnel"] == ".", b
+assert a["MITO_CpG"].startswith("CpG_detruit;oe=") and a["MITO_CpG"].endswith("sites=NRF1"), a["MITO_CpG"]
+assert "CpG_site_NRF1" in args, args
+assert a["MITO_evenements"].startswith("site_NRF1(IC1.7,d-") and "[fort]" in a["MITO_evenements"], a["MITO_evenements"]
+assert "CpG_site_NRF1[fort]" in a["MITO_evenements"], a["MITO_evenements"]   # promoteur minimal
+assert a["MITO_priorite"] == "1_fort", a
+assert b["MITO_evenements"] == "MORFEE:utis[fort]" and b["MITO_priorite"] == "1_fort", b
+c = v["v3"]
+assert c["MITO_evenements"] == "SpliceAI=0.81[fort]" and c["MITO_priorite"] == "1_fort", c
+assert c["MITO_gene"] == "." and c["MITO_CpG"] == ".", c
+assert v["v4"]["MITO_CpG"].startswith("CpG_detruit") or v["v4"]["MITO_CpG"].startswith("oe="), v["v4"]
+assert v["v5"]["MITO_CpG"] == "REF_discordante", v["v5"]
+assert v["v6"]["MITO_priorite"] == ".", v["v6"]
 assert v["v4"]["MITO_motifs"] == "." and v["v4"]["MITO_statut"] == "annote"
 assert v["v5"]["MITO_motifs"] == "REF_discordante", v["v5"]
 assert v["v6"]["MITO_statut"] == "NA"

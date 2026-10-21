@@ -668,7 +668,20 @@ def features(r):
         f["n_arguments_position"] = ("B", float(sum(1 for x in args.split(",")
                                                     if x != "." and not x.startswith("site_")
                                                     and x != "L1_transmis")))
-    sai = [num(r.get(k)) for k in r if k and k.startswith("SpliceAI_pred_DS_")]
+    cpg = r.get("MITO_CpG")
+    if cpg is not None and cpg != "REF_discordante":
+        f["CpG_detruit_ou_cree"] = ("C", float(cpg.startswith(("CpG_detruit", "CpG_cree"))))
+        m = re.search(r"oe=([\d.]+)>([\d.]+)", cpg)
+        if m:
+            f["CpG_oe_fenetre"] = ("B", float(m.group(1)))
+            f["CpG_oe_perte"] = ("C", float(m.group(1)) - float(m.group(2)))
+    if args is not None:
+        f["CpG_site_TF"] = ("C", float("CpG_site_" in args))
+    pr = r.get("MITO_priorite")
+    if pr and pr[0] in "1234":
+        f["priorite_MitoLoop"] = ("C", 5.0 - float(pr[0]))      # 1_fort -> 4
+    sai = [num(r.get(k)) for k in r if k and k.startswith(("SpliceAI_pred_DS_", "SpliceAI_DS_",
+                                                           "SpliceAI2_DS_"))]
     sai = [x for x in sai if x is not None]
     if sai:
         f["SpliceAI_DS_max"] = ("C", max(sai))

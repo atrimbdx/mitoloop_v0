@@ -51,6 +51,7 @@ l'intérieur des priorités habituelles.
 | Colonne | Contenu |
 |---|---|
 | MITO_gene | gène(s) mitochondrial(aux) et classe de région |
+| MITO_bidirectionnel | partenaire du promoteur bidirectionnel (autre gène, TSS sur le brin opposé à moins de 1 kb : distance, type) |
 | MITO_L1_classe | transmitted / uncertain / not_transmitted / not_estimable |
 | MITO_L1, MITO_L1_IC | L1 et son intervalle à 95 % |
 | MITO_L1_note | sous-unité tenue par son complexe ; corrélation ARN-protéine dans les fibroblastes |
@@ -58,11 +59,37 @@ l'intérieur des priorités habituelles.
 | MITO_CAGE | sur un pic CAGE FANTOM5 |
 | MITO_fixation | facteurs fixés (ReMap 2022) et nombre de types cellulaires |
 | MITO_motifs | sites JASPAR touchés : position, information (bits), variation du score |
+| MITO_CpG | CpG détruit ou créé ; o/e CpG, GC et classe (HCP/ICP/LCP) de la fenêtre de 500 pb, référence > variant ; sites touchés de facteurs sensibles à la méthylation (NRF1, ETS, CREB, E2F...) |
 | MITO_chromatine | état ChromHMM (muscle E108, cerveau E073) |
 | MITO_phyloP | conservation de la base sur 241 mammifères (Zoonomia) ; argument au-dessus de 2,27 |
 | MITO_gnomAD | gène : LoF observés/attendus, o/e LoF, LOEUF, pLI, o/e et z faux-sens (gnomAD v4.1, MANE Select) |
 | MITO_GISMO | gène : GISMO et GISMO-mis (Liao et al. 2026) et leur décile ; déciles 1-4 de GISMO pour les gènes récessifs |
 | MITO_arguments, MITO_n_arguments | arguments réunis (les contraintes du gène, gnomAD et GISMO, n'en font pas partie) |
+| MITO_evenements | événements portés par l'allèle, tous outils réunis, avec leur force : SpliceAI/SpliceAI2, MORFEE, AlphaGenome (avec `--alphagenome-fort`), site_TF, CpG_site_TF, bascule_ilot_CpG |
+| MITO_priorite | 1_fort, 2_modere, 3_contexte, 4_aucun |
+
+## Priorité
+
+Les annotations du gène et de la position sont les mêmes pour un variant
+pathogène et un variant bénin au même endroit ; seules celles de l'allèle les
+séparent. `MITO_evenements` réunit donc les événements de l'allèle, de tous les
+outils de la table, et `MITO_priorite` les classe :
+
+| Priorité | Condition |
+|---|---|
+| 1_fort | au moins un événement fort, gène dont la classe L1 n'est pas not_transmitted |
+| 2_modere | un événement modéré, ou fort dans un gène not_transmitted |
+| 3_contexte | pas d'événement de l'allèle, au moins deux arguments de position (promoteur minimal, CAGE, fixation, chromatine active, conservation) |
+| 4_aucun | le reste |
+
+Fort : SpliceAI ou SpliceAI2 ≥ 0,5 ; un champ MORFEE renseigné (création ou
+perte d'uTIS/uSTOP, dTIS/dSTOP) ; AlphaGenome au-dessus de `--alphagenome-fort`
+(seulement si donné, l'échelle dépend des pistes) ; site_TF d'au moins 2 (log2)
+sur une position d'au moins 1,5 bits ; un événement modéré du promoteur minimal.
+Modéré : SpliceAI ou SpliceAI2 ≥ 0,2 ; site_TF ; CpG_site_TF ;
+bascule_ilot_CpG. Les seuils sont des options de `ajout_mitoloop.py`. Les
+variants hors des régions MitoLoop reçoivent aussi les événements d'épissage,
+MORFEE et AlphaGenome. Trier sur `MITO_priorite`, puis sur `MITO_n_arguments`.
 
 ## Sens et limites de L1
 

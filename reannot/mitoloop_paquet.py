@@ -21,7 +21,9 @@ Entrées (produites par run_mcia.sh de mitoloop_v0)
                  répétable
   --jaspar       matrices JASPAR (format jaspar) ; --tfs : facteurs gardés
   --margin       pb autour des régions pour les extraits (défaut 1000)
-  --gtf          GENCODE GTF : identifiant Ensembl de chaque symbole
+  --gtf          GENCODE GTF : identifiant Ensembl de chaque symbole, et
+                 partenaire d'un promoteur bidirectionnel (autre gène, TSS
+                 sur le brin opposé à moins de 1 kb)
   --gnomad       contraintes par gène de gnomAD v4.1
                  (gnomad.v4.1.constraint_metrics.tsv) : transcrit MANE
                  Select, sinon canonique ; LoF observés et attendus, o/e,
@@ -156,6 +158,40 @@ def gtf_ids(gtf):
             m2 = re.search(r'gene_name "([^"]+)"', f[8])
             if m1 and m2:
                 out.setdefault(m2.group(1), m1.group(1).split(".")[0])
+    return out
+
+
+def gtf_bidirectional(gtf, wanted, dist=1000):
+    """gène -> partenaire bidirectionnel : un autre gène dont le TSS est sur
+    le brin opposé à moins de `dist` pb (Trinklein et al. 2004), le plus
+    proche ; 'PARTENAIRE(distance pb,type)'"""
+    tss = defaultdict(list)          # chrom -> (tss, brin, nom, type)
+    with opener(gtf) as fh:
+        for line in fh:
+            if line[0] == "#":
+                continue
+            f = line.split("\t", 9)
+            if len(f) < 9 or f[2] != "gene":
+                continue
+            n = re.search(r'gene_name "([^"]+)"', f[8])
+            t = re.search(r'gene_(?:bio)?type "([^"]+)"', f[8])
+            pos = int(f[3]) - 1 if f[6] == "+" else int(f[4]) - 1
+            tss[f[0]].append((pos, f[6], n.group(1) if n else
+                              re.search(r'gene_id "([^".]+)', f[8]).group(1),
+                              t.group(1) if t else "?"))
+    out = {}
+    for c, v in tss.items():
+        v.sort()
+        st = [x[0] for x in v]
+        for p0, strand, name, _t in v:
+            if name not in wanted:
+                continue
+            best = None
+            for q, s2, n2, t2 in v[bisect_right(st, p0 - dist - 1):bisect_right(st, p0 + dist)]:
+                if s2 != strand and n2 != name and (best is None or abs(q - p0) < best[0]):
+                    best = (abs(q - p0), n2, t2)
+            if best:
+                out.setdefault(name, f"{best[1]}({best[0]} pb,{best[2]})")
     return out
 
 
@@ -378,12 +414,13 @@ def main():
     regs = [r for r in read_table(a.regions) if r.get("class") not in DROP]
     in_regions = {r["gene"] for r in regs}
     ens = gtf_ids(a.gtf) if a.gtf and a.gtf.exists() else {}
+    bid = gtf_bidirectional(a.gtf, set(gs) | in_regions) if a.gtf and a.gtf.exists() else {}
     gn = gnomad_table(a.gnomad) if a.gnomad and a.gnomad.exists() else {}
     gm = gismo_table(a.gismo, gtf_mane(a.gtf) if a.gtf and a.gtf.exists() else frozenset()) \
         if a.gismo and a.gismo.exists() else {}
     cols = ["gene", "gene_id", "l1_class", "l1", "ci_low", "ci_high", "status",
             "complex", "protein_coupling", "rna_coupling", "fibroblast_r"] + \
-        GNOMAD_OUT + GISMO_OUT
+        GNOMAD_OUT + GISMO_OUT + ["bidirectional"]
     n_gn = n_gm = 0
     n_cls = defaultdict(int)
     with open(out / "genes.tsv", "w") as fh:
@@ -403,10 +440,12 @@ def main():
                    r.get("status", "absent_du_proteome"), r.get("complex", ""),
                    r.get("protein_coupling", ""), r.get("rna_coupling", ""),
                    fib.get(g, {}).get("fibroblast_r", "")] + \
-                [x.get(c, "") for c in GNOMAD_OUT] + [y.get(c, "") for c in GISMO_OUT]
+                [x.get(c, "") for c in GNOMAD_OUT] + [y.get(c, "") for c in GISMO_OUT] + \
+                [bid.get(g, "")]
             fh.write("\t".join("" if x in ("NA", "nan") else str(x) for x in row) + "\n")
     print("classes L1 : " + ", ".join(f"{k} {v}" for k, v in sorted(n_cls.items())))
-    print(f"gnomAD : {n_gn} gènes ; GISMO : {n_gm} gènes")
+    print(f"gnomAD : {n_gn} gènes ; GISMO : {n_gm} gènes ; promoteur bidirectionnel : "
+          f"{sum(g in bid for g in set(gs) | in_regions)} gènes")
     manifest.append(("genes.tsv", sum(n_cls.values()), str(a.l1)))
 
     # régions

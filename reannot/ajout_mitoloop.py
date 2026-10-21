@@ -17,6 +17,9 @@ boucles) sont annotés ; les autres reçoivent le statut hors_regions_mito.
 Colonnes ajoutées :
   MITO_gene          gène(s) mitochondrial(aux) dont une région contient le
                      variant, avec la classe de région (GENE:promoter|...)
+  MITO_bidirectionnel  partenaire du promoteur bidirectionnel du gène (autre
+                     gène, TSS sur le brin opposé à moins de 1 kb : distance,
+                     type) : un variant du promoteur peut toucher les deux
   MITO_L1_classe     transmitted (l'intervalle à 95 % de L1 est au-dessus du
                      seuil haut : une baisse de l'ARNm se retrouve sur la
                      protéine), uncertain, not_transmitted, not_estimable
@@ -33,6 +36,12 @@ Colonnes ajoutées :
   MITO_motifs        sites JASPAR touchés (SNV) : facteur, position dans le
                      motif, contenu en information de la position (bits),
                      variation du score du site (log2, alt - ref)
+  MITO_CpG           CpG et méthylation : CpG détruit ou créé par le
+                     variant ; o/e CpG et GC de la fenêtre de 500 pb centrée
+                     sur le variant, référence > variant, et sa classe
+                     (HCP, ICP, LCP de Weber et al. 2007) ; sites touchés de
+                     facteurs dont la fixation est empêchée par la
+                     méthylation de leur CpG (NRF1, ETS/GABPA, CREB, E2F...)
   MITO_chromatine    état de la chromatine au variant (Roadmap ChromHMM)
   MITO_phyloP        conservation de la base sur 241 mammifères (Zoonomia,
                      phyloP ; positif = conservée)
@@ -44,6 +53,9 @@ Colonnes ajoutées :
                      décile (1 = le plus contraint ; déciles 1 à 4 de GISMO
                      pour les gènes récessifs selon Liao et al. 2026)
   MITO_arguments     arguments réunis (liste) et MITO_n_arguments
+  MITO_evenements    événements portés par l'allèle lui-même, tous outils
+                     réunis, avec leur force (voir Priorité)
+  MITO_priorite      1_fort, 2_modere, 3_contexte, 4_aucun (voir Priorité)
   MITO_statut        annote, hors_regions_mito, NA
 
 Arguments (chacun issu d'une donnée publiée, sans pondération) :
@@ -57,8 +69,40 @@ Arguments (chacun issu d'une donnée publiée, sans pondération) :
   chromatine_active_<tissu>  état actif (TssA, TssAFlnk, Enh, EnhG, TxFlnk)
   conservation_mammiferes    phyloP >= --min-phylop (2,27 : seuil de
                         conservation significative, FDR 5 %, de Zoonomia)
+  CpG_site_<TF>         le variant détruit un CpG d'un site du facteur fixé
+                        au variant (ReMap), facteur dont la fixation est
+                        empêchée par la méthylation : perte du site et
+                        possible méthylation (Domcke et al. 2015, NRF1)
+  bascule_ilot_CpG      la fenêtre de 500 pb perd sa classe (HCP -> ICP ou
+                        LCP, ICP -> LCP) : promoteur exposé à la méthylation
+                        de novo (Weber et al. 2007 ; Lienert et al. 2011)
 Les contraintes gnomAD et GISMO décrivent le gène, pas le variant : elles sont
 données en colonnes, sans entrer dans les arguments.
+
+Priorité (MITO_evenements, MITO_priorite). Les annotations du gène et de la
+position sont les mêmes pour un variant pathogène et un variant bénin au même
+endroit ; seules celles de l'allèle les séparent. Les événements de l'allèle,
+de tous les outils de la table, sont donc réunis et classés :
+  fort     épissage : SpliceAI ou SpliceAI2 >= --spliceai-fort (0,5)
+           uORF/dORF : un champ MORFEE renseigné (création ou perte d'un
+                       uTIS/uSTOP, dTIS/dSTOP)
+           AlphaGenome : |AG_*| >= --alphagenome-fort (seulement si donné :
+                       l'échelle dépend des pistes choisies, à calibrer avec
+                       mpra_variants.py evaluer)
+           site_<TF> d'au moins --site-fort-delta (2, log2) sur une position
+                       d'au moins --site-fort-ic (1,5 bits)
+           un événement modéré dans le promoteur minimal (-50 à +10 d'un TSS)
+  modéré   SpliceAI ou SpliceAI2 >= --spliceai-modere (0,2) ; site_<TF> ;
+           CpG_site_<TF> ; bascule_ilot_CpG
+  1_fort      au moins un événement fort, dans un gène dont la classe L1 n'est
+              pas not_transmitted
+  2_modere    un événement modéré, ou fort dans un gène not_transmitted
+  3_contexte  pas d'événement de l'allèle, mais au moins deux arguments de
+              position (promoteur minimal, CAGE, fixation, chromatine active,
+              conservation)
+  4_aucun     le reste
+Les variants hors des régions MitoLoop reçoivent aussi les événements des
+outils de la table (épissage, MORFEE, AlphaGenome) et leur priorité.
 
 Python 3 de la bibliothèque standard et samtools (environnement vep).
 """
@@ -78,6 +122,10 @@ from collections import defaultdict
 from pathlib import Path
 
 ACTIVE = re.compile(r"(^|_)(TssA|TssAFlnk|Enh|EnhG|TxFlnk)$")
+# facteurs dont la fixation est empêchée par la méthylation du CpG de leur site
+METH_SENSIBLE = {"NRF1", "GABPA", "ELK1", "ELK4", "ELF1", "ETS1", "ETV6", "CREB1",
+                 "ATF1", "E2F1", "E2F4", "E2F6", "ZBTB33", "NFYA"}
+W_CPG = 250                       # demi-fenêtre CpG (fenêtre de 500 pb)
 CLASS_ORDER = ["promoter", "utr5", "element", "anchor", "utr3"]
 COMP = str.maketrans("ACGTacgt", "TGCAtgca")
 
@@ -286,6 +334,13 @@ def main():
     p.add_argument("--min-ic", type=float, default=1.0)
     p.add_argument("--min-delta", type=float, default=1.0)
     p.add_argument("--min-phylop", type=float, default=2.27)
+    p.add_argument("--spliceai-fort", type=float, default=0.5)
+    p.add_argument("--spliceai-modere", type=float, default=0.2)
+    p.add_argument("--site-fort-delta", type=float, default=2.0)
+    p.add_argument("--site-fort-ic", type=float, default=1.5)
+    p.add_argument("--alphagenome-fort", type=float,
+                   help="|score AlphaGenome| d'un événement fort (sans cette option, "
+                        "AlphaGenome n'entre pas dans la priorité)")
     p.add_argument("--tabix", default=os.environ.get("TABIX", "tabix"))
     a = p.parse_args()
     D = a.data
@@ -335,18 +390,20 @@ def main():
             if not h:
                 continue
             hits_of[i] = h
-            if len(ref) == 1 and len(f[A]) == 1 and mats:
-                need.add(f"{f[C]}:{max(1, pos - 30)}-{pos + 30}")
+            if re.fullmatch(r"[ACGTacgt]+", ref) and re.fullmatch(r"[ACGTacgt]+", f[A]):
+                need.add(f"{f[C]}:{max(1, pos - W_CPG)}-{pos + len(ref) + W_CPG}")
         seqs = fetch_seqs(a.fasta, a.samtools, sorted(need)) if need else {}
         phy = fetch_phylop(D / "annotations" / "phylop.bedgraph.gz", a.tabix,
                            {(rows[i][C], int(rows[i][P])) for i in hits_of})
 
         # 2. annotation
-        extra = ["MITO_gene", "MITO_L1_classe", "MITO_L1", "MITO_L1_IC",
-                 "MITO_L1_note", "MITO_gnomAD", "MITO_GISMO", "MITO_dist_TSS",
-                 "MITO_CAGE", "MITO_fixation", "MITO_motifs", "MITO_chromatine",
-                 "MITO_phyloP", "MITO_arguments", "MITO_n_arguments",
+        extra = ["MITO_gene", "MITO_bidirectionnel", "MITO_L1_classe", "MITO_L1",
+                 "MITO_L1_IC", "MITO_L1_note", "MITO_gnomAD", "MITO_GISMO",
+                 "MITO_dist_TSS", "MITO_CAGE", "MITO_fixation", "MITO_motifs",
+                 "MITO_CpG", "MITO_chromatine", "MITO_phyloP", "MITO_arguments",
+                 "MITO_n_arguments", "MITO_evenements", "MITO_priorite",
                  "MITO_statut"]
+        lowhead = [h.lower() for h in head]
         n_stat = defaultdict(int)
         with open(out, "w") as fo:
             fo.write("\t".join(head + extra) + "\n")
@@ -356,12 +413,15 @@ def main():
                     n_stat["NA"] += 1
                     continue
                 if i not in hits_of:
-                    fo.write("\t".join(f + ["."] * (len(extra) - 1) +
-                                       ["hors_regions_mito"]) + "\n")
+                    ev, pr = priority(dict(zip(lowhead, f)), {}, [], a)
+                    fo.write("\t".join(f + ["."] * (len(extra) - 3) +
+                                       [ev, pr, "hors_regions_mito"]) + "\n")
                     n_stat["hors_regions_mito"] += 1
                     continue
                 v = annotate(f, C, P, R, A, G, hits_of[i], genes, ann,
                              chrom_ann, mats, tfs, seqs, a, phy)
+                v["MITO_evenements"], v["MITO_priorite"] = priority(
+                    dict(zip(lowhead, f)), v, v.pop("_events"), a)
                 fo.write("\t".join(f + [v[k] for k in extra[:-1]] + ["annote"]) + "\n")
                 n_stat["annote"] += 1
         for s_, n in sorted(n_stat.items()):
@@ -411,6 +471,36 @@ def fetch_phylop(path, tabix, positions):
     return out
 
 
+def cpg_stats(w):
+    """o/e CpG (Gardiner-Garden et Frommer), GC et classe de Weber et al.
+    2007 d'une fenêtre"""
+    n = sum(w.count(b) for b in "ACGT")
+    if n < 100:
+        return None
+    c, g, cg = w.count("C"), w.count("G"), w.count("CG")
+    oe = cg * n / (c * g) if c and g else 0.0
+    gc = (c + g) / n
+    cls = "HCP" if oe > 0.75 and gc > 0.55 else "LCP" if oe <= 0.48 else "ICP"
+    return oe, gc, cls
+
+
+def cpg_context(seq, off, ref, alt):
+    """CpG détruit ou créé, et fenêtre de 500 pb avant et après le variant ;
+    seq : référence autour du variant, off : indice du variant"""
+    ref, alt = ref.upper(), alt.upper()
+    if seq[off:off + len(ref)] != ref:
+        return None
+    alt_seq = seq[:off] + alt + seq[off + len(ref):]
+    lo, hi = max(0, off - 1), off + len(ref) + 1
+    n_ref = seq[lo:hi].count("CG")
+    n_alt = alt_seq[lo:off + len(alt) + 1].count("CG")
+    a = max(0, off - W_CPG)
+    r = cpg_stats(seq[a:off + len(ref) + W_CPG])
+    v = cpg_stats(alt_seq[a:off + len(alt) + W_CPG])
+    return {"change": "detruit" if n_alt < n_ref else "cree" if n_alt > n_ref else ".",
+            "ref": r, "alt": v}
+
+
 def gene_constraints(gi):
     """colonnes MITO_gnomAD et MITO_GISMO"""
     gn = []
@@ -458,6 +548,9 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a,
     if gi.get("fibroblast_r", ""):
         notes.append(f"r_fibroblastes={gi['fibroblast_r']}")
     v["MITO_L1_note"] = ";".join(notes) or "."
+    v["MITO_bidirectionnel"] = "|".join(f"{g}<>{genes[g]['bidirectional']}" for g in gl
+                                        if genes.get(g, {}).get("bidirectional")) or "."
+    events = []                       # (force, texte) des événements de l'allèle
     if cls == "transmitted":
         args.append("L1_transmis")
     v["MITO_gnomAD"], v["MITO_GISMO"] = gene_constraints(gi)
@@ -495,19 +588,47 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a,
         if n >= a.min_biosamples:
             args.append(f"fixation_{t}")
     mot = []
+    key = f"{chrom}:{max(1, pos - W_CPG)}-{pos + len(ref) + W_CPG}"
+    seq = seqs.get(key, "")
+    off = pos - max(1, pos - W_CPG)
+    ref_ok = bool(seq) and seq[off:off + len(ref)] == ref.upper()
+    sites = []
     if len(ref) == 1 and len(alt) == 1 and mats:
-        key = f"{chrom}:{max(1, pos - 30)}-{pos + 30}"
-        seq = seqs.get(key, "")
-        off = pos - max(1, pos - 30)
-        if seq and off < len(seq) and seq[off] == ref.upper():
+        if ref_ok:
             for tf, mp, ic, dlt in motif_hits(mats, tfs, seq, off, ref.upper(),
                                               alt.upper(), a.min_rel):
                 mot.append(f"{tf}:p{mp}/IC{ic:.1f}/d{dlt:+.1f}")
+                sites.append(tf)
                 if ic >= a.min_ic and dlt <= -a.min_delta and tf in bound:
                     args.append(f"site_{tf}")
+                    strong = ic >= a.site_fort_ic and dlt <= -a.site_fort_delta
+                    events.append(("fort" if strong else "modere",
+                                   f"site_{tf}(IC{ic:.1f},d{dlt:+.1f})"))
         elif seq:
             mot.append("REF_discordante")
     v["MITO_motifs"] = ",".join(mot) or "."
+    # CpG et méthylation
+    cpg = cpg_context(seq, off, ref, alt) if ref_ok else None
+    if cpg:
+        parts = [f"CpG_{cpg['change']}"] if cpg["change"] != "." else []
+        r_, a_ = cpg["ref"], cpg["alt"]
+        if r_ and a_:
+            parts.append(f"oe={r_[0]:.2f}>{a_[0]:.2f};GC={r_[1]:.2f}>{a_[1]:.2f};{r_[2]}>{a_[2]}")
+            order = {"HCP": 2, "ICP": 1, "LCP": 0}
+            if order[a_[2]] < order[r_[2]]:
+                args.append("bascule_ilot_CpG")
+                events.append(("modere", f"bascule_ilot_CpG({r_[2]}>{a_[2]})"))
+        if cpg["change"] == "detruit":
+            sens = [t for t in dict.fromkeys(sites) if t in METH_SENSIBLE]
+            if sens:
+                parts.append("sites=" + ",".join(sens))
+            for t in sens:
+                if t in bound:
+                    args.append(f"CpG_site_{t}")
+                    events.append(("modere", f"CpG_site_{t}"))
+        v["MITO_CpG"] = ";".join(parts) or "."
+    else:
+        v["MITO_CpG"] = "REF_discordante" if seq and not ref_ok else "."
     states = []
     for k in chrom_ann:
         tissue = k[len("chromhmm_"):]
@@ -523,7 +644,66 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a,
         args.append("conservation_mammiferes")
     v["MITO_arguments"] = ",".join(dict.fromkeys(args)) or "."
     v["MITO_n_arguments"] = str(len(dict.fromkeys(args)))
+    v["_events"] = events
     return v
+
+
+POSITION_ARGS = ("promoteur_minimal", "pic_CAGE", "fixation_", "chromatine_active_",
+                 "conservation_mammiferes")
+
+
+def fnum(x):
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if v == v else None
+
+
+def priority(row, v, events, a):
+    """événements de l'allèle (MitoLoop et outils de la table) et priorité ;
+    row : colonnes de la table en minuscules"""
+    ev = list(events)
+    # épissage : SpliceAI (VEP) et SpliceAI2
+    for tool, keys in (("SpliceAI", ("spliceai_ds_max", "spliceai_ds_ag", "spliceai_ds_al",
+                                     "spliceai_ds_dg", "spliceai_ds_dl")),
+                       ("SpliceAI2", ("spliceai2_max", "spliceai2_ds_ag", "spliceai2_ds_al",
+                                      "spliceai2_ds_dg", "spliceai2_ds_dl"))):
+        x = [fnum(row.get(k)) for k in keys]
+        x = [y for y in x if y is not None]
+        if x and max(x) >= a.spliceai_modere:
+            ev.append(("fort" if max(x) >= a.spliceai_fort else "modere",
+                       f"{tool}={max(x):.2f}"))
+    # MORFEE : création ou perte d'un uTIS / uSTOP / dTIS / dSTOP
+    mf = [k[len("morfee_"):] for k, x in row.items() if k.startswith("morfee_")
+          and x not in (None, "", ".", "NA", "na", "-")]
+    if mf:
+        ev.append(("fort", "MORFEE:" + "+".join(mf)))
+    # AlphaGenome : seulement avec un seuil
+    if a.alphagenome_fort is not None:
+        x = [(k, fnum(y)) for k, y in row.items() if k.startswith("ag_")]
+        x = [(k, y) for k, y in x if y is not None]
+        if x:
+            k, y = max(x, key=lambda t: abs(t[1]))
+            if abs(y) >= a.alphagenome_fort:
+                ev.append(("fort", f"AlphaGenome:{k[3:]}={y:.3g}"))
+    args = (v.get("MITO_arguments") or ".").split(",")
+    if "promoteur_minimal" in args:      # un événement du promoteur minimal compte comme fort
+        ev = [("fort" if s == "modere" and not t.startswith(("SpliceAI", "MORFEE"))
+               else s, t) for s, t in ev]
+    forts = [t for s, t in ev if s == "fort"]
+    moderes = [t for s, t in ev if s == "modere"]
+    n_pos = sum(1 for x in args if x.startswith(POSITION_ARGS))
+    if forts and v.get("MITO_L1_classe") != "not_transmitted":
+        pr = "1_fort"
+    elif forts or moderes:
+        pr = "2_modere"
+    elif n_pos >= 2:
+        pr = "3_contexte"
+    else:
+        pr = "4_aucun"
+    txt = ",".join([f"{t}[fort]" for t in forts] + [f"{t}[modere]" for t in moderes])
+    return txt or ".", pr
 
 
 if __name__ == "__main__":
