@@ -84,7 +84,8 @@ outils de la table, et `MITO_priorite` les classe :
 
 Fort : SpliceAI ou SpliceAI2 ≥ 0,5 ; un champ MORFEE renseigné (création ou
 perte d'uTIS/uSTOP, dTIS/dSTOP) ; AlphaGenome au-dessus de `--alphagenome-fort`
-(seulement si donné, l'échelle dépend des pistes) ; site_TF d'au moins 2 (log2)
+(seulement si donné ; seuil fixé à la main, jamais appris ni ajusté sur les
+sorties d'AlphaGenome, comme l'exigent ses conditions d'utilisation) ; site_TF d'au moins 2 (log2)
 sur une position d'au moins 1,5 bits ; un événement modéré du promoteur minimal.
 Modéré : SpliceAI ou SpliceAI2 ≥ 0,2 ; site_TF ; CpG_site_TF ;
 bascule_ilot_CpG. Les seuils sont des options de `ajout_mitoloop.py`. Les

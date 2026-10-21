@@ -4,7 +4,7 @@ mpra_variants.py — MCIA. Variants non codants dont l'effet sur l'activité d'u
 promoteur, d'un enhancer ou d'un UTR a été mesuré expérimentalement (MPRA,
 mutagenèse à saturation), pour tester les annotations de MitoLoop qui portent
 sur l'allèle (classe C : variation du score d'un site JASPAR, site_<TF>,
-SpliceAI, MORFEE, AlphaGenome) contre celles qui portent sur la position
+SpliceAI, MORFEE) contre celles qui portent sur la position
 (classe B : phyloP, CAGE, fixation ReMap, chromatine).
 
 Sources (téléchargées dans --datadir si absentes ; une source illisible est
@@ -727,9 +727,9 @@ def features(r):
     sai = [x for x in sai if x is not None]
     if sai:
         f["SpliceAI_DS_max"] = ("C", max(sai))
+    # les colonnes AlphaGenome (AG_*) ne sont pas évaluées ici : selon ses
+    # conditions d'utilisation, ses sorties ne servent pas à ajuster des seuils
     for k, v in r.items():
-        if k and k.startswith("AG_") and num(v) is not None:
-            f[f"{k}_abs"] = ("C", abs(num(v)))
         if k and k.startswith("MORFEE_") and k.endswith("creation"):
             f[k] = ("C", float(v not in (None, "", ".", "NA")))
     return f

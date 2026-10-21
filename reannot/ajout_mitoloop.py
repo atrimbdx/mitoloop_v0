@@ -86,9 +86,10 @@ de tous les outils de la table, sont donc réunis et classés :
   fort     épissage : SpliceAI ou SpliceAI2 >= --spliceai-fort (0,5)
            uORF/dORF : un champ MORFEE renseigné (création ou perte d'un
                        uTIS/uSTOP, dTIS/dSTOP)
-           AlphaGenome : |AG_*| >= --alphagenome-fort (seulement si donné :
-                       l'échelle dépend des pistes choisies, à calibrer avec
-                       mpra_variants.py evaluer)
+           AlphaGenome : |AG_*| >= --alphagenome-fort (seulement si donné ;
+                       seuil fixé à la main : selon leurs conditions
+                       d'utilisation, les sorties d'AlphaGenome ne servent à
+                       entraîner ni à ajuster aucun paramètre)
            site_<TF> d'au moins --site-fort-delta (2, log2) sur une position
                        d'au moins --site-fort-ic (1,5 bits)
            un événement modéré dans le promoteur minimal (-50 à +10 d'un TSS)
