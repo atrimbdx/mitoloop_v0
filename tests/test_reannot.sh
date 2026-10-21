@@ -102,7 +102,7 @@ python3 "$R/mitoloop_paquet.py" --genes genes.txt --l1 l1.tsv \
     --jaspar jaspar.txt --tfs NRF1,YY1 --gnomad gnomad.tsv --gismo gismo.csv \
     --phylop phylop.bw --out pkg > paquet.log || { cat paquet.log; fail "paquet"; }
 grep -q "gnomAD : 2 gènes ; GISMO : 2 gènes" paquet.log || { cat paquet.log; fail "gene constraints"; }
-grep -q "GISMO : gismo.csv, 20 gènes, colonnes 'GISMO', 'GISMO-mis', clé 'ensembl_gene_id'" paquet.log \
+grep -q "GISMO : gismo_mis <- gismo.csv, 20 lignes, colonne 'GISMO-mis', décile 'calculé', clé 'ensembl_gene_id'" paquet.log \
     || { cat paquet.log; fail "GISMO table"; }
 [ -s pkg/annotations/phylop.bedgraph.gz.tbi ] || { cat paquet.log; fail "phyloP index"; }
 grep -q "régions : 3 (element, promoter)" paquet.log || { cat paquet.log; fail "regions"; }

@@ -17,9 +17,11 @@
 # Outputs      .venv-regulome/, data/, genes.txt, controls.txt,
 #              results/regulome, results/promoters, results/l1,
 #              mitoloop_regulome_<date>.tar.gz (everything to send back)
-# Usage        bash run_mcia.sh setup|selftest|fetch|run|reannot|bundle|all
+# Usage        bash run_mcia.sh setup|selftest|fetch|run|reannot|mpra|bundle|all
 #              (reannot: the MitoLoop package of the reannot pipeline, in
-#              transfert_mitoloop/, see reannot/README_MitoLoop.md)
+#              transfert_mitoloop/, see reannot/README_MitoLoop.md;
+#              mpra: the annotations tested on variants with a measured
+#              effect, results/mpra/evaluation.tsv; not part of all)
 #              PYTHON=/path/to/python3 to use another interpreter for setup;
 #              REUSE=dir to link files already downloaded (default
 #              ../mitoshow/data); NO_GENOME=1 to skip the GRCh38 FASTA.
@@ -225,6 +227,64 @@ do_jiang() {
         --download-attributes --out data --report results/jiang2020
 }
 
+# annotation files of the MitoLoop package, in ANN (reannot and mpra)
+paquet_annotations() {
+    local P=data/promoters_exp f tf
+    ANN=(--epd "$P/Hs_EPDnew_006_hg38.bed"
+         --cage "$P/hg38_fair+new_CAGE_peaks_phase1and2.bed.gz"
+         --chromhmm "muscle=$P/E108_15_coreMarks_hg38lift_mnemonics.bed.gz"
+         --chromhmm "brain=$P/E073_15_coreMarks_hg38lift_mnemonics.bed.gz"
+         --jaspar "$P/JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt"
+         --gtf "$GTF" --gnomad "$P/gnomad.v4.1.constraint_metrics.tsv"
+         --gismo data/gismo --phylop "$P/cactus241way.phyloP.bw")
+    for f in "$P"/remap2022_*_nr_macs2_hg38_v1_0.bed.gz; do
+        [ -s "$f" ] || continue
+        tf=$(basename "$f"); tf=${tf#remap2022_}; tf=${tf%%_*}
+        ANN+=(--remap "$tf=$f")
+    done
+    python3 -c 'import pyBigWig' 2>/dev/null || python3 -m pip install pyBigWig \
+        || echo "== pyBigWig missing: no phyloP in the package"
+}
+
+# variants with an expression effect measured by experiment (MPRA, saturation
+# mutagenesis: Kircher 2019, SuRE, MPRAVarDB, Sample 2019, and the tables put
+# by hand in data/mpra/tables_hg38/ or data/mpra/tables_hg19/), annotated by
+# MitoLoop everywhere in the genome with an evaluation package, then each
+# annotation against the measured effects (results/mpra/evaluation.tsv);
+# the variants of the MitoLoop regions are written for the VM (mpra_mito.tsv).
+# Downloads: on the login node. MPRA_MAX variants per source at most.
+do_mpra() {
+    local O=results/mpra rc=0 f
+    [ -s data/GRCh38.fa ] || { echo "== mpra: data/GRCh38.fa missing (run fetch)"; return 1; }
+    mkdir -p "$O"
+    local b=(build --datadir data/mpra --fasta data/GRCh38.fa --out "$O/mpra_variants.tsv"
+             --max "${MPRA_MAX:-50000}")
+    for f in data/mpra/tables_hg38/*.tsv; do [ -s "$f" ] && b+=(--table "$f"); done
+    for f in data/mpra/tables_hg19/*.tsv; do [ -s "$f" ] && b+=(--table-hg19 "$f"); done
+    python3 -c 'import pyBigWig' 2>/dev/null || python3 -m pip install pyBigWig \
+        || echo "== pyBigWig missing: no MPRAVarDB"
+    step mpra_build python3 scripts/mpra_variants.py "${b[@]}" || return 1
+    step mpra_regions python3 scripts/mpra_variants.py regions --variants "$O/mpra_variants.tsv" \
+        --out "$O/eval" || return 1
+    paquet_annotations
+    rm -rf "$O/eval/paquet"
+    step mpra_package python3 reannot/mitoloop_paquet.py --genes "$O/eval/genes_eval.txt" \
+        --l1 "$O/eval/l1_vide.tsv" --regions "$O/eval/regions_eval.bed" --out "$O/eval/paquet" \
+        "${ANN[@]}" || return 1
+    step mpra_annotate python3 reannot/ajout_mitoloop.py --data "$O/eval/paquet" \
+        --fasta data/GRCh38.fa "$O/mpra_variants.tsv" || return 1
+    step mpra_evaluate python3 scripts/mpra_variants.py evaluer --variants "$O/mpra_variants.tsv" \
+        --annote "$O/mpra_variants.mitoloop.tsv" --out "$O/evaluation.tsv" || rc=1
+    if [ -s results/reannot/regions.bed ]; then
+        step mpra_mito python3 scripts/mpra_variants.py entree --variants "$O/mpra_variants.tsv" \
+            --regions results/reannot/regions.bed --out "$O/mpra_mito.tsv" || rc=1
+        echo "== mpra: $O/mpra_mito.tsv for the VM: bash reannot_complet.sh mpra_mito.tsv mpra_mito,"
+        echo "   then: python3 scripts/mpra_variants.py evaluer --variants $O/mpra_variants.tsv \\"
+        echo "         --annote mpra_mito.final*.mitoloop.tsv --out $O/evaluation_vm.tsv"
+    fi
+    return $rc
+}
+
 # the MitoLoop package of the reannot pipeline (VEP, SpliceAI, MORFEE,
 # AlphaGenome on an offline VM): gene table with the L1 class, regulatory
 # regions of the gene set, annotations cut to these regions, JASPAR motifs,
@@ -241,22 +301,9 @@ do_reannot() {
     rm -rf "$T"; mkdir -p "$T"
     local pk=(--genes genes.txt --l1 results/l1_raw/l1.tsv
               --fibroblast results/l1/validation/patient_genes.tsv
-              --regions results/reannot/regions.bed --out "$T"
-              --epd "$P/Hs_EPDnew_006_hg38.bed"
-              --cage "$P/hg38_fair+new_CAGE_peaks_phase1and2.bed.gz"
-              --chromhmm "muscle=$P/E108_15_coreMarks_hg38lift_mnemonics.bed.gz"
-              --chromhmm "brain=$P/E073_15_coreMarks_hg38lift_mnemonics.bed.gz"
-              --jaspar "$P/JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt"
-              --gtf "$GTF" --gnomad "$P/gnomad.v4.1.constraint_metrics.tsv"
-              --gismo data/gismo --phylop "$P/cactus241way.phyloP.bw")
-    local f tf
-    for f in "$P"/remap2022_*_nr_macs2_hg38_v1_0.bed.gz; do
-        [ -s "$f" ] || continue
-        tf=$(basename "$f"); tf=${tf#remap2022_}; tf=${tf%%_*}
-        pk+=(--remap "$tf=$f")
-    done
-    python3 -c 'import pyBigWig' 2>/dev/null || python3 -m pip install pyBigWig \
-        || echo "== pyBigWig missing: no phyloP in the package"
+              --regions results/reannot/regions.bed --out "$T")
+    paquet_annotations
+    pk+=("${ANN[@]}")
     step reannot_package python3 reannot/mitoloop_paquet.py "${pk[@]}" || return 1
     cp reannot/ajout_mitoloop.py reannot/preparer_entree.py reannot/reannot_complet.sh \
        reannot/reannot_alphagenome.sh reannot/run_morfee.R reannot/verifier_morfee.sh \
@@ -307,7 +354,7 @@ PY
 # environment of the cluster in a few seconds, before the real run
 do_selftest() {
     local rc=0
-    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh tests/test_kopajtich.sh tests/test_reannot.sh; do
+    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh tests/test_kopajtich.sh tests/test_reannot.sh tests/test_mpra.sh; do
         step selftest bash "$t" || rc=1
     done
     return $rc
@@ -346,7 +393,8 @@ case "$STEP" in
     bundle) do_bundle ;;
     all) do_fetch; do_run; r=$?; do_reannot || r=1; do_bundle; (exit $r) ;;
     reannot) do_reannot ;;
-    *) echo "unknown step $STEP (setup|selftest|fetch|run|reannot|bundle|all)"; exit 2 ;;
+    mpra) do_mpra ;;
+    *) echo "unknown step $STEP (setup|selftest|fetch|run|reannot|mpra|bundle|all)"; exit 2 ;;
 esac
 rc=$?
 echo "== $(date -Is) end of $STEP (status $rc)"

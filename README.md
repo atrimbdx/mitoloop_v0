@@ -504,6 +504,23 @@ fine-mapped GTEx eQTL of the mitochondrial genes
 fibroblasts (`results/l1_raw/validation/validation.tsv`). See
 `reannot/README_MitoLoop.md`.
 
+`bash run_mcia.sh mpra` (after `fetch`; downloads on the login node) tests
+the annotations on variants whose effect on expression was measured by
+experiment: the saturation mutagenesis of 20 promoters and enhancers (Kircher
+et al. 2019), the SuRE raQTL and SNP without effect (van Arensbergen et al.
+2019, hg19 lifted to GRCh38), MPRAVarDB (18 MPRA studies) and 5'UTR variants
+(Sample et al. 2019), plus tables put in `data/mpra/tables_hg38/` or
+`data/mpra/tables_hg19/` (chrom, pos, ref, alt, effet, p, signif). Every
+variant is annotated by MitoLoop with an evaluation package (regions around
+the variants), then `scripts/mpra_variants.py evaluer` writes
+`results/mpra/evaluation.tsv`: per source and cell line, AUC of each
+annotation (significant against no effect), AUC between alleles of the same
+base (position annotations are 0.5 there by construction; only the allele
+annotations can separate them) and Spearman correlation with the effect.
+`results/mpra/mpra_mito.tsv` holds the variants of the MitoLoop regions, to
+run on the VM with SpliceAI, MORFEE and AlphaGenome and to evaluate the same
+way.
+
 ## Running on a SLURM cluster
 
 `slurm/extract.sbatch` runs one library per array task;
