@@ -36,6 +36,14 @@ Select voisin), VEP + SpliceAI + MORFEE + AlphaGenome
 (`reannot_alphagenome.sh`), SpliceAI2 s'il est installé, MitoLoop. Résultat :
 `run1.final.spliceai2.mitoloop.tsv` (ou `run1.final.mitoloop.tsv`).
 
+Notation c./n. sans transcrit, avec une colonne chromosome (1..22, X, Y, MT) et
+une colonne position (GRCh38) : le transcrit pris est le MANE Select à cette
+position. Comme la notation a pu être écrite sur un autre transcrit, la
+position obtenue après conversion est comparée à la position saisie : colonne
+`controle_position` (concordante, ou discordante avec la position saisie).
+Une discordance veut dire que la notation porte sur un autre transcrit (le
+donner dans une colonne ENST) ou que les positions ne sont pas en GRCh38.
+
 MitoLoop seul, sur une table déjà produite ou sur un VCF :
 
     python3 $REANNOT_BASE/scripts/ajout_mitoloop.py run1.final.tsv

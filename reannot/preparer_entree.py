@@ -19,8 +19,18 @@ plus proche (à moins de --max-dist pb) : pour un variant régulateur, le gène
 voisin. Sinon il est laissé à "." (VEP annote le variant, mais la sélection
 finale du transcrit ne se fait pas : statut transcrit_absent_du_cache).
 
+Notation c. / n. sans transcrit, avec une colonne chromosome (1..22, X, Y, MT,
+avec ou sans chr) et une colonne position (GRCh38), reconnues par leur contenu
+ou leur nom : le transcrit est le MANE Select à cette position (--gtf). Comme
+la notation c. a pu être écrite sur un autre transcrit, les positions saisies
+sont gardées (SORTIE.positions.tsv) et comparées, après la conversion, à la
+position obtenue : `--controle-positions SORTIE.positions.tsv FINAL.tsv` ajoute
+à FINAL.tsv la colonne controle_position (concordante, discordante
+(saisie chrN:pos), ou -). reannot_complet.sh le fait de lui-même.
+
 Usage : python3 preparer_entree.py entree.xlsx|.tsv|.csv|.vcf.gz sortie.tsv
         [--gtf Homo_sapiens.GRCh38.NNN.gtf.gz] [--feuille NOM]
+        python3 preparer_entree.py --controle-positions sortie.positions.tsv run.final.tsv
 Bibliothèque standard uniquement (le .xlsx est lu comme une archive XML).
 """
 
@@ -39,6 +49,47 @@ NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
 TX = re.compile(r"^ENST\d{11}(\.\d+)?$")
 HGVS = re.compile(r"^(?:[^:\s]+:)?(?:(?:chr)?[0-9XYM]{1,2}T?:)?[cng]\.\S+$")
 G_HGVS = re.compile(r"^(chr)?[0-9XYM]+T?:g\.")
+CHROM = re.compile(r"^(chr)?([1-9]|1[0-9]|2[0-2]|X|Y|M|MT)$", re.I)
+POS = re.compile(r"^\d{2,9}(\.0+)?$")
+
+
+def chrom_name(c):
+    c = c.strip()
+    c = c[3:] if c.lower().startswith("chr") else c
+    return "chrM" if c.upper() in ("M", "MT") else "chr" + c.upper()
+
+
+def controle_positions(pos_file: Path, final: Path):
+    """ajoute à FINAL.tsv la colonne controle_position : position obtenue par la
+    conversion contre position saisie (substitution : la même base ; autre
+    variant : à 2 pb près, l'ancrage VCF d'un indel)"""
+    given = {}
+    with open(pos_file) as fh:
+        for line in fh:
+            t, v, c, p = line.rstrip("\n").split("\t")
+            given.setdefault((t, v), (chrom_name(c), int(p)))
+    lines = final.read_text().splitlines()
+    head = lines[0].split("\t")
+    col = {h: i for i, h in enumerate(head)}
+    n = {"concordante": 0, "discordante": 0, "-": 0}
+    out = ["\t".join(head + ["controle_position"])]
+    for line in lines[1:]:
+        f = line.split("\t")
+        g = given.get((f[col["transcrit"]], f[col["variant_entree"]]))
+        res = "-"
+        if g and f[col["pos"]].isdigit():
+            d = abs(int(f[col["pos"]]) - g[1])
+            ok = chrom_name(f[col["chrom"]]) == g[0] and (
+                d == 0 or (">" not in f[col["variant_entree"]] and d <= 2))
+            res = "concordante" if ok else f"discordante (saisie {g[0]}:{g[1]})"
+        n[res.split(" ")[0]] += 1
+        out.append("\t".join(f + [res]))
+    final.write_text("\n".join(out) + "\n")
+    print(f"contrôle des positions saisies : {n['concordante']} concordantes, "
+          f"{n['discordante']} discordantes, {n['-']} sans position")
+    if n["discordante"]:
+        print("  discordantes : la notation c./n. ne porte sans doute pas sur le MANE Select "
+              "(donner le transcrit dans une colonne), ou les positions ne sont pas en GRCh38")
 
 
 def col_index(ref: str) -> int:
@@ -167,10 +218,15 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("entree", type=Path)
     p.add_argument("sortie", type=Path)
+    p.add_argument("--controle-positions", action="store_true",
+                   help="entree = SORTIE.positions.tsv, sortie = FINAL.tsv à compléter")
     p.add_argument("--feuille")
     p.add_argument("--gtf", type=Path)
     p.add_argument("--max-dist", type=int, default=1_000_000)
     a = p.parse_args()
+    if a.controle_positions:
+        controle_positions(a.entree, a.sortie)
+        return
     rows = [r for r in read_table(a.entree, a.feuille) if any(x.strip() for x in r)]
     if not rows:
         sys.exit(f"{a.entree} : vide")
@@ -195,9 +251,20 @@ def main():
     has_head = (var is None or not HGVS.match(rows[0][var].replace(" ", ""))) and \
         (tx is None or not TX.match(rows[0][tx]))
     body = rows[1:] if has_head else rows
-    out, skipped = [], 0
+    out, skipped, given = [], 0, []
     if var is not None:
         how = f"colonnes transcrit {tx + 1 if tx is not None else '-'} et variant {var + 1}"
+        # c./n. sans transcrit : chromosome et position (contenu ou nom de colonne)
+        chc = psc = idx = None
+        if tx is None:
+            chc = vcfcols["chrom"] if vcfcols["chrom"] is not None else next(
+                (j for j in range(width) if j != var and share(j, CHROM) > 0.8), None)
+            psc = vcfcols["pos"] if vcfcols["pos"] is not None else next(
+                (j for j in range(width) if j not in (var, chc) and share(j, POS) > 0.8), None)
+            if chc is not None and psc is not None and a.gtf and a.gtf.exists():
+                idx = mane_index(a.gtf)
+                how += (f", chromosome {chc + 1} et position {psc + 1} : transcrit MANE Select "
+                        "à cette position (GTF)")
         for r in body:
             v = r[var].replace(" ", "")
             if not v:
@@ -205,7 +272,13 @@ def main():
                 continue
             if not G_HGVS.match(v) and ":" in v:
                 v = v.split(":", 1)[1]                  # NM_...:c.xxx -> c.xxx
-            out.append((r[tx].strip() if tx is not None and r[tx].strip() else ".", v))
+            t = r[tx].strip() if tx is not None and r[tx].strip() else "."
+            if idx is not None and not G_HGVS.match(v) and CHROM.match(r[chc].strip()) \
+                    and POS.match(r[psc].strip()):
+                pos = int(float(r[psc]))
+                t = pick_mane(idx, r[chc].strip(), pos, a.max_dist)
+                given.append((t, v, r[chc].strip(), pos))
+            out.append((t, v))
     elif all(i is not None for i in vcfcols.values()):
         idx = mane_index(a.gtf) if tx is None and a.gtf and a.gtf.exists() else None
         how = ("colonnes " + ", ".join(f"{k}={i + 1}" for k, i in vcfcols.items())
@@ -230,6 +303,12 @@ def main():
     with open(a.sortie, "w") as fh:
         for t, v in out:
             fh.write(f"{t}\t{v}\n")
+    if given:
+        pf = a.sortie.with_suffix(".positions.tsv")
+        with open(pf, "w") as fh:
+            for t, v, c, pos in given:
+                fh.write(f"{t}\t{v}\t{c}\t{pos}\n")
+        print(f"  {len(given)} positions saisies gardées pour le contrôle -> {pf}")
     print(f"{a.entree.name} : {how} ; {len(out)} variants -> {a.sortie}"
           + (f" ({skipped} lignes vides ou illisibles ignorées)" if skipped else ""))
     n_dot = sum(t == "." for t, _v in out)

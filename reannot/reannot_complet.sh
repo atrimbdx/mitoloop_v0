@@ -31,6 +31,10 @@ python3 "$S/preparer_entree.py" "$IN" "$OUT.entree.tsv" --gtf "$GTF" "$@"
 log "2. VEP, SpliceAI, MORFEE, AlphaGenome"
 bash "$S/reannot_alphagenome.sh" "$OUT.entree.tsv" "$OUT"
 T="$OUT.final.tsv"
+# notation c./n. saisie avec chromosome et position : position obtenue contre position saisie
+if [ -s "$OUT.entree.positions.tsv" ]; then
+  python3 "$S/preparer_entree.py" --controle-positions "$OUT.entree.positions.tsv" "$T"
+fi
 
 # 3. SpliceAI2
 if [ -f "$BASE/data/spliceai2/spliceai2.tsv.gz" ] && [ -f "$S/ajout_spliceai2.sh" ]; then

@@ -226,6 +226,25 @@ python3 "$R/preparer_entree.py" variants.xlsx e1.tsv > p1.log || { cat p1.log; f
 python3 "$R/preparer_entree.py" in.vcf e2.tsv --gtf ens.gtf.gz > p2.log || { cat p2.log; fail "vcf"; }
 [ "$(cat e2.tsv)" = "$(printf 'ENST00000000011\tchr1:g.4972C>A\nENST00000000011\tchr1:g.4972C>T\nENST00000000022\tchr1:g.13101_13102del\nENST00000000022\tchr1:g.13200_13201insCC')" ] \
     || { cat e2.tsv p2.log; fail "vcf content"; }
+# chromosome as a number, position, c. notation without transcript (no header)
+python3 - <<'PY'
+import openpyxl
+wb = openpyxl.Workbook(); ws = wb.active
+ws.append([1, 4972, "c.-29C>A"])
+ws.append([1, 4800, "c.-201G>T"])          # upstream of G1: nearest TSS
+wb.save("cpos.xlsx")
+PY
+python3 "$R/preparer_entree.py" cpos.xlsx e3.tsv --gtf ens.gtf.gz > p3.log || { cat p3.log; fail "chrom/pos/c."; }
+[ "$(cat e3.tsv)" = "$(printf 'ENST00000000011\tc.-29C>A\nENST00000000011\tc.-201G>T')" ] \
+    || { cat e3.tsv p3.log; fail "chrom/pos/c. content"; }
+[ "$(cat e3.positions.tsv)" = "$(printf 'ENST00000000011\tc.-29C>A\t1\t4972\nENST00000000011\tc.-201G>T\t1\t4800')" ] \
+    || { cat e3.positions.tsv p3.log; fail "positions kept"; }
+printf 'transcrit\tvariant_entree\tchrom\tpos\tref\talt\tstatut\n' > f3.tsv
+printf 'ENST00000000011\tc.-29C>A\tchr1\t4972\tC\tA\tok\nENST00000000011\tc.-201G>T\tchr1\t4900\tG\tT\tok\n' >> f3.tsv
+python3 "$R/preparer_entree.py" --controle-positions e3.positions.tsv f3.tsv > p4.log || { cat p4.log; fail "position check"; }
+[ "$(cut -f8 f3.tsv | tr '\n' ';')" = "controle_position;concordante;discordante (saisie chr1:4800);" ] \
+    || { cat f3.tsv p4.log; fail "position check content"; }
+grep -q "1 concordantes, 1 discordantes" p4.log || { cat p4.log; fail "position check report"; }
 # the chain, with stubs of the reannot scripts (the real ones need VEP)
 mkdir -p base/scripts base/data/ref base/data/spliceai2
 echo 115 > base/VEP_RELEASE
