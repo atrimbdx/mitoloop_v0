@@ -20,6 +20,13 @@ Colonnes ajoutées :
   MITO_bidirectionnel  partenaire du promoteur bidirectionnel du gène (autre
                      gène, TSS sur le brin opposé à moins de 1 kb : distance,
                      type) : un variant du promoteur peut toucher les deux
+  MITO_contact_promoteur  ancre de boucle du gène qui porte le promoteur d'un
+                     autre gène (GENE<-promoteur:AUTRE) : promoteur à fonction
+                     d'enhancer possible (Epromoter, Dao et al. 2017)
+  MITO_type_promoteur  type du TSS le plus proche du gène : menage, tissu,
+                     developpement, indetermine (Lenhard et al. 2012), avec
+                     ses critères (classe CpG, TATA, Inr, tau GTEx, largeur du
+                     pic CAGE, répression Polycomb)
   MITO_L1_classe     transmitted (l'intervalle à 95 % de L1 est au-dessus du
                      seuil haut : une baisse de l'ARNm se retrouve sur la
                      protéine), uncertain, not_transmitted, not_estimable
@@ -76,6 +83,13 @@ Arguments (chacun issu d'une donnée publiée, sans pondération) :
   bascule_ilot_CpG      la fenêtre de 500 pb perd sa classe (HCP -> ICP ou
                         LCP, ICP -> LCP) : promoteur exposé à la méthylation
                         de novo (Weber et al. 2007 ; Lienert et al. 2011)
+  zone_pause            de +20 à +60 d'un TSS EPDnew : pause de Pol II
+                        (argument de position)
+  TATA_detruite         le variant détruit la boîte TATA (TATAWAWR, -35 à -20
+                        du TSS) : exemple, -28/-29 de HBB (bêta-thalassémie)
+  Inr_detruit           le variant détruit l'initiateur (YYANWYY, A en +1)
+  G4_detruit            le variant casse un G-quadruplex potentiel (G3+N1-7
+                        x4) entre -50 et +100 d'un TSS
 Les contraintes gnomAD et GISMO décrivent le gène, pas le variant : elles sont
 données en colonnes, sans entrer dans les arguments.
 
@@ -93,17 +107,22 @@ de tous les outils de la table, sont donc réunis et classés :
            d'utilisation, les sorties de SpliceAI, SpliceAI2 et AlphaGenome
            ne servent ni à entraîner ni à ajuster aucun paramètre.
            site_<TF> d'au moins --site-fort-delta (2, log2) sur une position
-                       d'au moins --site-fort-ic (1,5 bits)
-           un événement modéré dans le promoteur minimal (-50 à +10 d'un TSS)
+                       d'au moins --site-fort-ic (1,5 bits) ; TATA_detruite
+           un événement modéré dans le promoteur minimal (-50 à +10 d'un TSS),
+                       ou dans un élément distal (rE2G, ancre) d'un gène dont le
+                       promoteur est de type tissu ou développement (les
+                       promoteurs de ménage dépendent peu des éléments distaux)
   modéré   3'UTR : un champ MORFEE du 3' renseigné (dTIS, dSTOP,
            dSTOP_creation : ORF en aval du codon stop, effet plus faible) ;
-           site_<TF> ; CpG_site_<TF> ; bascule_ilot_CpG
+           site_<TF> (ESRRA/ESRRG notés ERR:effet_tissulaire : la modulation
+           par ERR/PGC-1 peut échapper aux lignées cellulaires) ; CpG_site_<TF> ;
+           bascule_ilot_CpG ; Inr_detruit ; G4_detruit
   1_fort      au moins un événement fort, dans un gène dont la classe L1 n'est
               pas not_transmitted
   2_modere    un événement modéré, ou fort dans un gène not_transmitted
   3_contexte  pas d'événement de l'allèle, mais au moins deux arguments de
-              position (promoteur minimal, CAGE, fixation, chromatine active,
-              conservation)
+              position (promoteur minimal, zone de pause, CAGE, fixation,
+              chromatine active, conservation)
   4_aucun     le reste
 Les variants hors des régions MitoLoop reçoivent aussi les événements des
 outils de la table (épissage, MORFEE, AlphaGenome) et leur priorité.
@@ -402,7 +421,8 @@ def main():
                            {(rows[i][C], int(rows[i][P])) for i in hits_of})
 
         # 2. annotation
-        extra = ["MITO_gene", "MITO_bidirectionnel", "MITO_L1_classe", "MITO_L1",
+        extra = ["MITO_gene", "MITO_bidirectionnel", "MITO_contact_promoteur",
+                 "MITO_type_promoteur", "MITO_L1_classe", "MITO_L1",
                  "MITO_L1_IC", "MITO_L1_note", "MITO_gnomAD", "MITO_GISMO",
                  "MITO_dist_TSS", "MITO_CAGE", "MITO_fixation", "MITO_motifs",
                  "MITO_CpG", "MITO_chromatine", "MITO_phyloP", "MITO_arguments",
@@ -474,6 +494,69 @@ def fetch_phylop(path, tabix, positions):
             if (k, p_) in by_key:
                 out[by_key[(k, p_)]] = float(f[3])
     return out
+
+
+# éléments du promoteur minimal, lus sur le brin du gène
+TATA = re.compile(r"(?=TATA[AT]A[AT][AG])")          # TATAWAWR (Bucher 1990)
+INR = re.compile(r"(?=[CT][CT]A[ACGT][AT][CT][CT])")  # YYANWYY, A = +1
+G4 = re.compile(r"(?=(G{3,}[ACGT]{1,7}?G{3,}[ACGT]{1,7}?G{3,}[ACGT]{1,7}?G{3,}))")
+C4 = re.compile(r"(?=(C{3,}[ACGT]{1,7}?C{3,}[ACGT]{1,7}?C{3,}[ACGT]{1,7}?C{3,}))")
+
+
+def oriented(seq, tss, strand, up=40, down=20):
+    """séquence de -up à +down du TSS (indice tss dans seq, base +1), sur le
+    brin du gène ; indice up = +1 ; '' si la fenêtre sort de seq"""
+    if strand == "+":
+        a, b = tss - up, tss + down
+        return seq[a:b] if a >= 0 and b <= len(seq) else ""
+    a, b = tss - down + 1, tss + up + 1
+    return seq[a:b].translate(COMP)[::-1] if a >= 0 and b <= len(seq) else ""
+
+
+def tata_box(o, up=40):
+    """boîte TATA positionnée : début entre -35 et -24 (fin vers -20)"""
+    return any(up - 35 <= m.start() <= up - 24 for m in TATA.finditer(o))
+
+
+def inr(o, up=40):
+    """initiateur YYANWYY dont le A est à +1 (à 1 pb près, TSS des bases)"""
+    return any(up - 1 <= m.start() + 2 <= up + 1 for m in INR.finditer(o))
+
+
+def g4_spans(seq):
+    """G-quadruplex potentiels (G3+N1-7 x4, sur l'un ou l'autre brin) : (début, fin)"""
+    out = []
+    for rx in (G4, C4):
+        out += [(m.start(), m.start() + len(m.group(1))) for m in rx.finditer(seq)]
+    return out
+
+
+def tau(values):
+    """spécificité tissulaire (Yanai et al. 2005) sur log2(TPM + 1) : 0 =
+    ubiquitaire, 1 = un seul tissu ; None sans expression"""
+    x = [math.log2(v + 1) for v in values if v == v]
+    m = max(x) if x else 0
+    if len(x) < 2 or m <= 0:
+        return None
+    return sum(1 - v / m for v in x) / (len(x) - 1)
+
+
+def promoter_type(cls, tata, tau_, polycomb, cage_width=None):
+    """ménage, tissu, développement ou indéterminé (Lenhard et al. 2012) :
+    cls classe CpG (HCP/ICP/LCP, Weber 2007) ; tata boîte TATA positionnée ;
+    tau_ spécificité d'expression ; polycomb part des tissus où le TSS est
+    réprimé par Polycomb (ChromHMM ReprPC) ou None ; cage_width largeur du pic
+    CAGE (initiation précise si <= 10 pb)"""
+    sharp = cage_width is not None and cage_width <= 10
+    if cls in ("HCP", "ICP") and polycomb is not None and polycomb >= 0.5:
+        return "developpement"
+    if cls == "LCP" or (tau_ is not None and tau_ >= 0.8) or \
+            ((tata or sharp) and cls != "HCP") or \
+            ((tata or sharp) and tau_ is not None and tau_ >= 0.6):
+        return "tissu"
+    if cls == "HCP" and (tau_ is None or tau_ < 0.5):
+        return "menage"
+    return "indetermine"
 
 
 def cpg_stats(w):
@@ -555,6 +638,9 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a,
     v["MITO_L1_note"] = ";".join(notes) or "."
     v["MITO_bidirectionnel"] = "|".join(f"{g}<>{genes[g]['bidirectional']}" for g in gl
                                         if genes.get(g, {}).get("bidirectional")) or "."
+    v["MITO_contact_promoteur"] = "|".join(dict.fromkeys(
+        f"{lab[0]}<-{lab[2]}" for _s, _e, lab in hits
+        if len(lab) > 2 and lab[1] == "anchor" and lab[2].startswith("promoteur:"))) or "."
     events = []                       # (force, texte) des événements de l'allèle
     if cls == "transmitted":
         args.append("L1_transmis")
@@ -562,17 +648,29 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a,
 
     s0, e0 = pos - 1, pos - 1 + max(len(ref), 1)
     # site d'initiation validé (EPDnew) le plus proche, orienté
-    best = None
+    best = btss = None
     if "epd" in ann:
         # annotations/epd.bed.gz : la base du TSS (0-based) et son brin
         for tss, _e, lab in ann["epd"].query(chrom, s0 - 1000, e0 + 1000):
             strand = lab[0] if lab else "+"
             d = (pos - 1 - tss) if strand == "+" else (tss - (pos - 1))
             if best is None or abs(d) < abs(best):
-                best = d
+                best, btss = d, (tss, strand)
     v["MITO_dist_TSS"] = "." if best is None else str(best)
     if best is not None and -50 <= best <= 10:
         args.append("promoteur_minimal")
+    if best is not None and 20 <= best <= 60:
+        args.append("zone_pause")     # pause de Pol II, +20 à +60 du TSS
+    # type du promoteur : TSS typé le plus proche du gène, sinon le gène
+    ty, tdet = "", ""
+    if "tss_types" in ann:
+        near = [(abs(t - (pos - 1)), lab) for t, _e, lab in ann["tss_types"].query(
+            chrom, s0 - 1000, e0 + 1000) if lab and lab[0] == main_g]
+        if near:
+            lab = min(near, key=lambda x: x[0])[1]
+            ty, tdet = lab[2], lab[3] if len(lab) > 3 else ""
+    ty = ty or gi.get("type_promoteur", "")
+    v["MITO_type_promoteur"] = (ty + (f"({tdet})" if tdet else "")) or "."
     cage = "cage" in ann and bool(ann["cage"].query(chrom, s0, e0))
     v["MITO_CAGE"] = "oui" if cage else "non" if "cage" in ann else "."
     if cage:
@@ -608,7 +706,9 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a,
                     args.append(f"site_{tf}")
                     strong = ic >= a.site_fort_ic and dlt <= -a.site_fort_delta
                     events.append(("fort" if strong else "modere",
-                                   f"site_{tf}(IC{ic:.1f},d{dlt:+.1f})"))
+                                   f"site_{tf}(IC{ic:.1f},d{dlt:+.1f}"
+                                   + (",ERR:effet_tissulaire" if tf.startswith("ESRR") else "")
+                                   + ")"))
         elif seq:
             mot.append("REF_discordante")
     v["MITO_motifs"] = ",".join(mot) or "."
@@ -634,6 +734,28 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a,
         v["MITO_CpG"] = ";".join(parts) or "."
     else:
         v["MITO_CpG"] = "REF_discordante" if seq and not ref_ok else "."
+    # promoteur minimal : boîte TATA, initiateur, G-quadruplex
+    if ref_ok and btss is not None and re.fullmatch(r"[ACGT]+", alt.upper()):
+        alt_seq = seq[:off] + alt.upper() + seq[off + len(ref):]
+        ti = btss[0] - (max(1, pos - W_CPG) - 1)
+        ta = ti + (len(alt) - len(ref) if off < ti else 0)
+        if -45 <= best <= 15:
+            o_r, o_a = oriented(seq, ti, btss[1]), oriented(alt_seq, ta, btss[1])
+            if o_r and o_a and tata_box(o_r) and not tata_box(o_a):
+                args.append("TATA_detruite")
+                events.append(("fort", "TATA_detruite"))
+            if o_r and o_a and inr(o_r) and not inr(o_a):
+                args.append("Inr_detruit")
+                events.append(("modere", "Inr_detruit"))
+        if -50 <= best <= 100:
+            lo_ = max(0, off - 60)
+            cov_r = [x for x in g4_spans(seq[lo_:off + len(ref) + 60])
+                     if x[0] <= off - lo_ < x[1]]
+            cov_a = [x for x in g4_spans(alt_seq[lo_:off + len(alt) + 60])
+                     if x[0] <= off - lo_ < x[1]]
+            if cov_r and not cov_a:
+                args.append("G4_detruit")
+                events.append(("modere", "G4_detruit"))
     states = []
     for k in chrom_ann:
         tissue = k[len("chromhmm_"):]
@@ -650,11 +772,13 @@ def annotate(f, C, P, R, A, G, hits, genes, ann, chrom_ann, mats, tfs, seqs, a,
     v["MITO_arguments"] = ",".join(dict.fromkeys(args)) or "."
     v["MITO_n_arguments"] = str(len(dict.fromkeys(args)))
     v["_events"] = events
+    v["_classes"] = set(by_gene[main_g])
+    v["_type"] = ty
     return v
 
 
-POSITION_ARGS = ("promoteur_minimal", "pic_CAGE", "fixation_", "chromatine_active_",
-                 "conservation_mammiferes")
+POSITION_ARGS = ("promoteur_minimal", "zone_pause", "pic_CAGE", "fixation_",
+                 "chromatine_active_", "conservation_mammiferes")
 
 
 def fnum(x):
@@ -694,7 +818,12 @@ def priority(row, v, events, a):
         if abs(y) >= a.alphagenome_seuil:
             ev.append(("fort", f"AlphaGenome:{k[3:]}={y:.3g}"))
     args = (v.get("MITO_arguments") or ".").split(",")
-    if "promoteur_minimal" in args:      # un événement du promoteur minimal compte comme fort
+    distal = bool(v.get("_classes")) and not v["_classes"] & {"promoter", "utr5", "utr3"}
+    if "promoteur_minimal" in args or (
+            distal and v.get("_type", "").split("+")[0] in ("tissu", "developpement")
+            and "menage" not in v.get("_type", "")):
+        # un événement du promoteur minimal, ou d'un élément distal d'un gène
+        # à promoteur de tissu ou de développement, compte comme fort
         ev = [("fort" if s == "modere" and not t.startswith(("SpliceAI", "MORFEE"))
                else s, t) for s, t in ev]
     forts = [t for s, t in ev if s == "fort"]

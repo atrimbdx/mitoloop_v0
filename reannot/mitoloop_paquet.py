@@ -21,9 +21,16 @@ Entrées (produites par run_mcia.sh de mitoloop_v0)
                  répétable
   --jaspar       matrices JASPAR (format jaspar) ; --tfs : facteurs gardés
   --margin       pb autour des régions pour les extraits (défaut 1000)
-  --gtf          GENCODE GTF : identifiant Ensembl de chaque symbole, et
+  --gtf          GENCODE GTF : identifiant Ensembl de chaque symbole,
                  partenaire d'un promoteur bidirectionnel (autre gène, TSS
-                 sur le brin opposé à moins de 1 kb)
+                 sur le brin opposé à moins de 1 kb), et ancres de boucles
+                 qui portent le promoteur d'un autre gène (à 1 kb près)
+  --fasta, --tpm GRCh38 indexé et médianes TPM GTEx : type de chaque TSS
+                 EPDnew (annotations/tss_types.bed.gz, colonne
+                 type_promoteur de genes.tsv) : ménage, tissu,
+                 développement, indéterminé, d'après la classe CpG, la
+                 boîte TATA positionnée, la largeur du pic CAGE, tau et la
+                 répression Polycomb dans les tissus ChromHMM
   --gnomad       contraintes par gène de gnomAD v4.1
                  (gnomad.v4.1.constraint_metrics.tsv) : transcrit MANE
                  Select, sinon canonique ; LoF observés et attendus, o/e,
@@ -161,11 +168,9 @@ def gtf_ids(gtf):
     return out
 
 
-def gtf_bidirectional(gtf, wanted, dist=1000):
-    """gène -> partenaire bidirectionnel : un autre gène dont le TSS est sur
-    le brin opposé à moins de `dist` pb (Trinklein et al. 2004), le plus
-    proche ; 'PARTENAIRE(distance pb,type)'"""
-    tss = defaultdict(list)          # chrom -> (tss, brin, nom, type)
+def gtf_tss(gtf):
+    """chrom -> [(TSS 0-based, brin, nom, type)] des gènes, triés"""
+    tss = defaultdict(list)
     with opener(gtf) as fh:
         for line in fh:
             if line[0] == "#":
@@ -179,9 +184,17 @@ def gtf_bidirectional(gtf, wanted, dist=1000):
             tss[f[0]].append((pos, f[6], n.group(1) if n else
                               re.search(r'gene_id "([^".]+)', f[8]).group(1),
                               t.group(1) if t else "?"))
+    for v in tss.values():
+        v.sort()
+    return tss
+
+
+def gtf_bidirectional(tss, wanted, dist=1000):
+    """gène -> partenaire bidirectionnel : un autre gène dont le TSS est sur
+    le brin opposé à moins de `dist` pb (Trinklein et al. 2004), le plus
+    proche ; 'PARTENAIRE(distance pb,type)' ; tss de gtf_tss"""
     out = {}
     for c, v in tss.items():
-        v.sort()
         st = [x[0] for x in v]
         for p0, strand, name, _t in v:
             if name not in wanted:
@@ -193,6 +206,82 @@ def gtf_bidirectional(gtf, wanted, dist=1000):
             if best:
                 out.setdefault(name, f"{best[1]}({best[0]} pb,{best[2]})")
     return out
+
+
+def tss_types(a, wanted):
+    """type de chaque TSS EPDnew des gènes : ménage, tissu, développement ou
+    indéterminé, d'après la classe CpG (Weber 2007, -1000 à +500), la boîte
+    TATA positionnée, la largeur du pic CAGE, la spécificité d'expression
+    (tau, GTEx) et la répression Polycomb (ChromHMM ReprPC) ; renvoie
+    gène -> types et les lignes de annotations/tss_types.bed.gz"""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from ajout_mitoloop import (Intervals, cpg_stats, fetch_seqs, inr, oriented,
+                                promoter_type, tata_box, tau)
+    if not (a.epd and a.epd.exists() and a.fasta and a.fasta.exists()):
+        print("type de promoteur : EPDnew ou FASTA absent, pas de type")
+        return {}, []
+    tss = []
+    with opener(a.epd) as fh:
+        for line in fh:
+            f = fields(line)
+            if len(f) < 6 or line[0] == "#":
+                continue
+            g = f[3].rsplit("_", 1)[0]
+            if g in wanted:
+                s, e = int(f[1]), int(f[2])
+                t0 = s + 49 if f[5] == "+" else e - 50
+                tss.append((f[0], t0, f[5], g, f[3]))
+    tpm = {}
+    if a.tpm and a.tpm.exists():
+        with opener(a.tpm) as fh:
+            fh.readline(), fh.readline()
+            fh.readline()
+            for line in fh:
+                f = line.rstrip("\n").split("\t")
+                if f[1] in wanted:
+                    try:
+                        tpm[f[1]] = tau([float(x) for x in f[2:]])
+                    except ValueError:
+                        pass
+    cage = Intervals(a.cage) if a.cage and a.cage.exists() else None
+    chm = [Intervals(spec.split("=", 1)[1]) for spec in a.chromhmm
+           if Path(spec.split("=", 1)[1]).exists()]
+    W = 1000
+    seqs = fetch_seqs(str(a.fasta), "samtools", sorted({f"{c}:{t - W + 1}-{t + W + 1}"
+                                                        for c, t, _s, _g, _n in tss if t > W}))
+    types, rows = defaultdict(set), []
+    for c, t, strand, g, name in tss:
+        seq = seqs.get(f"{c}:{t - W + 1}-{t + W + 1}", "")
+        if len(seq) != 2 * W + 1:
+            continue
+        prom = oriented(seq, W, strand, 1000, 500)
+        wins = [cpg_stats(prom[i:i + 500]) for i in range(0, len(prom) - 499, 50)]
+        wins = [w for w in wins if w]
+        cls = "HCP" if any(w[2] == "HCP" for w in wins) else \
+            "LCP" if wins and all(w[0] <= 0.48 for w in wins) else "ICP"
+        o = oriented(seq, W, strand)
+        tb, ib = tata_box(o), inr(o)
+        width = None
+        if cage:
+            near = cage.query(c, t - 50, t + 51)
+            if near:
+                s_, e_, _l = min(near, key=lambda h: abs((h[0] + h[1]) // 2 - t))
+                width = e_ - s_
+        pcg = [any("ReprPC" in lab[0] for _s, _e, lab in iv.query(c, t, t + 1)) for iv in chm]
+        pc = sum(pcg) / len(pcg) if pcg else None
+        ty = promoter_type(cls, tb, tpm.get(g), pc, width)
+        types[g].add(ty)
+        det = (f"CpG={cls};TATA={'oui' if tb else 'non'};Inr={'oui' if ib else 'non'};"
+               f"tau={'NA' if tpm.get(g) is None else f'{tpm[g]:.2f}'};"
+               f"CAGE={'NA' if width is None else f'{width}pb'};"
+               f"Polycomb={'NA' if pc is None else f'{sum(pcg)}/{len(pcg)}'}")
+        rows.append([c, t, t + 1, g, strand, ty, det])
+    n = defaultdict(int)
+    for r in rows:
+        n[r[5]] += 1
+    print("type de promoteur (TSS EPDnew) : " + ", ".join(f"{k} {v}" for k, v in sorted(n.items()))
+          + f" ; {len(types)} gènes")
+    return types, rows
 
 
 def gnomad_table(path):
@@ -391,7 +480,11 @@ def main():
     p.add_argument("--remap", action="append", default=[])
     p.add_argument("--chromhmm", action="append", default=[])
     p.add_argument("--jaspar", type=Path)
-    p.add_argument("--tfs", default="NRF1,GABPA,YY1,ESRRA,SP1,NFYA,CREB1,CTCF,TBP")
+    p.add_argument("--tfs", default="NRF1,GABPA,YY1,ESRRA,ESRRG,SP1,NFYA,CREB1,CTCF,TBP,MYC,RELA")
+    p.add_argument("--fasta", type=Path,
+                   help="GRCh38 indexé : séquence des TSS pour le type de promoteur")
+    p.add_argument("--tpm", type=Path,
+                   help="médianes TPM GTEx (GCT) : spécificité d'expression (tau)")
     p.add_argument("--margin", type=int, default=1000)
     p.add_argument("--gtf", type=Path)
     p.add_argument("--gnomad", type=Path)
@@ -414,13 +507,15 @@ def main():
     regs = [r for r in read_table(a.regions) if r.get("class") not in DROP]
     in_regions = {r["gene"] for r in regs}
     ens = gtf_ids(a.gtf) if a.gtf and a.gtf.exists() else {}
-    bid = gtf_bidirectional(a.gtf, set(gs) | in_regions) if a.gtf and a.gtf.exists() else {}
+    tss_gtf = gtf_tss(a.gtf) if a.gtf and a.gtf.exists() else {}
+    bid = gtf_bidirectional(tss_gtf, set(gs) | in_regions)
+    types, type_rows = tss_types(a, set(gs) | in_regions)
     gn = gnomad_table(a.gnomad) if a.gnomad and a.gnomad.exists() else {}
     gm = gismo_table(a.gismo, gtf_mane(a.gtf) if a.gtf and a.gtf.exists() else frozenset()) \
         if a.gismo and a.gismo.exists() else {}
     cols = ["gene", "gene_id", "l1_class", "l1", "ci_low", "ci_high", "status",
             "complex", "protein_coupling", "rna_coupling", "fibroblast_r"] + \
-        GNOMAD_OUT + GISMO_OUT + ["bidirectional"]
+        GNOMAD_OUT + GISMO_OUT + ["bidirectional", "type_promoteur"]
     n_gn = n_gm = 0
     n_cls = defaultdict(int)
     with open(out / "genes.tsv", "w") as fh:
@@ -441,7 +536,7 @@ def main():
                    r.get("protein_coupling", ""), r.get("rna_coupling", ""),
                    fib.get(g, {}).get("fibroblast_r", "")] + \
                 [x.get(c, "") for c in GNOMAD_OUT] + [y.get(c, "") for c in GISMO_OUT] + \
-                [bid.get(g, "")]
+                [bid.get(g, ""), "+".join(sorted(types.get(g, ())))]
             fh.write("\t".join("" if x in ("NA", "nan") else str(x) for x in row) + "\n")
     print("classes L1 : " + ", ".join(f"{k} {v}" for k, v in sorted(n_cls.items())))
     print(f"gnomAD : {n_gn} gènes ; GISMO : {n_gm} gènes ; promoteur bidirectionnel : "
@@ -451,7 +546,20 @@ def main():
     # régions
     rb = [(r["chrom"], int(r["start"]), int(r["end"]), r["gene"], r["class"])
           for r in regs]
-    n = write_bed(out / "regions.bed.gz", [list(x) for x in rb])
+    rows_rb = []
+    for c, s0, e0, g, k in rb:
+        det = ""
+        if k == "anchor" and tss_gtf:       # ancre qui porte le promoteur d'un autre gène
+            v = tss_gtf.get(c) or tss_gtf.get(c[3:] if c.startswith("chr") else "chr" + c) or []
+            st = [x[0] for x in v]
+            other = sorted({x[2] for x in v[bisect_right(st, s0 - 1000 - 1):bisect_right(st, e0 + 1000)]
+                            if x[2] != g and x[3] in ("protein_coding", "lncRNA")})
+            det = "promoteur:" + ",".join(other[:5]) if other else ""
+        rows_rb.append([c, s0, e0, g, k] + ([det] if det else []))
+    n = write_bed(out / "regions.bed.gz", rows_rb)
+    n_anc = sum(len(r) > 5 for r in rows_rb)
+    if n_anc:
+        print(f"ancres portant le promoteur d'un autre gène : {n_anc}")
     print(f"régions : {n} ({', '.join(sorted({x[4] for x in rb}))})")
     manifest.append(("regions.bed.gz", n, str(a.regions)))
     win = Windows([(c, s, e) for c, s, e, _g, _k in rb], a.margin)
@@ -471,6 +579,9 @@ def main():
         return [f[0], tss, tss + 1, strand]
 
     put("epd", a.epd, epd)
+    if type_rows:
+        n = write_bed(out / "annotations" / "tss_types.bed.gz", type_rows)
+        manifest.append(("annotations/tss_types.bed.gz", n, str(a.epd)))
     put("cage", a.cage, lambda f, s, e: [f[0], s, e, "."])
     for spec in a.remap:
         tf, path = spec.split("=", 1)

@@ -234,6 +234,8 @@ paquet_annotations() {
          --cage "$P/hg38_fair+new_CAGE_peaks_phase1and2.bed.gz"
          --chromhmm "muscle=$P/E108_15_coreMarks_hg38lift_mnemonics.bed.gz"
          --chromhmm "brain=$P/E073_15_coreMarks_hg38lift_mnemonics.bed.gz"
+         --chromhmm "heart=$P/E095_15_coreMarks_hg38lift_mnemonics.bed.gz"
+         --chromhmm "liver=$P/E066_15_coreMarks_hg38lift_mnemonics.bed.gz"
          --jaspar "$P/JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt"
          --gtf "$GTF" --gnomad "$P/gnomad.v4.1.constraint_metrics.tsv"
          --gismo data/gismo --phylop "$P/cactus241way.phyloP.bw")
@@ -301,7 +303,8 @@ do_reannot() {
     rm -rf "$T"; mkdir -p "$T"
     local pk=(--genes genes.txt --l1 results/l1_raw/l1.tsv
               --fibroblast results/l1/validation/patient_genes.tsv
-              --regions results/reannot/regions.bed --out "$T")
+              --regions results/reannot/regions.bed --out "$T"
+              --fasta data/GRCh38.fa --tpm "$TPM")
     paquet_annotations
     pk+=("${ANN[@]}")
     step reannot_package python3 reannot/mitoloop_paquet.py "${pk[@]}" || return 1
@@ -354,7 +357,7 @@ PY
 # environment of the cluster in a few seconds, before the real run
 do_selftest() {
     local rc=0
-    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh tests/test_kopajtich.sh tests/test_reannot.sh tests/test_mpra.sh; do
+    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh tests/test_kopajtich.sh tests/test_reannot.sh tests/test_mpra.sh tests/test_promoter_elements.sh; do
         step selftest bash "$t" || rc=1
     done
     return $rc

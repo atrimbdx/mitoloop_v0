@@ -504,6 +504,19 @@ fine-mapped GTEx eQTL of the mitochondrial genes
 fibroblasts (`results/l1_raw/validation/validation.tsv`). See
 `reannot/README_MitoLoop.md`.
 
+Each EPDnew TSS of the gene set is typed (housekeeping `menage`,
+tissue-specific `tissu`, developmental `developpement`, Lenhard et al. 2012)
+from its CpG class, a positioned TATA box, the CAGE peak width, the GTEx
+tissue specificity (tau) and Polycomb repression in the Roadmap ChromHMM of
+muscle, brain, left ventricle and liver; `promoter_features.py` compares the
+types of mitochondrial and control promoters, and the package uses them to
+weigh distal elements (more weight for tissue and developmental promoters).
+The package also flags the TATA box, initiator and G-quadruplex destroyed by
+a variant, the Pol II pause zone (+20 to +60), the loop anchors that hold the
+promoter of another gene, and follows MYC and RELA (pause release) among the
+ReMap factors. The new ChromHMM and ReMap files need `bash run_mcia.sh
+fetch` once.
+
 `bash run_mcia.sh mpra` (after `fetch`; downloads on the login node) tests
 the annotations on variants whose effect on expression was measured by
 experiment: the saturation mutagenesis of 20 promoters and enhancers (Kircher

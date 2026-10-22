@@ -725,9 +725,14 @@ def features(r):
             f["CpG_oe_perte"] = ("C", float(m.group(1)) - float(m.group(2)))
     if args is not None:
         f["CpG_site_TF"] = ("C", float("CpG_site_" in args))
+        al = args.split(",")
+        for k in ("TATA_detruite", "Inr_detruit", "G4_detruit"):
+            f[k] = ("C", float(k in al))
+        f["zone_pause"] = ("B", float("zone_pause" in al))
     ev = r.get("MITO_evenements")
     if ev is not None:                 # événements propres à MitoLoop : fort 2, modéré 1
-        own = [e for e in ev.split(",") if e.startswith(("site_", "CpG_site_", "bascule_"))]
+        own = [e for e in ev.split(",") if e.startswith(("site_", "CpG_site_", "bascule_", "TATA_",
+                                                         "Inr_", "G4_"))]
         f["evenements_MitoLoop"] = ("C", float(sum(2 if e.endswith("[fort]") else 1 for e in own)))
     # SpliceAI, SpliceAI2 (colonnes SpliceAI*) et AlphaGenome (AG_*) ne sont pas
     # évalués ici : selon leurs conditions d'utilisation, leurs sorties ne

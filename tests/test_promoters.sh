@@ -76,6 +76,13 @@ F=pf/promoter_features.tsv
 [ "$(cell $F tss MITOG2)" = 400000 ] || fail "MANE TSS (-)"
 [ "$(cell $F cpg_island MITOG1)" = 1 ] || fail "CpG island"
 [ "$(cell $F cpg_island CTRLG30)" = 0 ] || fail "no CpG island"
+# promoter type: a CpG-poor control is tissu; CpG-rich promoters are menage or
+# depend on tau; the type columns are tested against the controls
+[ "$(cell $F promoter_type CTRLG30)" = tissu ] || fail "type of a CpG-poor promoter"
+case "$(cell $F promoter_type MITOG7)" in menage|tissu|indetermine) ;; *) fail "type of MITOG7";; esac
+[ -n "$(cell $F tau MITOG7)" ] || fail "tau"
+[ -n "$(cell pf/promoter_feature_tests.tsv p type_menage)" ] || fail "type test"
+[ -n "$(cell pf/promoter_feature_tests.tsv p tata_positioned)" ] || fail "TATA test"
 T=pf/promoter_feature_tests.tsv
 check "$(cell $T p motif_NRF1)" 1e-6 "a<b" "NRF1 enrichment"
 check "$(cell $T p_within_class motif_NRF1)" 0.05 "a<b" "NRF1 within classes"

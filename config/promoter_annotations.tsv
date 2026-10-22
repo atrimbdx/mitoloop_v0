@@ -27,3 +27,7 @@ chip_CTCF	data/promoters_exp/remap2022_CTCF_nr_macs2_hg38_v1_0.bed.gz	overlap	-	
 bound_CTCF	data/promoters_exp/remap2022_CTCF_nr_macs2_hg38_v1_0.bed.gz	biotypes	-	ReMap 2022 (Hammal et al. 2022): CTCF number of biosamples with a peak (reproducibility of binding)
 chip_TBP	data/promoters_exp/remap2022_TBP_nr_macs2_hg38_v1_0.bed.gz	overlap	-	ReMap 2022 (Hammal et al. 2022): TBP ChIP-seq peaks, all biosamples
 bound_TBP	data/promoters_exp/remap2022_TBP_nr_macs2_hg38_v1_0.bed.gz	biotypes	-	ReMap 2022 (Hammal et al. 2022): TBP number of biosamples with a peak (reproducibility of binding)
+muscle_polycomb	data/promoters_exp/E108_15_coreMarks_hg38lift_mnemonics.bed.gz	label=ReprPC	0	Roadmap ChromHMM E108 (skeletal muscle female): TSS repressed by Polycomb (developmental promoter)
+brain_polycomb	data/promoters_exp/E073_15_coreMarks_hg38lift_mnemonics.bed.gz	label=ReprPC	0	Roadmap ChromHMM E073 (dorsolateral prefrontal cortex): TSS repressed by Polycomb (developmental promoter)
+heart_polycomb	data/promoters_exp/E095_15_coreMarks_hg38lift_mnemonics.bed.gz	label=ReprPC	0	Roadmap ChromHMM E095 (left ventricle): TSS repressed by Polycomb (developmental promoter)
+liver_polycomb	data/promoters_exp/E066_15_coreMarks_hg38lift_mnemonics.bed.gz	label=ReprPC	0	Roadmap ChromHMM E066 (adult liver): TSS repressed by Polycomb (developmental promoter)

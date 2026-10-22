@@ -23,6 +23,14 @@ Purpose
          groups; and, with --tpm, the relation between promoter methylation
          and expression across GTEx tissues.
 
+      4. promoter type (Lenhard et al. 2012): housekeeping (menage),
+         tissue-specific (tissu) or developmental (developpement), from the
+         CpG class, a positioned TATA box (-35 to -24) and initiator, the
+         tissue specificity tau of GTEx expression (--tpm), the width of the
+         CAGE peak (annotation cage_width) and Polycomb repression of the TSS
+         (annotations named *_polycomb, ChromHMM ReprPC; developmental when
+         repressed in at least half of them); rule in
+         reannot/ajout_mitoloop.py:promoter_type.
     The question is whether mitochondrial promoters belong to the class of
     CpG-rich, constitutively unmethylated, motif-driven promoters that are
     intrinsically less responsive to distal enhancers, which would place
@@ -214,6 +222,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from re2g_panel import (NOT_GENE_PREFIXES, NOT_GENES, build_aliases,  # noqa: E402
                         opener, resolve_symbols)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reannot"))
+from ajout_mitoloop import inr, oriented, promoter_type, tata_box, tau  # noqa: E402
 
 # Consensus of the factors of broadly expressed and mitochondrial promoters,
 # forward strand. The reverse strand is searched as well.
@@ -966,6 +976,39 @@ def main():
         feats_bin += b
         feats_cont += c
 
+    # ------------------------------------------- promoter type (Lenhard 2012)
+    # positioned TATA box and initiator, tissue specificity (tau), Polycomb
+    # repression (ChromHMM annotations named *_polycomb), CAGE peak width
+    if a.fasta:
+        for r in rows:
+            seq = fa.fetch(r["chrom"], r["tss"] - 1000, r["tss"] + 1001)
+            o = oriented(seq, 1000, r["strand"]) if len(seq) == 2001 else ""
+            r["tata_positioned"] = int(tata_box(o)) if o else np.nan
+            r["inr"] = int(inr(o)) if o else np.nan
+        feats_bin += ["tata_positioned", "inr"]
+    if a.tpm and a.tpm.exists():
+        by_id, by_sym, _tc = load_tpm(a.tpm)
+        for r in rows:
+            vals = by_id.get(r["gene_id"])
+            vals = by_sym.get(r["gene"]) if vals is None else vals
+            t_ = tau(list(vals)) if vals is not None else None
+            r["tau"] = np.nan if t_ is None else round(t_, 4)
+        feats_cont.append("tau")
+    if "promoter_class" in rows[0]:
+        pcg_cols = [k for k in rows[0] if k.startswith("exp_") and k.endswith("_polycomb")]
+        for r in rows:
+            pv = [r[k] for k in pcg_cols if r.get(k, "") != "" and r[k] == r[k]]
+            pc = float(np.mean([float(x) > 0 for x in pv])) if pv else None
+            w = r.get("expw_cage_width", "")
+            w = float(w) if w not in ("", None) and w == w and float(w) > 0 else None
+            tu = r.get("tau", np.nan)
+            r["promoter_type"] = promoter_type(
+                r["promoter_class"], bool(r.get("tata_positioned", 0) == 1),
+                None if tu != tu else tu, pc, w)
+            for k in ("menage", "tissu", "developpement", "indetermine"):
+                r[f"type_{k}"] = int(r["promoter_type"] == k)
+        feats_bin += ["type_menage", "type_tissu", "type_developpement", "type_indetermine"]
+
     # -------------------------------------------------------------- tests
     tests = []
     if control:
@@ -1000,6 +1043,13 @@ def main():
         write_tsv(a.out / "promoter_feature_tests.tsv", tests,
                   ["feature", "type", "n_target", "n_control", "target",
                    "control", "effect", "effect_kind", "p", "p_within_class"])
+        if "promoter_type" in rows[0]:
+            print("\npromoter types (share of genes)")
+            for s in ("mito", "control"):
+                sub = [r["promoter_type"] for r in rows if r["set"] == s]
+                print(f"  {s:8s}" + "".join(
+                    f"  {k} {100 * sub.count(k) / len(sub):5.1f}%"
+                    for k in ("menage", "tissu", "developpement", "indetermine")))
         if "promoter_class" in rows[0]:
             print("\npromoter classes (share of genes)")
             for s in ("mito", "control"):

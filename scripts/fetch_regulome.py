@@ -19,8 +19,9 @@ Outputs (in --datadir)
     panelapp_genes_all.tsv (gene, confidence_level, entity_type),
     with --promoter-annotations: promoters_exp/ (gnomAD v4.1 gene
     constraint, Zoonomia phyloP 241 mammals, EPDnew, FANTOM5 CAGE peaks,
-    SCREEN cCREs, Roadmap ChromHMM of skeletal muscle and brain, ReMap
-    ChIP-seq peaks of 9 factors; see config/promoter_annotations.tsv),
+    SCREEN cCREs, Roadmap ChromHMM of skeletal muscle, brain, left
+    ventricle and liver, ReMap ChIP-seq peaks of 11 factors; see
+    config/promoter_annotations.tsv),
     and with --validation: kopajtich/ (fibroblast RNA-seq and proteomics,
     datasets.zip of Zenodo 4501904, extracted), attenuation.csv,
     GTEx_v8_finemapping_DAPG.txt.gz (fine-mapped eQTL, validation of the
@@ -89,7 +90,8 @@ PANELAPP = "https://panelapp.genomicsengland.co.uk/api/v1"
 ROADMAP = ("https://egg2.wustl.edu/roadmap/data/byFileType/chromhmmSegmentations/"
            "ChmmModels/coreMarks/jointModel/final/")
 REMAP = "https://remap.univ-amu.fr/storage/remap2022/hg38/MACS2/TF/"
-REMAP_TFS = ("NRF1", "GABPA", "YY1", "ESRRA", "SP1", "NFYA", "CREB1", "CTCF", "TBP")
+REMAP_TFS = ("NRF1", "GABPA", "YY1", "ESRRA", "SP1", "NFYA", "CREB1", "CTCF", "TBP",
+             "MYC", "RELA")             # MYC, RELA : recrutent P-TEFb (sortie de pause)
 PROMOTER_SOURCES = {
     "Hs_EPDnew_006_hg38.bed": [
         "https://epd.expasy.org/ftp/epdnew/H_sapiens/006/Hs_EPDnew_006_hg38.bed",
@@ -118,7 +120,7 @@ PROMOTER_SOURCES = {
         "https://downloads.wenglab.org/V3/GRCh38-cCREs.bed"],
     **{f"{e}_15_coreMarks_hg38lift_mnemonics.bed.gz":
        [f"{ROADMAP}{e}_15_coreMarks_hg38lift_mnemonics.bed.gz"]
-       for e in ("E108", "E073")},
+       for e in ("E108", "E073", "E095", "E066")},   # muscle, cerveau, ventricule gauche, foie
     **{f"remap2022_{t}_nr_macs2_hg38_v1_0.bed.gz":
        [f"{REMAP}{t}/remap2022_{t}_nr_macs2_hg38_v1_0.bed.gz"] for t in REMAP_TFS},
 }

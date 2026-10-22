@@ -60,6 +60,8 @@ l'intérieur des priorités habituelles.
 |---|---|
 | MITO_gene | gène(s) mitochondrial(aux) et classe de région |
 | MITO_bidirectionnel | partenaire du promoteur bidirectionnel (autre gène, TSS sur le brin opposé à moins de 1 kb : distance, type) |
+| MITO_contact_promoteur | ancre de boucle du gène qui porte le promoteur d'un autre gène (promoteur à fonction d'enhancer possible) |
+| MITO_type_promoteur | type du TSS le plus proche : menage, tissu, developpement, indetermine, avec ses critères (classe CpG, TATA, Inr, tau GTEx, largeur du pic CAGE, Polycomb) |
 | MITO_L1_classe | transmitted / uncertain / not_transmitted / not_estimable |
 | MITO_L1, MITO_L1_IC | L1 et son intervalle à 95 % |
 | MITO_L1_note | sous-unité tenue par son complexe ; corrélation ARN-protéine dans les fibroblastes |
@@ -73,7 +75,7 @@ l'intérieur des priorités habituelles.
 | MITO_gnomAD | gène : LoF observés/attendus, o/e LoF, LOEUF, pLI, o/e et z faux-sens (gnomAD v4.1, MANE Select) |
 | MITO_GISMO | gène : GISMO et GISMO-mis (Liao et al. 2026) et leur décile ; déciles 1-4 de GISMO pour les gènes récessifs |
 | MITO_arguments, MITO_n_arguments | arguments réunis (les contraintes du gène, gnomAD et GISMO, n'en font pas partie) |
-| MITO_evenements | événements portés par l'allèle, tous outils réunis, avec leur force : SpliceAI/SpliceAI2, MORFEE, AlphaGenome, site_TF, CpG_site_TF, bascule_ilot_CpG |
+| MITO_evenements | événements portés par l'allèle, tous outils réunis, avec leur force : SpliceAI/SpliceAI2, MORFEE, AlphaGenome, site_TF, CpG_site_TF, bascule_ilot_CpG, TATA_detruite, Inr_detruit, G4_detruit |
 | MITO_priorite | 1_fort, 2_modere, 3_contexte, 4_aucun |
 
 ## Priorité
@@ -87,15 +89,19 @@ outils de la table, et `MITO_priorite` les classe :
 |---|---|
 | 1_fort | au moins un événement fort, gène dont la classe L1 n'est pas not_transmitted |
 | 2_modere | un événement modéré, ou fort dans un gène not_transmitted |
-| 3_contexte | pas d'événement de l'allèle, au moins deux arguments de position (promoteur minimal, CAGE, fixation, chromatine active, conservation) |
+| 3_contexte | pas d'événement de l'allèle, au moins deux arguments de position (promoteur minimal, zone de pause, CAGE, fixation, chromatine active, conservation) |
 | 4_aucun | le reste |
 
-Fort : SpliceAI ≥ 0,2 ; SpliceAI2 ≥ 0,1 ; |AlphaGenome| ≥ 20 ; un champ
+Fort : boîte TATA détruite ; SpliceAI ≥ 0,2 ; SpliceAI2 ≥ 0,1 ; |AlphaGenome| ≥ 20 ; un champ
 MORFEE du 5'UTR renseigné (uTIS, uSTOP, uSTOP_creation : création ou perte
 d'une uORF, qui freine la traduction) ; site_TF d'au moins 2 (log2) sur une
-position d'au moins 1,5 bits ; un événement modéré du promoteur minimal.
+position d'au moins 1,5 bits ; un événement modéré du promoteur minimal, ou
+d'un élément distal (rE2G, ancre) d'un gène dont le promoteur est de type tissu
+ou développement (les promoteurs de ménage dépendent peu des éléments distaux).
 Modéré : un champ MORFEE du 3'UTR renseigné (dTIS, dSTOP, dSTOP_creation) ;
-site_TF ; CpG_site_TF ; bascule_ilot_CpG. Les seuils sont des options de
+site_TF (ESRRA/ESRRG notés « ERR:effet_tissulaire ») ; CpG_site_TF ;
+bascule_ilot_CpG ; initiateur détruit ; G-quadruplex cassé. `zone_pause` (+20
+à +60 du TSS) compte parmi les arguments de position. Les seuils sont des options de
 `ajout_mitoloop.py` (`--spliceai-seuil`, `--spliceai2-seuil`,
 `--alphagenome-seuil`...). Ceux de SpliceAI, SpliceAI2 et AlphaGenome sont
 fixés à la main : leurs sorties ne servent jamais à entraîner ni à ajuster un
