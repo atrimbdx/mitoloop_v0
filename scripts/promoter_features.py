@@ -30,7 +30,7 @@ Purpose
          CAGE peak (annotation cage_width) and Polycomb repression of the TSS
          (annotations named *_polycomb, ChromHMM ReprPC; developmental when
          repressed in at least half of them); rule in
-         reannot/ajout_mitoloop.py:promoter_type.
+         promoter_elements.py:promoter_type.
     The question is whether mitochondrial promoters belong to the class of
     CpG-rich, constitutively unmethylated, motif-driven promoters that are
     intrinsically less responsive to distal enhancers, which would place
@@ -222,8 +222,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from re2g_panel import (NOT_GENE_PREFIXES, NOT_GENES, build_aliases,  # noqa: E402
                         opener, resolve_symbols)
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "reannot"))
-from ajout_mitoloop import inr, oriented, promoter_type, tata_box, tau  # noqa: E402
+from promoter_elements import inr, oriented, promoter_type, tata_box, tau  # noqa: E402
 
 # Consensus of the factors of broadly expressed and mitochondrial promoters,
 # forward strand. The reverse strand is searched as well.

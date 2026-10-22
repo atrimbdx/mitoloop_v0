@@ -17,15 +17,15 @@ Outputs (in --datadir)
     Human.MitoCarta3.0.xls, goa_human.gaf.gz, go-basic.obo,
     GRCh38.fa (+ .fai built by promoter_features.py), cpgIslandExt.txt.gz,
     panelapp_genes_all.tsv (gene, confidence_level, entity_type),
-    with --promoter-annotations: promoters_exp/ (gnomAD v4.1 gene
-    constraint, Zoonomia phyloP 241 mammals, EPDnew, FANTOM5 CAGE peaks,
-    SCREEN cCREs, Roadmap ChromHMM of skeletal muscle, brain, left
+    with --promoter-annotations: promoters_exp/ (EPDnew, FANTOM5 CAGE
+    peaks, SCREEN cCREs, Roadmap ChromHMM of skeletal muscle, brain, left
     ventricle and liver, ReMap ChIP-seq peaks of 11 factors; see
     config/promoter_annotations.tsv),
     and with --validation: kopajtich/ (fibroblast RNA-seq and proteomics,
-    datasets.zip of Zenodo 4501904, extracted), attenuation.csv,
-    GTEx_v8_finemapping_DAPG.txt.gz (fine-mapped eQTL, validation of the
-    reannot arguments), gismo/ (GISMO, Zenodo 20547722) (Goncalves et al. 2017);
+    datasets.zip of Zenodo 4501904, extracted), attenuation.csv
+    (Goncalves et al. 2017); the data used only by the variant pipeline
+    (gnomAD, phyloP, gnomAD-SV, GISMO, fine-mapped GTEx eQTL) are fetched
+    by the reannot repository (mcia/run_paquet.sh fetch);
     MANIFEST.tsv (file, bytes, source or error);
     --genes (default genes.txt): MitoCarta3.0 symbols and PanelApp genes,
     under the symbol of the --gtf when one is given (PanelApp keeps old HGNC
@@ -81,9 +81,6 @@ ZENODO_RECORD = "4501904"
 ZENODO_WANTED = ("datasets", "raw_data")
 ZENODO_MAX_GB = 5
 TABLE = (".tsv", ".csv", ".txt", ".tsv.gz", ".csv.gz", ".txt.gz", ".rds", ".xlsx")
-# GISMO and GISMO-mis (Liao et al. 2026, Nat Genet): gene loss and missense
-# constraint across 462 mammals, every file of the record, in gismo/
-GISMO_RECORD = "20547722"
 PANELAPP = "https://panelapp.genomicsengland.co.uk/api/v1"
 # experimental promoter annotations (config/promoter_annotations.tsv), in
 # promoters_exp/; ReMap: one file per factor
@@ -106,20 +103,6 @@ PROMOTER_SOURCES = {
         "JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt",
         "https://jaspar2024.genereg.net/download/data/2024/CORE/"
         "JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt"],
-    # gene constraint of gnomAD v4.1 (LoF obs/exp, o/e, LOEUF, pLI, missense)
-    "gnomad.v4.1.constraint_metrics.tsv": [
-        "https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/"
-        "constraint/gnomad.v4.1.constraint_metrics.tsv"],
-    # base-wise conservation over 241 mammals (Zoonomia, phyloP; several GB,
-    # cut to the regions of the gene set when the reannot package is built)
-    "cactus241way.phyloP.bw": [
-        "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/cactus241way/cactus241way.phyloP.bw",
-        "https://hgdownload.gi.ucsc.edu/goldenPath/hg38/cactus241way/cactus241way.phyloP.bw"],
-    # gnomAD-SV v4.1 (1.3 GB; reduced to PASS SV, type and frequency, ~15 MB,
-    # when the reannot package is built)
-    "gnomad.v4.1.sv.sites.bed.gz": [
-        "https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/genome_sv/"
-        "gnomad.v4.1.sv.sites.bed.gz"],
     "GRCh38-cCREs.bed": [
         "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.bed",
         "https://downloads.wenglab.org/V3/GRCh38-cCREs.bed"],
@@ -231,37 +214,6 @@ def zenodo(d: Path, record: str, wanted: tuple, manifest: list,
                 manifest.append((f"{sub}/{key}", 0, f"unzip failed: {e}"))
 
 
-DAPG_TAR = ("https://storage.googleapis.com/adult-gtex/bulk-qtl/v8/"
-            "fine-mapping-cis-eqtl/GTEx_v8_finemapping_DAPG.tar")
-DAPG_MEMBER = "GTEx_v8_finemapping_DAPG/GTEx_v8_finemapping_DAPG.txt.gz"
-
-
-def gtex_dapg(d: Path, manifest: list) -> None:
-    """GTEx v8 fine-mapped eQTL (DAP-G), the table only: read from the
-    760 MB release tar as a stream, nothing else kept"""
-    import tarfile
-    dest = d / Path(DAPG_MEMBER).name
-    if dest.exists() and dest.stat().st_size > 0:
-        manifest.append((dest.name, dest.stat().st_size, "present"))
-        return
-    try:
-        req = urllib.request.Request(DAPG_TAR, headers=UA)
-        with urllib.request.urlopen(req, timeout=600) as r, \
-                tarfile.open(fileobj=r, mode="r|") as tf:
-            for m in tf:
-                if m.name == DAPG_MEMBER:
-                    tmp = dest.with_name(dest.name + ".part")
-                    with tf.extractfile(m) as fi, open(tmp, "wb") as fo:
-                        shutil.copyfileobj(fi, fo, 1 << 20)
-                    tmp.replace(dest)
-                    break
-        manifest.append((dest.name, dest.stat().st_size, DAPG_TAR))
-        print(f"{dest.name}: {dest.stat().st_size / 1e6:.0f} MB")
-    except Exception as e:  # network errors of every kind
-        manifest.append((dest.name, 0, f"ERROR {type(e).__name__}: {e}"))
-        print(f"GTEx DAP-G failed: {e}")
-
-
 def canonical(symbols: list, gtf: Path, d: Path) -> dict:
     """symbol -> its name in the GTF (renamed HGNC symbols resolved with
     the alias table of re2g_panel), None for panel entries that are not
@@ -357,8 +309,6 @@ def main():
         for name, urls in VALIDATION.items():
             fetch(name, urls, d, reuse, manifest)
         zenodo(d, ZENODO_RECORD, ZENODO_WANTED, manifest)
-        zenodo(d, GISMO_RECORD, (), manifest, sub="gismo")
-        gtex_dapg(d, manifest)
     # the gene set
     try:
         panel = panelapp(d, a.panel_name, manifest)    # kept when present

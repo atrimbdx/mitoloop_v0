@@ -12,11 +12,10 @@ dependencies:
   - cooler            # .cool / .mcool
   - requests          # gtex_eqtl.py fetch
   - python-pptx       # svg_to_pptx.py
-  - pysam             # vcf_annotate.py (tabix lookups), promoter_features.py
-  - bcftools          # normalisation of the VCFs before vcf_annotate.py
+  - pysam             # promoter_features.py (bgzipped FASTA)
   - xlrd              # regulome.py, MitoCarta3.0 .xls
   - openpyxl          # jiang2020_tables.py, Jiang 2020 .xlsx
-  - pybigwig          # reannot/mitoloop_paquet.py, phyloP 241 mammals
+  - pybigwig          # phyloP, read by the reannot package built with this environment
   - libcurl           # hic-straw is built from source
   - cxx-compiler
   - pybind11

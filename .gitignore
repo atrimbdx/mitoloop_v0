@@ -29,6 +29,6 @@ __pycache__/
 # system
 .DS_Store
 
-# reannot package (built by run_mcia.sh reannot, copied to the VM)
+# reannot package, if built here by atrimbdx/reannot (mcia/run_paquet.sh)
 transfert_mitoloop/
 transfert_mitoloop_*.tar.gz

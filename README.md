@@ -27,11 +27,13 @@ Three modules extend it:
 - **promoter features**: sequence (CpG content, promoter class, motifs of
   NRF1, ERR, GABPA and other factors), bidirectional promoters,
   promoter-promoter loops, and DNA methylation of the promoters and of the
-  replicable elements from public whole-genome bisulfite data;
-- **WGS annotation**: a region set built from the outputs above and the
-  rare variants of unsolved genomes that fall in it, ranked by frequency,
-  scores and genetic model (second coding hit in trans, homozygous,
-  de novo, structural variants), to prepare the cohort analysis.
+  replicable elements from public whole-genome bisulfite data.
+
+The annotation of WGS variants (SNVs, indels and structural variants) in
+these regions, the MitoLoop package of the reannot pipeline and its
+evaluation on experimentally measured variants live in a separate
+repository, [atrimbdx/reannot](https://github.com/atrimbdx/reannot), which
+reads the results of this one.
 
 The gene set is an input (for instance the union of MitoCarta3.0 and of the
 PanelApp "Mitochondrial disorders" panel), as are the control genes, which
@@ -50,13 +52,12 @@ PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 | `scripts/locus_figure.py` | Python | one locus: rotated Hi-C map, loop arcs, gene track, virtual 4C profile with the called loops |
 | `scripts/folding_figure.py` | Python | schematic chromatin folding of a locus drawn from the called loops |
 | `scripts/svg_to_pptx.py` | Python | convert a matplotlib SVG into editable PowerPoint shapes |
+| `scripts/promoter_elements.py` | Python | core promoter elements (TATA box, initiator, G-quadruplex), tissue specificity (tau) and promoter type, used by `promoter_features.py` |
 | `scripts/promoter_features.py` | Python | promoter sequence, motifs, bidirectional pairs, promoter-promoter loops and DNA methylation (promoters and elements) against controls; methylation against GTEx expression |
 | `scripts/regulome.py` | Python | `pathways`: MitoPathways layer per gene, inferred from GO where MitoCarta has none; `modes`: score per gene and mode of regulation from expression data; `compare`: promoters, elements, loops and methylation along the score |
 | `scripts/l1_score.py` | Python | `score`: L1 per gene and per complex from RNA and protein of the same samples, corrected for noise and mitochondrial content; `validate`: agreement with another atlas, published per-gene scores and patient fibroblasts with RNA-seq and proteomics |
 | `scripts/jiang2020_tables.py` | Python | the per-sample protein and RNA of Jiang et al. 2020 (Tables S2 and S3) as the inputs of `l1_score.py`, and tissue medians for `regulome.py modes` |
 | `scripts/kopajtich_tables.py` | Python | the RNA-seq and proteomics of the patient fibroblasts of Kopajtich et al. as the inputs of `l1_score.py validate` |
-| `reannot/` | Python, bash | MitoLoop module of the reannot pipeline (VEP, SpliceAI, MORFEE, AlphaGenome on an offline VM): package built on MCIA, `ajout_mitoloop.py` adds the arguments on the expression of mitochondrial genes to the reannot tables; see `reannot/README_MitoLoop.md` |
-| `scripts/vcf_annotate.py` | Python | `regions`: annotated BED of promoters, UTRs, coding exons, elements, loop anchors and other BEDs per gene; `annotate`: rare variants of WGS VCFs in these regions with frequency, scores, parental origin or phase, second hits and tiers |
 | `scripts/v4c_pairs.py`, `scripts/v4c_pairs.R` | Python, R | optional module: loops at mitochondrial promoters in two metabolic states of one cell type |
 | `config/` | | example library tables |
 | `slurm/` | | job templates for SLURM clusters |
@@ -93,10 +94,6 @@ Python scripts run in `mitoloop_v0`, R scripts in `mitoloop_v0-r`.
 | mtDNA copy number per GTEx tissue | `v4c_loops.R` (through the library table) | Rath et al. 2024, Datasets S1 to S4 |
 | Genome sequence (GRCh38 FASTA) and CpG islands (`cpgIslandExt`) | `promoter_features.py` | UCSC, <https://hgdownload.soe.ucsc.edu/goldenPath/hg38/> |
 | Whole-genome bisulfite methylation (bedMethyl, Bismark coverage or bedGraph) of tissues and cell types | `promoter_features.py` (through `--meth-table`) | ENCODE portal (WGBS); Roadmap Epigenomics; Loyfer et al. 2023 atlas, GEO GSE186458 |
-| WGS VCFs (small variants, structural variants) and PED | `vcf_annotate.py` | diagnostic cohort |
-| Variant scores: CADD, ReMM, AlphaGenome or any per-position table | `vcf_annotate.py` | <https://cadd.gs.washington.edu/download>; ReMM (Smedley et al. 2016); AlphaGenome variant scoring exported to a table |
-| gnomAD sites VCFs | `vcf_annotate.py` | <https://gnomad.broadinstitute.org/downloads> |
-| Mode of inheritance per gene | `vcf_annotate.py` | PanelApp panel download, or a two-column table |
 | MitoCarta3.0 with MitoPathways (`Human.MitoCarta3.0.xls`, or its sheets A and C as TSV) | `regulome.py pathways` | <https://www.broadinstitute.org/mitocarta> |
 | Gene Ontology annotations and ontology (`goa_human.gaf.gz`, `go-basic.obo`) | `regulome.py pathways` | <https://geneontology.org/docs/download-go-annotations/> |
 | Protein abundance across GTEx tissues | `regulome.py modes` | Jiang et al. 2020, Table S2 (sheet D, per sample; tissue medians written by `jiang2020_tables.py`) |
@@ -306,37 +303,8 @@ promoters and elements are kept from each methylation file.
 
 ### 10. Annotation of WGS variants
 
-```bash
-# regions attributed to each gene of the set
-python3 scripts/vcf_annotate.py regions --gtf data/gencode.gtf.gz \
-    --genes genes.txt --elements results/re2g/re2g_elements.tsv \
-    --min-prevalence 51 --loops results/loops/loops.tsv \
-    --called-in "psoas muscle|gastrocnemius" \
-    --bed chic=results/chic/other_ends.bed --out results/wgs/regions.bed
-
-# normalised, multi-allelic records split
-bcftools norm -m -any -f data/GRCh38.fa cohort.vcf.gz -Oz -o cohort.norm.vcf.gz
-
-python3 scripts/vcf_annotate.py annotate --vcf cohort.norm.vcf.gz \
-    --vcf cohort.sv.vcf.gz --ped cohort.ped \
-    --regions results/wgs/regions.bed --inheritance panelapp_mito.tsv \
-    --gnomad "data/gnomad/gnomad.genomes.v4.1.sites.chr{chrom}.vcf.bgz" \
-    --score CADD=data/cadd/whole_genome_SNVs.tsv.gz:PHRED \
-    --score ReMM=data/ReMM.v0.4.hg38.tsv.gz \
-    --min-score CADD=15 --min-score ReMM=0.9 --pass-only \
-    --out results/wgs/annot
-```
-
-`--bed` adds any other region set with the gene in its fourth column
-(capture Hi-C or Micro-C interactions, elements validated by perturbation);
-rows without a gene go to the genes of the set within `--window`. Score
-tables indexed with tabix are looked up by position; plain ones are read
-once. Frequencies and scores already annotated by VEP (`CSQ`) are read with
-`--af-keys` and `--info-score`. Each regulatory variant receives a tier
-(1: homozygous, hemizygous, in trans of a rare coding variant or of
-another regulatory variant, de novo in a dominant gene; 2: partner of
-unknown phase, de novo, dominant gene; 3: cis, single heterozygous); the
-method is described in the header of the script.
+Moved to [atrimbdx/reannot](https://github.com/atrimbdx/reannot)
+(`mcia/vcf_annotate.py`).
 
 ### 11. Mitochondrial regulome
 
@@ -490,59 +458,24 @@ with the alias table of `re2g_panel.py` in both directions;
 `data/genes_renamed.tsv` lists the renames and the symbols left as they
 are.
 
-### Annotation of non-coding variants (reannot pipeline)
-
-`bash run_mcia.sh reannot` (also run by `all`) writes `transfert_mitoloop/`,
-the MitoLoop package of the reannot pipeline: the L1 class of each
-mitochondrial gene (L1 without content adjustment, 95% interval), their
-regulatory regions, EPDnew, FANTOM5, ReMap, ChromHMM and JASPAR cut to these
-regions, and `ajout_mitoloop.py`. On the VM, `bash 07_maj_mitoloop_vm.sh`
-installs or updates it; `python3 ~/reannot/scripts/ajout_mitoloop.py
-run.final.tsv` adds the MITO_* columns. The arguments are validated on the
-fine-mapped GTEx eQTL of the mitochondrial genes
-(`results/reannot/validation_eqtl.tsv`) and the L1 classes on the patient
-fibroblasts (`results/l1_raw/validation/validation.tsv`). See
-`reannot/README_MitoLoop.md`.
+### Promoter types
 
 Each EPDnew TSS of the gene set is typed (housekeeping `menage`,
 tissue-specific `tissu`, developmental `developpement`, Lenhard et al. 2012)
 from its CpG class, a positioned TATA box, the CAGE peak width, the GTEx
 tissue specificity (tau) and Polycomb repression in the Roadmap ChromHMM of
-muscle, brain, left ventricle and liver; `promoter_features.py` compares the
-types of mitochondrial and control promoters, and the package uses them to
-weigh distal elements (more weight for tissue and developmental promoters).
-The package also flags the TATA box, initiator and G-quadruplex destroyed by
-a variant, the Pol II pause zone (+20 to +60), the loop anchors that hold the
-promoter of another gene, and follows MYC and RELA (pause release) among the
-ReMap factors. The new ChromHMM and ReMap files need `bash run_mcia.sh
-fetch` once.
+muscle, brain, left ventricle and liver (`scripts/promoter_elements.py`);
+`promoter_features.py` compares the types of mitochondrial and control
+promoters.
 
-Structural variants (WGS exports: type, chromosome, start, end) go through
-`reannot/reannot_sv.sh` on the VM: `preparer_entree.py --sv` writes a VCF of
-SVs, AnnotSV annotates it when installed, and `ajout_mitoloop_sv.py` adds
-what each SV removes, copies or separates of a mitochondrial gene and its
-regulatory regions, the gnomAD-SV v4.1 frequency (PASS SVs, ~15 MB in the
-package, from `fetch`) and the SNVs of the same patient in the same gene
-(second allele), with the same priority scheme as the SNVs.
+### Variant annotation (reannot)
 
-`bash run_mcia.sh mpra` (after `fetch`; downloads on the login node) tests
-the annotations on variants whose effect on expression was measured by
-experiment: the saturation mutagenesis of 20 promoters and enhancers (Kircher
-et al. 2019), the SuRE raQTL and SNP without effect (van Arensbergen et al.
-2019, hg19 lifted to GRCh38), MPRAVarDB (18 MPRA studies) and 5'UTR variants
-(Sample et al. 2019), the muscle methylation QTL of GTEx (Oliva et al.
-2023, variants 50 to 1000 bp from the measured CpG, for the MITO_CpG
-annotations), plus tables put in `data/mpra/tables_hg38/` or
-`data/mpra/tables_hg19/` (chrom, pos, ref, alt, effet, p, signif). Every
-variant is annotated by MitoLoop with an evaluation package (regions around
-the variants), then `scripts/mpra_variants.py evaluer` writes
-`results/mpra/evaluation.tsv`: per source and cell line, AUC of each
-annotation (significant against no effect), AUC between alleles of the same
-base (position annotations are 0.5 there by construction; only the allele
-annotations can separate them) and Spearman correlation with the effect.
-`results/mpra/mpra_mito.tsv` holds the variants of the MitoLoop regions, to
-run on the VM with SpliceAI, MORFEE and AlphaGenome and to evaluate the same
-way.
+The MitoLoop package of the reannot pipeline (regulatory regions, L1
+classes, promoter types, gnomAD-SV, priority), structural variants and the
+evaluation on MPRA and saturation mutagenesis data are built from
+[atrimbdx/reannot](https://github.com/atrimbdx/reannot): clone it next to
+this repository and run `bash mcia/run_paquet.sh fetch` then `paquet` once
+`run_mcia.sh fetch` and `run` have produced `results/`.
 
 ## Running on a SLURM cluster
 
