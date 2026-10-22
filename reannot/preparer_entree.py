@@ -28,9 +28,16 @@ position obtenue : `--controle-positions SORTIE.positions.tsv FINAL.tsv` ajoute
 à FINAL.tsv la colonne controle_position (concordante, discordante
 (saisie chrN:pos), ou -). reannot_complet.sh le fait de lui-même.
 
+Variants structuraux : --sv lit une table type, chromosome, début, fin (dans
+n'importe quel ordre, colonnes reconnues par leur contenu : DEL, DUP, INV,
+INS, BND, CNV, deletion, duplication, inversion, gain, loss) et écrit un VCF
+de SV (allèles symboliques <DEL>..., INFO SVTYPE, END, SVLEN), entrée
+d'AnnotSV et de ajout_mitoloop_sv.py. Début et fin en base 1, GRCh38.
+
 Usage : python3 preparer_entree.py entree.xlsx|.tsv|.csv|.vcf.gz sortie.tsv
         [--gtf Homo_sapiens.GRCh38.NNN.gtf.gz] [--feuille NOM]
         python3 preparer_entree.py --controle-positions sortie.positions.tsv run.final.tsv
+        python3 preparer_entree.py --sv sv.xlsx sortie.sv.vcf [--feuille NOM]
 Bibliothèque standard uniquement (le .xlsx est lu comme une archive XML).
 """
 
@@ -57,6 +64,57 @@ def chrom_name(c):
     c = c.strip()
     c = c[3:] if c.lower().startswith("chr") else c
     return "chrM" if c.upper() in ("M", "MT") else "chr" + c.upper()
+
+
+SV_TYPES = {"DEL": "DEL", "DELETION": "DEL", "LOSS": "DEL", "DUP": "DUP",
+            "DUPLICATION": "DUP", "GAIN": "DUP", "INV": "INV", "INVERSION": "INV",
+            "INS": "INS", "INSERTION": "INS", "BND": "BND", "TRA": "BND", "CNV": "CNV"}
+
+
+def write_sv_vcf(rows, out: Path):
+    """table type / chromosome / début / fin -> VCF de SV"""
+    width = max(len(r) for r in rows)
+    rows = [r + [""] * (width - len(r)) for r in rows]
+    probe = rows[:200]
+
+    def share(j, f):
+        vals = [r[j].strip() for r in probe if r[j].strip()]
+        return sum(bool(f(v)) for v in vals) / max(len(vals), 1)
+    is_type = lambda v: v.upper().strip("<>") in SV_TYPES        # noqa: E731
+    is_num = lambda v: bool(POS.match(v)) or v.isdigit()          # noqa: E731
+    tc = max(range(width), key=lambda j: share(j, is_type))
+    cc = next((j for j in range(width) if j != tc and share(j, lambda v: CHROM.match(v)) > 0.8
+               and share(j, lambda v: v.isdigit() and int(v) > 25) < 0.2), None)
+    nums = [j for j in range(width) if j not in (tc, cc) and share(j, is_num) > 0.8]
+    if share(tc, is_type) < 0.5 or cc is None or len(nums) < 2:
+        sys.exit("SV : colonnes type, chromosome, début, fin non reconnues ; "
+                 f"première ligne : {rows[0][:8]}")
+    sc, ec = nums[0], nums[1]
+    out_rows, bad = [], 0
+    for k, r in enumerate(rows, 1):
+        t, c = r[tc].strip().upper().strip("<>"), r[cc].strip()
+        if t not in SV_TYPES or not CHROM.match(c) or not is_num(r[sc].strip()) \
+                or not is_num(r[ec].strip()):
+            bad += 1
+            continue
+        s_, e_ = sorted((int(float(r[sc])), int(float(r[ec]))))
+        t = SV_TYPES[t]
+        ln = e_ - s_ + 1
+        out_rows.append((chrom_name(c), s_, e_, t, -ln if t == "DEL" else ln, k))
+    out_rows.sort(key=lambda x: (x[0], x[1]))
+    with open(out, "w") as fh:
+        fh.write("##fileformat=VCFv4.2\n")
+        fh.write('##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">\n')
+        fh.write('##INFO=<ID=END,Number=1,Type=Integer,Description="End position of the variant">\n')
+        fh.write('##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Length of the variant">\n')
+        for t in sorted(set(SV_TYPES.values())):
+            fh.write(f'##ALT=<ID={t},Description="{t}">\n')
+        fh.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+        for c, s_, e_, t, ln, k in out_rows:       # ID : numéro de ligne du tableur
+            fh.write(f"{c}\t{s_}\tligne{k}_{t}\tN\t<{t}>\t.\tPASS\tSVTYPE={t};END={e_};SVLEN={ln}\n")
+    print(f"SV : colonnes type {tc + 1}, chromosome {cc + 1}, début {sc + 1}, fin {ec + 1} ; "
+          f"{len(out_rows)} SV -> {out}" + (f" ({bad} lignes ignorées : en-tête, vides ou "
+                                           "illisibles)" if bad else ""))
 
 
 def controle_positions(pos_file: Path, final: Path):
@@ -220,6 +278,8 @@ def main():
     p.add_argument("sortie", type=Path)
     p.add_argument("--controle-positions", action="store_true",
                    help="entree = SORTIE.positions.tsv, sortie = FINAL.tsv à compléter")
+    p.add_argument("--sv", action="store_true",
+                   help="variants structuraux (type, chromosome, début, fin) -> VCF")
     p.add_argument("--feuille")
     p.add_argument("--gtf", type=Path)
     p.add_argument("--max-dist", type=int, default=1_000_000)
@@ -230,6 +290,9 @@ def main():
     rows = [r for r in read_table(a.entree, a.feuille) if any(x.strip() for x in r)]
     if not rows:
         sys.exit(f"{a.entree} : vide")
+    if a.sv:
+        write_sv_vcf(rows, a.sortie)
+        return
     width = max(len(r) for r in rows)
     rows = [r + [""] * (width - len(r)) for r in rows]
     probe = rows[:200]

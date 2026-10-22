@@ -20,7 +20,7 @@ set -euo pipefail
 SRC=$(cd "$(dirname "$0")" && pwd)
 BASE=${REANNOT_BASE:-$HOME/reannot}
 GARDER=${GARDER:-2}
-MINE="ajout_mitoloop.py preparer_entree.py reannot_complet.sh"
+MINE="ajout_mitoloop.py ajout_mitoloop_sv.py preparer_entree.py reannot_complet.sh reannot_sv.sh"
 export PATH="$BASE/envs/vep/bin:$PATH"
 cd "$SRC"
 
@@ -37,7 +37,7 @@ if [ -d "$M" ]; then
   mkdir -p "$BASE/archives"
   V=$(head -n 1 "$M/VERSION" 2>/dev/null | tr -c 'A-Za-z0-9._\n-' '_' | tr -d '\n' | head -c 60 || true)
   A="$BASE/archives/mitoloop_${V:-$(date +%Y%m%d_%H%M)}.tar.gz"
-  S=(); for f in $MINE; do [ -f "$BASE/scripts/$f" ] && S+=("scripts/$f"); done
+  S=(); for f in $MINE; do if [ -f "$BASE/scripts/$f" ]; then S+=("scripts/$f"); fi; done
   tar -czf "$A" -C "$BASE" data/mitoloop ${S[@]+"${S[@]}"}
   echo "Version précédente archivée : $A"
   # anciennes archives au-delà de GARDER
@@ -54,8 +54,12 @@ cp annotations/* "$M.nouveau/annotations/"
 [ -f README_MitoLoop.md ] && cp README_MitoLoop.md "$M.nouveau/"
 touch "$M.nouveau"/annotations/*.tbi 2>/dev/null || true   # index plus récent que les données
 rm -rf "$M"; mv "$M.nouveau" "$M"
-for f in $MINE; do cp "$f" "$BASE/scripts/"; done
-chmod +x "$BASE/scripts/reannot_complet.sh"
+for f in $MINE; do
+  if [ -f "$f" ]; then cp "$f" "$BASE/scripts/"; fi
+done
+for f in reannot_complet.sh reannot_sv.sh; do
+  if [ -f "$BASE/scripts/$f" ]; then chmod +x "$BASE/scripts/$f"; fi
+done
 
 # 3. reannot_alphagenome.sh : étape 5 (AlphaGenome) lue par l'index sur les seules
 #    positions des variants, résultat identique. Appliqué seulement si le script en
@@ -118,4 +122,5 @@ echo
 echo "Utilisation :"
 echo "  bash $BASE/scripts/reannot_complet.sh variants.xlsx run1      (tout le pipeline)"
 echo "  python3 $BASE/scripts/ajout_mitoloop.py run1.final.tsv          (MitoLoop seul)"
+echo "  bash $BASE/scripts/reannot_sv.sh sv.xlsx sv1                    (variants structuraux)"
 echo "Le dossier transféré ($SRC) peut être supprimé."

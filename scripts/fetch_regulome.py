@@ -115,6 +115,11 @@ PROMOTER_SOURCES = {
     "cactus241way.phyloP.bw": [
         "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/cactus241way/cactus241way.phyloP.bw",
         "https://hgdownload.gi.ucsc.edu/goldenPath/hg38/cactus241way/cactus241way.phyloP.bw"],
+    # gnomAD-SV v4.1 (1.3 GB; reduced to PASS SV, type and frequency, ~15 MB,
+    # when the reannot package is built)
+    "gnomad.v4.1.sv.sites.bed.gz": [
+        "https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/genome_sv/"
+        "gnomad.v4.1.sv.sites.bed.gz"],
     "GRCh38-cCREs.bed": [
         "https://downloads.wenglab.org/Registry-V4/GRCh38-cCREs.bed",
         "https://downloads.wenglab.org/V3/GRCh38-cCREs.bed"],

@@ -490,6 +490,9 @@ def main():
     p.add_argument("--gnomad", type=Path)
     p.add_argument("--gismo", type=Path)
     p.add_argument("--phylop", type=Path)
+    p.add_argument("--gnomad-sv", type=Path,
+                   help="gnomAD-SV v4.1 (gnomad.v4.1.sv.sites.bed.gz) : SV PASS, type et "
+                        "fréquence, pour ajout_mitoloop_sv.py")
     p.add_argument("--phylop-bedgraph", type=Path)
     p.add_argument("--class-high", type=float, default=0.5)
     p.add_argument("--class-low", type=float, default=0.3)
@@ -608,6 +611,30 @@ def main():
                          str(a.phylop or a.phylop_bedgraph)))
     else:
         print("phyloP absent : pas de colonne MITO_phyloP")
+
+    # gnomAD-SV : SV PASS du génome entier (une quinzaine de Mo), type et fréquence
+    if a.gnomad_sv and a.gnomad_sv.exists():
+        n_sv = 0
+        with opener(a.gnomad_sv) as fh, gzip.open(out / "annotations" / "gnomad_sv.bed.gz", "wt") as fo:
+            head = fh.readline().lstrip("#").rstrip("\n").split("\t")
+            ix = {h: i for i, h in enumerate(head)}
+            for k in ("chrom", "start", "end", "svtype", "FILTER", "AF"):
+                if k not in ix:
+                    sys.exit(f"gnomAD-SV : colonne {k} absente de {a.gnomad_sv}")
+            rows_sv = []
+            for line in fh:
+                f = line.rstrip("\n").split("\t")
+                if f[ix["FILTER"]] != "PASS":
+                    continue
+                rows_sv.append((chrom_key(f[ix["chrom"]]), int(f[ix["start"]]),
+                                f"{f[ix['chrom']]}\t{f[ix['start']]}\t{f[ix['end']]}\t"
+                                f"{f[ix['svtype']]}\t{f[ix['AF']]}\n"))
+            rows_sv.sort()
+            for _c, _s, ln in rows_sv:
+                fo.write(ln)
+            n_sv = len(rows_sv)
+        print(f"gnomAD-SV : {n_sv} SV PASS")
+        manifest.append(("annotations/gnomad_sv.bed.gz", n_sv, str(a.gnomad_sv)))
 
     # motifs JASPAR des facteurs gardés
     want = {t.upper() for t in a.tfs.split(",") if t}

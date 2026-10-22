@@ -517,6 +517,14 @@ promoter of another gene, and follows MYC and RELA (pause release) among the
 ReMap factors. The new ChromHMM and ReMap files need `bash run_mcia.sh
 fetch` once.
 
+Structural variants (WGS exports: type, chromosome, start, end) go through
+`reannot/reannot_sv.sh` on the VM: `preparer_entree.py --sv` writes a VCF of
+SVs, AnnotSV annotates it when installed, and `ajout_mitoloop_sv.py` adds
+what each SV removes, copies or separates of a mitochondrial gene and its
+regulatory regions, the gnomAD-SV v4.1 frequency (PASS SVs, ~15 MB in the
+package, from `fetch`) and the SNVs of the same patient in the same gene
+(second allele), with the same priority scheme as the SNVs.
+
 `bash run_mcia.sh mpra` (after `fetch`; downloads on the login node) tests
 the annotations on variants whose effect on expression was measured by
 experiment: the saturation mutagenesis of 20 promoters and enhancers (Kircher

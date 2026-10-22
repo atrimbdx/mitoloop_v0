@@ -238,7 +238,8 @@ paquet_annotations() {
          --chromhmm "liver=$P/E066_15_coreMarks_hg38lift_mnemonics.bed.gz"
          --jaspar "$P/JASPAR2024_CORE_vertebrates_non-redundant_pfms_jaspar.txt"
          --gtf "$GTF" --gnomad "$P/gnomad.v4.1.constraint_metrics.tsv"
-         --gismo data/gismo --phylop "$P/cactus241way.phyloP.bw")
+         --gismo data/gismo --phylop "$P/cactus241way.phyloP.bw"
+         --gnomad-sv "$P/gnomad.v4.1.sv.sites.bed.gz")
     for f in "$P"/remap2022_*_nr_macs2_hg38_v1_0.bed.gz; do
         [ -s "$f" ] || continue
         tf=$(basename "$f"); tf=${tf#remap2022_}; tf=${tf%%_*}
@@ -308,7 +309,8 @@ do_reannot() {
     paquet_annotations
     pk+=("${ANN[@]}")
     step reannot_package python3 reannot/mitoloop_paquet.py "${pk[@]}" || return 1
-    cp reannot/ajout_mitoloop.py reannot/preparer_entree.py reannot/reannot_complet.sh \
+    cp reannot/ajout_mitoloop.py reannot/ajout_mitoloop_sv.py reannot/reannot_sv.sh \
+       reannot/preparer_entree.py reannot/reannot_complet.sh \
        reannot/reannot_alphagenome.sh reannot/run_morfee.R reannot/verifier_morfee.sh \
        reannot/07_maj_mitoloop_vm.sh reannot/README_MitoLoop.md "$T/"
     echo "mitoloop_v0 $(git rev-parse --short HEAD 2>/dev/null || echo '?') $(date +%Y-%m-%d)" > "$T/VERSION"
@@ -357,7 +359,7 @@ PY
 # environment of the cluster in a few seconds, before the real run
 do_selftest() {
     local rc=0
-    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh tests/test_kopajtich.sh tests/test_reannot.sh tests/test_mpra.sh tests/test_promoter_elements.sh; do
+    for t in tests/test_regulome.sh tests/test_l1.sh tests/test_promoters.sh tests/test_eqtl_controls.sh tests/test_jiang.sh tests/test_kopajtich.sh tests/test_reannot.sh tests/test_mpra.sh tests/test_promoter_elements.sh tests/test_sv.sh; do
         step selftest bash "$t" || rc=1
     done
     return $rc

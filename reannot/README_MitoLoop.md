@@ -109,6 +109,36 @@ paramètre, comme l'exigent leurs conditions d'utilisation ; la priorisation
 qui les utilise se fait sur la VM. Les variants hors des régions MitoLoop
 reçoivent aussi les événements d'épissage, MORFEE et AlphaGenome. Trier sur `MITO_priorite`, puis sur `MITO_n_arguments`.
 
+## Variants structuraux
+
+    bash $REANNOT_BASE/scripts/reannot_sv.sh sv.xlsx sv1 [--feuille NOM] [--snv run1.final.spliceai2.mitoloop.tsv]
+
+Entrée : un tableur, TSV ou CSV avec, dans n'importe quel ordre, le type (DEL,
+DUP, INV, INS, BND, CNV, ou deletion, duplication, inversion, gain, loss), le
+chromosome (1..22, X, Y, MT), le début et la fin (GRCh38, base 1) ; l'en-tête
+est facultatif. `preparer_entree.py --sv` en fait un VCF de SV (l'ID garde le
+numéro de ligne du tableur), puis AnnotSV l'annote s'il est installé
+(`$REANNOT_BASE/AnnotSV`, ou la variable `ANNOTSV`), puis
+`ajout_mitoloop_sv.py` ajoute :
+
+| Colonne | Contenu |
+|---|---|
+| MITO_SV_genes | gènes mitochondriaux touchés et ce qui l'est : exons (k/n du transcrit MANE), TSS, gène entier, cassure dans le gène, régions (promoter, utr5, utr3, element, anchor) |
+| MITO_SV_effet | effet par gène |
+| MITO_L1_classe, MITO_type_promoteur, MITO_gnomAD, MITO_GISMO | par gène |
+| MITO_SV_gnomAD | SV de gnomAD-SV v4.1 le plus semblable (même type, recouvrement réciproque ≥ 50 %) : fréquence |
+| MITO_second_allele | avec `--snv` : variants de la table SNV du même patient dans le même gène, et leur priorité |
+| MITO_evenements, MITO_priorite | comme pour les SNV |
+
+Fort : délétion du gène entier, d'exons, du TSS ou du promoteur ; duplication
+interne au gène (cadre rompu) ; inversion ou cassure qui coupe le gène ou son
+promoteur ; insertion dans un exon ou le promoteur. Modéré : délétion d'un
+élément distal, d'une ancre ou du 3'UTR ; duplication partielle ; inversion
+qui sépare le gène de ses éléments (fort si le promoteur est de type tissu ou
+développement). Une duplication du gène entier est notée sans événement
+(dosage, peu pertinent en récessif). Un SV fréquent dans gnomAD-SV (AF ≥ 1 %,
+`--af-max`) descend d'un niveau.
+
 ## Sens et limites de L1
 
 L1 dit si une baisse de l'ARNm d'un gène se retrouve sur sa protéine
