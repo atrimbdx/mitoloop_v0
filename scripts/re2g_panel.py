@@ -51,7 +51,8 @@ Inputs
 Outputs (in --out)
     re2g_elements.tsv       one row per gene and element: gene, set, chrom,
                             start, end, distance (element midpoint minus TSS,
-                            bp), prevalence (biosamples linking it)
+                            bp), prevalence (biosamples linking it),
+                            celltypes (their CellType values, ';')
     re2g_per_gene.tsv       one row per gene: gene, set, chrom, tss,
                             n_ccre_window, links_per_biosample_median,
                             links_per_biosample_max, n_union, n_intersection,
@@ -1078,6 +1079,10 @@ def main():
         return cache[el][0]
 
     bio_order = list(per_bio)
+    # biosample label of each file: its CellType, else the file name
+    ct_of = {f.name: (celltype.get(f) or f.name).replace(";", ",").replace("\t", " ")
+             for f in files}
+    ct_of.update({lab: lab for lab in bio_order if lab not in ct_of})
     elements = []
     masks, mask_gene = [], []          # one bit mask per element, see core_curve
     rows = []
@@ -1106,8 +1111,10 @@ def main():
             s_, e_ = se.split("-")
             parsed.append((c_, int(s_), int(e_), n))
         for c_, s_, e_, n in sorted(parsed):
+            w = bit[f"{c_}:{s_}-{e_}"]
+            types = sorted({ct_of[lab] for bi, lab in enumerate(bio_order) if w >> bi & 1})
             elements.append((g, "mito" if g in mito else "control", c_,
-                             s_, e_, (s_ + e_) // 2 - pos, n))
+                             s_, e_, (s_ + e_) // 2 - pos, n, ";".join(types)))
         n_ccre = (ccre_in_window(mids, chrom, pos, a.window) if mids
                   else np.nan)
         never = (1 - min(1.0, len(unions) / n_ccre)) if (
@@ -1133,7 +1140,7 @@ def main():
         print("\nno registry: elements compared on their own coordinates, so "
               "the union is inflated and the intersection deflated")
     with open(out / "re2g_elements.tsv", "w") as fh:
-        fh.write("gene\tset\tchrom\tstart\tend\tdistance\tprevalence\n")
+        fh.write("gene\tset\tchrom\tstart\tend\tdistance\tprevalence\tcelltypes\n")
         for r in elements:
             fh.write("\t".join(str(x) for x in r) + "\n")
     print(f"{len(elements):,} gene-element pairs -> "
