@@ -23,6 +23,14 @@ Purpose
          groups; and, with --tpm, the relation between promoter methylation
          and expression across GTEx tissues.
 
+      4. promoter type (Lenhard et al. 2012): housekeeping (menage),
+         tissue-specific (tissu) or developmental (developpement), from the
+         CpG class, a positioned TATA box (-35 to -24) and initiator, the
+         tissue specificity tau of GTEx expression (--tpm), the width of the
+         CAGE peak (annotation cage_width) and Polycomb repression of the TSS
+         (annotations named *_polycomb, ChromHMM ReprPC; developmental when
+         repressed in at least half of them); rule in
+         promoter_elements.py:promoter_type.
     The question is whether mitochondrial promoters belong to the class of
     CpG-rich, constitutively unmethylated, motif-driven promoters that are
     intrinsically less responsive to distal enhancers, which would place
@@ -67,6 +75,26 @@ Inputs
                   replicable in >= --min-prevalence biosamples get their
                   methylation as well.
     --tpm         optional GTEx median TPM table (GCT, gzipped or not).
+    --annotation  NAME=PATH[:MODE][:WINDOW], repeatable: experimental
+                  annotation of promoters as a BED-like file (chrom, start,
+                  end, any columns; gzipped or not), over the promoter, or
+                  over TSS +/- WINDOW bp when given (0: the TSS base).
+                  MODE:
+                    overlap      (default) exp_NAME = 1 when an interval
+                                 overlaps (ChIP-seq peaks of ReMap or
+                                 ENCODE, EPDnew promoters)
+                    width        expw_NAME = width of the overlapping
+                                 interval nearest the TSS (FANTOM5 CAGE
+                                 peaks: broad or sharp promoters)
+                    biotypes     expn_NAME = largest number of biosamples
+                                 of an overlapping peak, read from the
+                                 name column 'TF:biosample1,biosample2'
+                                 (ReMap non-redundant peaks), 0 without
+                                 a peak: how reproducible the binding is
+                    label=REGEX  exp_NAME = 1 when an overlapping interval
+                                 has a column beyond the third matching
+                                 REGEX (ChromHMM state 'TssA', SCREEN cCRE
+                                 class 'PLS')
 
 Outputs (in --out)
     promoter_features.tsv        one row per gene: gene, set, chrom, tss,
@@ -194,6 +222,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from re2g_panel import (NOT_GENE_PREFIXES, NOT_GENES, build_aliases,  # noqa: E402
                         opener, resolve_symbols)
+from promoter_elements import inr, oriented, promoter_type, tata_box, tau  # noqa: E402
 
 # Consensus of the factors of broadly expressed and mitochondrial promoters,
 # forward strand. The reverse strand is searched as well.
@@ -428,6 +457,99 @@ def overlaps(iv: dict, chrom, s, e) -> bool:
         if en[k] < s - 100_000:
             break
     return False
+
+
+# ---------------------------------------------------------------------------
+# experimental annotations (--annotation)
+
+def load_labelled(path: Path) -> dict:
+    """chrom -> (starts, ends, rest of the line), sorted by start"""
+    iv = defaultdict(list)
+    with opener(path) as fh:
+        for line in fh:
+            if line.startswith(("#", "track", "browser")):
+                continue
+            line = line.rstrip("\n")
+            # tab-separated; EPDnew writes its BED with spaces
+            f = line.split("\t") if "\t" in line else line.split()
+            if len(f) >= 4 and f[0].isdigit() and not f[1].isdigit():
+                f = f[1:]                               # UCSC bin column
+            try:
+                x = (int(f[1]), int(f[2]), "\t".join(f[3:]))
+            except (IndexError, ValueError):
+                continue
+            iv[f[0]].append(x)
+    out = {}
+    for c, v in iv.items():
+        v.sort()
+        st = np.array([x[0] for x in v])
+        en = np.array([x[1] for x in v])
+        out[c] = (st, en, [x[2] for x in v], int((en - st).max()))
+    return out
+
+
+def hits(iv: dict, chrom, s, e) -> list:
+    """indices of the intervals overlapping [s, e) (nested ones included)"""
+    c = chrom_key(iv, chrom)
+    if c is None:
+        return [], None
+    st, en, _rest, maxlen = iv[c]
+    lo = int(np.searchsorted(st, s - maxlen, "left"))
+    hi = int(np.searchsorted(st, e, "left"))
+    k = np.arange(lo, hi)
+    return k[en[lo:hi] > s], c
+
+
+def annotate(spec: str, rows: list):
+    m = re.match(r"^([A-Za-z0-9_.-]+)=(.+?)(?::(overlap|width|biotypes|label=[^:]+))?"
+                 r"(?::(\d+))?$", spec)
+    if not m:
+        sys.exit(f"--annotation {spec!r}: expected NAME=PATH[:MODE][:WINDOW]")
+    name, path, mode, win = m.groups()
+    mode = mode or "overlap"
+    path = Path(path)
+    if not path.exists():
+        print(f"--annotation {name}: {path} absent, skipped")
+        return [], []
+    iv = load_labelled(path)
+    rx = re.compile(mode[6:], re.I) if mode.startswith("label=") else None
+    col = {"width": f"expw_{name}", "biotypes": f"expn_{name}"}.get(
+        mode, f"exp_{name}")
+    n = 0
+    for r in rows:
+        if win is not None:
+            s, e = r["tss"] - int(win), r["tss"] + int(win) + 1
+        else:
+            s, e = r["prom_start"], r["prom_end"]
+        k, c = hits(iv, r["chrom"], s, e)
+        if mode == "width":
+            if len(k):
+                st, en = iv[c][0][k], iv[c][1][k]
+                mid = (st + en) / 2
+                j = int(np.argmin(np.abs(mid - r["tss"])))
+                r[col] = int(en[j] - st[j])
+                n += 1
+            else:
+                r[col] = np.nan
+        elif mode == "biotypes":
+            best = 0
+            for j in k:
+                nm = iv[c][2][j].split("\t")[0]
+                bio = nm.split(":", 1)[1] if ":" in nm else nm
+                best = max(best, len({b for b in bio.split(",") if b}))
+            r[col] = best
+            n += best > 0
+        elif rx is not None:
+            r[col] = int(any(rx.search(x) for j in k
+                             for x in iv[c][2][j].split("\t"))) if len(k) else 0
+            n += r[col]
+        else:
+            r[col] = int(len(k) > 0)
+            n += r[col]
+    print(f"annotation {name} ({mode}, "
+          f"{'promoter' if win is None else f'TSS +/- {win} bp'}): "
+          f"{n} of {len(rows)} promoters")
+    return ([], [col]) if mode in ("width", "biotypes") else ([col], [])
 
 
 # ---------------------------------------------------------------------------
@@ -719,6 +841,8 @@ def main():
                    help="span of methylation across the GTEx-matched groups "
                         "below which no correlation is computed "
                         "(default %(default)s)")
+    p.add_argument("--annotation", action="append", default=[],
+                   help="NAME=PATH[:MODE][:WINDOW], repeatable")
     p.add_argument("--perms", type=int, default=1000)
     p.add_argument("--seed", type=int, default=0)
     a = p.parse_args()
@@ -845,6 +969,45 @@ def main():
             r["has_promoter_loop"] = int(npp > 0) if L else np.nan
         feats_bin.append("has_promoter_loop")
 
+    # ---------------------------------------- experimental annotations
+    for spec in a.annotation:
+        b, c = annotate(spec, rows)
+        feats_bin += b
+        feats_cont += c
+
+    # ------------------------------------------- promoter type (Lenhard 2012)
+    # positioned TATA box and initiator, tissue specificity (tau), Polycomb
+    # repression (ChromHMM annotations named *_polycomb), CAGE peak width
+    if a.fasta:
+        for r in rows:
+            seq = fa.fetch(r["chrom"], r["tss"] - 1000, r["tss"] + 1001)
+            o = oriented(seq, 1000, r["strand"]) if len(seq) == 2001 else ""
+            r["tata_positioned"] = int(tata_box(o)) if o else np.nan
+            r["inr"] = int(inr(o)) if o else np.nan
+        feats_bin += ["tata_positioned", "inr"]
+    if a.tpm and a.tpm.exists():
+        by_id, by_sym, _tc = load_tpm(a.tpm)
+        for r in rows:
+            vals = by_id.get(r["gene_id"])
+            vals = by_sym.get(r["gene"]) if vals is None else vals
+            t_ = tau(list(vals)) if vals is not None else None
+            r["tau"] = np.nan if t_ is None else round(t_, 4)
+        feats_cont.append("tau")
+    if "promoter_class" in rows[0]:
+        pcg_cols = [k for k in rows[0] if k.startswith("exp_") and k.endswith("_polycomb")]
+        for r in rows:
+            pv = [r[k] for k in pcg_cols if r.get(k, "") != "" and r[k] == r[k]]
+            pc = float(np.mean([float(x) > 0 for x in pv])) if pv else None
+            w = r.get("expw_cage_width", "")
+            w = float(w) if w not in ("", None) and w == w and float(w) > 0 else None
+            tu = r.get("tau", np.nan)
+            r["promoter_type"] = promoter_type(
+                r["promoter_class"], bool(r.get("tata_positioned", 0) == 1),
+                None if tu != tu else tu, pc, w)
+            for k in ("menage", "tissu", "developpement", "indetermine"):
+                r[f"type_{k}"] = int(r["promoter_type"] == k)
+        feats_bin += ["type_menage", "type_tissu", "type_developpement", "type_indetermine"]
+
     # -------------------------------------------------------------- tests
     tests = []
     if control:
@@ -879,6 +1042,13 @@ def main():
         write_tsv(a.out / "promoter_feature_tests.tsv", tests,
                   ["feature", "type", "n_target", "n_control", "target",
                    "control", "effect", "effect_kind", "p", "p_within_class"])
+        if "promoter_type" in rows[0]:
+            print("\npromoter types (share of genes)")
+            for s in ("mito", "control"):
+                sub = [r["promoter_type"] for r in rows if r["set"] == s]
+                print(f"  {s:8s}" + "".join(
+                    f"  {k} {100 * sub.count(k) / len(sub):5.1f}%"
+                    for k in ("menage", "tissu", "developpement", "indetermine")))
         if "promoter_class" in rows[0]:
             print("\npromoter classes (share of genes)")
             for s in ("mito", "control"):

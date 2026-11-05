@@ -61,6 +61,9 @@ med = m.groupby("class").score.median()
 assert med["transcriptional"] > 0.9 and med["noisy"] > 0.9, med
 assert abs(med["buffered"]) < 0.3 and abs(med["post"]) < 0.3, med
 assert (m[m["class"] == "flat"].status == "flat").all()
+assert (m[m["class"] == "flat"].l1_class == "not_estimable").all()
+assert (m[m["class"] == "transcriptional"].l1_class == "transmitted").mean() > 0.8
+assert (m[m["class"].isin(["buffered", "post"])].l1_class != "transmitted").mean() > 0.8
 assert m[m["class"] == "flat"].score.isna().all()
 assert (m[m["class"] != "flat"].status == "estimable").all()
 noisy = m[m["class"] == "noisy"]

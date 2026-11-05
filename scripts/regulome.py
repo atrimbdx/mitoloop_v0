@@ -210,12 +210,14 @@ def write_tsv(path: Path, rows: list, cols: list) -> None:
 
 
 def read_table(path) -> list:
+    """rows as dicts; tab-separated, or comma-separated for a .csv"""
+    sep = "," if str(path).endswith((".csv", ".csv.gz")) else "\t"
     with opener(path) as fh:
-        head = fh.readline().rstrip("\n").lstrip("#").split("\t")
+        head = fh.readline().rstrip("\n").lstrip("#").split(sep)
         rows = []
         for line in fh:
             if line.strip():
-                f = line.rstrip("\n").split("\t")
+                f = line.rstrip("\n").split(sep)
                 rows.append(dict(zip(head, f + [""] * (len(head) - len(f)))))
     return rows
 
@@ -241,21 +243,43 @@ def to_float(x):
 # ===========================================================================
 # pathways
 
+def sheet_records(d, is_header) -> list | None:
+    """rows of a sheet read without header, as dicts keyed by the first row
+    with a cell for which is_header(lower-case cell) is true; column names
+    are strings, empty cells ''. (Sheet C of MitoCarta3.0 has a title row
+    and numeric cells above its header.)"""
+    d = d.fillna("")
+    for i in range(min(len(d), 20)):
+        cells = [str(x).strip() for x in d.iloc[i]]
+        if any(is_header(c.lower()) for c in cells):
+            head = [c or f"col{k}" for k, c in enumerate(cells)]
+            return [dict(zip(head, (str(x).strip() for x in row)))
+                    for row in d.iloc[i + 1:].itertuples(index=False)]
+    return None
+
+
 def read_mitocarta(path: Path, c_path: Path | None):
     """(gene -> record, leaf name -> hierarchy list) from MitoCarta3.0."""
     import pandas as pd
     a_rows, c_rows = None, None
     if str(path).endswith((".xls", ".xlsx")):
         try:
-            sheets = pd.read_excel(path, sheet_name=None)
+            sheets = pd.read_excel(path, sheet_name=None, header=None,
+                                   dtype=str)
         except ImportError:
             sys.exit("reading the .xls needs xlrd; or export the sheets 'A "
                      "Human MitoCarta3.0' and 'C MitoPathways' as TSV")
         for name, d in sheets.items():
+            name = str(name).strip()
             if name.startswith("A") and a_rows is None:
-                a_rows = d.fillna("").astype(str).to_dict("records")
+                a_rows = sheet_records(d, lambda c: c == "symbol")
+                print(f"MitoCarta sheet {name!r}: {len(a_rows or [])} rows")
             elif name.startswith("C") and c_rows is None:
-                c_rows = d.fillna("").astype(str).to_dict("records")
+                c_rows = sheet_records(d, lambda c: "hierarchy" in c)
+                print(f"MitoCarta sheet {name!r}: {len(c_rows or [])} rows")
+        if not a_rows:
+            sys.exit(f"{path}: no sheet starting with 'A' and a 'Symbol' "
+                     f"column; sheets: {list(sheets)}")
     else:
         a_rows = read_table(path)
     if c_path:
@@ -266,7 +290,7 @@ def read_mitocarta(path: Path, c_path: Path | None):
     hier = {}                  # leaf -> list of levels
     c_members = defaultdict(set)
     for r in c_rows or []:
-        keys = {k.lower().strip(): k for k in r}
+        keys = {str(k).lower().strip(): k for k in r}
         hk = next((keys[k] for k in keys if "hierarchy" in k), None)
         lk = next((keys[k] for k in keys if k in ("mitopathway",
                                                    "mitopathways")), None)
@@ -1029,8 +1053,10 @@ def cmd_compare(a) -> None:
 
     if a.promoters:
         per_gene(a.promoters, ["gc", "cpg_oe", "cpg_island", "bidirectional",
-                               "n_promoter_loops", "motif_"], "promoter",
-                 binary=("motif_", "cpg_island", "bidirectional"))
+                               "n_promoter_loops", "motif_", "exp_", "expw_",
+                               "expn_"],
+                 "promoter",
+                 binary=("motif_", "cpg_island", "bidirectional", "exp_"))
         hcp = np.full(n, np.nan)
         for r in read_table(a.promoters):
             i = gi.get(r["gene"])

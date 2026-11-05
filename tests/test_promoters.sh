@@ -76,6 +76,13 @@ F=pf/promoter_features.tsv
 [ "$(cell $F tss MITOG2)" = 400000 ] || fail "MANE TSS (-)"
 [ "$(cell $F cpg_island MITOG1)" = 1 ] || fail "CpG island"
 [ "$(cell $F cpg_island CTRLG30)" = 0 ] || fail "no CpG island"
+# promoter type: a CpG-poor control is tissu; CpG-rich promoters are menage or
+# depend on tau; the type columns are tested against the controls
+[ "$(cell $F promoter_type CTRLG30)" = tissu ] || fail "type of a CpG-poor promoter"
+case "$(cell $F promoter_type MITOG7)" in menage|tissu|indetermine) ;; *) fail "type of MITOG7";; esac
+[ -n "$(cell $F tau MITOG7)" ] || fail "tau"
+[ -n "$(cell pf/promoter_feature_tests.tsv p type_menage)" ] || fail "type test"
+[ -n "$(cell pf/promoter_feature_tests.tsv p tata_positioned)" ] || fail "TATA test"
 T=pf/promoter_feature_tests.tsv
 check "$(cell $T p motif_NRF1)" 1e-6 "a<b" "NRF1 enrichment"
 check "$(cell $T p_within_class motif_NRF1)" 0.05 "a<b" "NRF1 within classes"
@@ -94,6 +101,58 @@ check "$(cell $T target bidirectional)" 0.3333 "abs(a-b)<0.001" "bidirectional s
 [ "$(cell $F n_loops MITOG9)" = 1 ] || fail "loop count"
 
 # --------------------------------------------------------- 3. methylation
+# experimental annotations: ChIP peaks (one long peak nesting a short one),
+# CAGE peak widths, ChromHMM states at the TSS, SCREEN classes in column 6
+python3 - <<'PY'
+import gzip
+import pandas as pd
+f = pd.read_csv("pf/promoter_features.tsv", sep="\t")
+tss = dict(zip(f.gene, f.tss))
+with open("chip.bed", "w") as fh:
+    for g in f[f.set == "mito"].gene:
+        fh.write(f"chr1\t{tss[g] - 100}\t{tss[g] + 100}\tNRF1:K-562,HepG2,GM12878\n")
+    fh.write(f"chr1\t{tss['CTRLG2'] - 50000}\t{tss['CTRLG2'] - 20000}\tlong\n")
+    fh.write(f"chr1\t{tss['CTRLG2'] - 30000}\t{tss['CTRLG2'] - 29000}\tshort\n")
+with open("cage.bed", "w") as fh:
+    fh.write(f"chr1\t{tss['MITOG1'] - 10}\t{tss['MITOG1'] + 10}\tp1\n")
+    fh.write(f"chr1\t{tss['MITOG2'] - 150}\t{tss['MITOG2'] + 150}\tp2\n")
+    fh.write(f"chr1\t{tss['MITOG2'] + 400}\t{tss['MITOG2'] + 405}\tp3\n")
+with gzip.open("states.bed.gz", "wt") as fh:
+    rows = sorted([(tss["MITOG1"] - 600, tss["MITOG1"] + 400, "1_TssA"),
+                   (tss["CTRLG30"] - 500_000, tss["CTRLG30"] + 500_000, "15_Quies")])
+    for s, e, n in rows:
+        fh.write(f"chr1\t{s}\t{e}\t{n}\n")
+with open("epd.bed", "w") as fh:                    # EPDnew: spaces, a header
+    fh.write("track name=EPDnew\n")
+    fh.write(f"chr1 {tss['MITOG5'] - 49} {tss['MITOG5'] + 11} MITOG5_1 900 +\n")
+with open("ccre.bed", "w") as fh:
+    fh.write(f"chr1\t{tss['MITOG7'] - 150}\t{tss['MITOG7'] + 150}\tEH38D1\tEH38E1\tPLS,CTCF-bound\n")
+    fh.write(f"chr1\t{tss['MITOG8'] - 900}\t{tss['MITOG8'] - 600}\tEH38D2\tEH38E2\tpELS\n")
+PY
+python3 "$SCRIPTS/promoter_features.py" --gtf gencode.gtf.gz \
+    --genes genes.txt --controls controls.txt --perms 50 --out pa \
+    --annotation chip=chip.bed --annotation cage=cage.bed:width:200 \
+    --annotation tssA=states.bed.gz:label=TssA:0 \
+    --annotation pls=ccre.bed:label=^PLS --annotation epd=epd.bed:overlap:100 \
+    --annotation bound=chip.bed:biotypes \
+    --annotation absent=nofile.bed > pa.log
+[ "$(cell pa/promoter_features.tsv exp_epd MITOG5)" = 1 ] || fail "EPDnew BED with spaces"
+[ "$(cell pa/promoter_features.tsv expn_bound MITOG3)" = 3 ] || fail "ReMap biosamples"
+[ "$(cell pa/promoter_features.tsv expn_bound CTRLG2)" = 0 ] || fail "no ReMap peak"
+[ "$(cell pa/promoter_features.tsv exp_epd MITOG6)" = 0 ] || fail "no EPDnew TSS"
+A=pa/promoter_features.tsv
+[ "$(cell $A exp_chip MITOG3)" = 1 ] || fail "ChIP peak on a target"
+[ "$(cell $A exp_chip CTRLG2)" = 0 ] || fail "ChIP peak away from the promoter"
+[ "$(cell $A expw_cage MITOG1)" = 20 ] || fail "sharp CAGE peak"
+[ "$(cell $A expw_cage MITOG2)" = 300 ] || fail "broad CAGE peak (nearest of two)"
+[ "$(cell $A expw_cage MITOG3)" = NA ] || fail "no CAGE peak"
+[ "$(cell $A exp_tssA MITOG1)" = 1 ] || fail "TssA state"
+[ "$(cell $A exp_tssA CTRLG30)" = 0 ] || fail "quiescent state"
+[ "$(cell $A exp_pls MITOG7)" = 1 ] || fail "PLS cCRE"
+[ "$(cell $A exp_pls MITOG8)" = 0 ] || fail "pELS is not PLS"
+grep -q "absent: nofile.bed absent, skipped" pa.log || fail "absent annotation file"
+check "$(cell pa/promoter_feature_tests.tsv p exp_chip)" 1e-6 "a<b" "ChIP enrichment test"
+
 G=pf/methylation_by_group.tsv
 for grp in "skeletal muscle" liver brain heart; do
     check "$(cell $G "$grp" MITOG1)" 0.05 "abs(a-b)<0.01" "MITOG1 $grp"

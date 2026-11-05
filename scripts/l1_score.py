@@ -60,7 +60,12 @@ Inputs
 
 Outputs
     score (in --out)
-      l1.tsv            per gene: gene, gene_id, set, n_tissues, n_pairs,
+      l1.tsv            per gene (score_resid: L1 minus the median L1 of
+                        the genes with the same mRNA variation): gene,
+                        gene_id, set, n_tissues, n_pairs, l1_class
+                        (transmitted: 95% interval above --class-high;
+                        not_transmitted: below --class-low; uncertain;
+                        not_estimable),
                         sd_rna, sd_protein (across tissue means, log2),
                         rel_rna, rel_protein, rel_ratio (split-half
                         reliabilities), r and rho (raw Pearson and Spearman
@@ -68,7 +73,9 @@ Outputs
                         share_mrna, status, score; with complexes: complex,
                         complex_score, protein_coupling, rna_coupling
       l1_complexes.tsv  the same statistics for each complex
-      l1_summary.tsv    per set: genes per status, median score
+      l1_summary.tsv    per set: genes per status, median score, median
+                        residual at equal mRNA variation and its comparison
+                        with the controls (P(set > control), Mann-Whitney p)
       content_index.tsv per sample: mitochondrial content index, RNA and
                         protein
     validate (in --out)
@@ -97,7 +104,16 @@ Method
     the content set (--content-genes, default the gene set), the median of
     the set in each sample is subtracted, RNA and protein separately: L1
     then asks whether the share of the gene within mitochondria follows its
-    mRNA share. --no-content-adjustment keeps raw values.
+    mRNA share. The control genes are centred in the same way on the median
+    of the control set: centring on a set median raises L1 by itself (on
+    the GTEx proteome, random gene sets go from 0.59 to about 0.70), so the
+    sets are compared only with the same treatment.
+    --no-content-adjustment keeps raw values.
+
+    Set comparison. L1 rises with the variation of the mRNA across tissues
+    (more signal to follow). Sets are compared on the residual of L1 within
+    20 bins of sd_rna computed over all scored genes, i.e. at equal mRNA
+    variation (median_resid, P(set > control), Mann-Whitney).
 
     Concordance. Per gene, the tissue means of RNA and protein (samples with
     both values) give two profiles; r is their Pearson correlation. The
@@ -137,8 +153,9 @@ Method
     of L1).
 
 Usage
-    python3 l1_score.py score --rna data/gtex_jiang_counts.gct.gz \\
-        --protein data/jiang2020_protein.tsv --samples data/jiang2020_samples.tsv \\
+    python3 l1_score.py score --rna data/jiang2020_rna_samples.tsv \\
+        --protein data/jiang2020_protein_samples.tsv \\
+        --samples data/jiang2020_samples.tsv \\
         --covariates SMTSISCH --gtf data/gencode.gtf.gz \\
         --genes results/regulome/pathways.tsv \\
         --pathways results/regulome/pathways.tsv --out results/l1
@@ -451,6 +468,21 @@ def concordance(R, P, tissue_of, a, rng, labels):
 # ---------------------------------------------------------------------------
 # score
 
+def l1_class(r, high, low) -> str:
+    """transmitted: the 95% interval above `high`; not_transmitted: below
+    `low`; uncertain in between; not_estimable without a score"""
+    if not str(r.get("status", "")).startswith("estimable"):
+        return "not_estimable"
+    lo, hi = to_float(r.get("ci_low")), to_float(r.get("ci_high"))
+    if np.isnan(lo) or np.isnan(hi):
+        return "uncertain"
+    if lo > high:
+        return "transmitted"
+    if hi < low:
+        return "not_transmitted"
+    return "uncertain"
+
+
 def cmd_score(a) -> None:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -515,6 +547,17 @@ def cmd_score(a) -> None:
                   ["rna_sample", "protein_sample", "tissue", "content_rna",
                    "content_protein"])
         print(f"mitochondrial content removed for {int(cidx.sum())} genes")
+        # the same treatment for the controls, each centred on the median of
+        # the control set per sample: centring on a set median raises L1 by
+        # itself (a shared sample factor goes, and genes left with little
+        # variation become flat), so a set comparison needs it on both sides
+        kidx = np.array([set_of.get(g) == "control" for g in genes]) & ~cidx
+        if kidx.sum() >= 10:
+            with np.errstate(all="ignore"):
+                R[kidx] -= np.nanmedian(R[kidx], 0)[None, :]
+                P[kidx] -= np.nanmedian(P[kidx], 0)[None, :]
+            print(f"control genes centred on their own median for "
+                  f"{int(kidx.sum())} genes")
 
     stats, mR, mP = concordance(R, P, tissue_of, a, rng, genes)
     if all(np.isnan(s["rel_rna"]) for s in stats):
@@ -595,27 +638,63 @@ def cmd_score(a) -> None:
                   ["complex", "n_subunits"] + [c for c in cols[3:18]
                                                if c != "rho"] + ["rho"])
 
+    # L1 rises with the variation of the mRNA across tissues (more signal):
+    # sets are also compared on the residual of L1 within 20 bins of sd_rna
+    # (all scored genes), i.e. at equal mRNA variation
+    from scipy.stats import mannwhitneyu
+    sc_all = np.array([r["score"] for r in rows], float)
+    sd_all = np.array([r["sd_rna"] for r in rows], float)
+    ok = ~np.isnan(sc_all) & ~np.isnan(sd_all)
+    resid = np.full(len(rows), np.nan)
+    if ok.sum() >= 40:
+        order = np.argsort(sd_all[ok])
+        bins = np.empty(ok.sum(), int)
+        bins[order] = np.arange(ok.sum()) * 20 // ok.sum()
+        sub_sc = sc_all[ok]
+        med = np.array([np.median(sub_sc[bins == b]) for b in range(20)])
+        resid[ok] = sub_sc - med[bins]
+    sets = np.array([r["set"] for r in rows])
+    ctrl = resid[(sets == "control") & ~np.isnan(resid)]
+    # per gene: the score at equal mRNA variation, for ranking genes; and
+    # the class read from the 95% interval, for annotating variants
+    for r, x in zip(rows, resid):
+        r["score_resid"] = x
+        r["l1_class"] = l1_class(r, a.class_high, a.class_low)
+    write_tsv(out / "l1.tsv", rows, cols + ["score_resid", "l1_class"])
+
     summ = []
     statuses = ["estimable", "estimable_uncorrected", "unreliable", "flat",
                 "too_few_tissues"]
     print(f"\n{'set':9s}{'genes':>7s}" + "".join(f"{s[:12]:>14s}"
                                                  for s in statuses)
-          + f"{'median':>9s}")
+          + f"{'median':>9s}{'resid':>8s}{'P>ctrl':>8s}{'p':>9s}")
     for lab in ("mito", "control", "other"):
         sub = [r for r in rows if r["set"] == lab]
         if not sub:
             continue
         sc = np.array([r["score"] for r in sub], float)
         sc = sc[~np.isnan(sc)]
+        rs = resid[(sets == lab) & ~np.isnan(resid)]
         x = {"set": lab, "genes": len(sub),
              **{s: sum(r["status"] == s for r in sub) for s in statuses},
-             "median_score": float(np.median(sc)) if len(sc) else np.nan}
+             "median_score": float(np.median(sc)) if len(sc) else np.nan,
+             "median_resid": float(np.median(rs)) if len(rs) else np.nan,
+             "p_above_control": np.nan, "p_control": np.nan}
+        if lab != "control" and len(rs) and len(ctrl):
+            u = mannwhitneyu(rs, ctrl)
+            x["p_above_control"] = float(u.statistic / len(rs) / len(ctrl))
+            x["p_control"] = float(u.pvalue)
         summ.append(x)
         print(f"{lab:9s}{len(sub):7d}" + "".join(f"{x[s]:14d}"
                                                  for s in statuses)
-              + f"{x['median_score']:9.3f}")
+              + f"{x['median_score']:9.3f}{x['median_resid']:8.3f}"
+              + f"{x['p_above_control']:8.3f}{x['p_control']:9.2g}")
+    print("resid: L1 minus the median L1 of the genes with the same mRNA "
+          "variation (sd_rna); P>ctrl: probability that a gene of the set "
+          "has a higher residual than a control gene")
     write_tsv(out / "l1_summary.tsv", summ,
-              ["set", "genes"] + statuses + ["median_score"])
+              ["set", "genes"] + statuses + ["median_score", "median_resid",
+                                             "p_above_control", "p_control"])
     print(f"Written to {out}")
 
 
@@ -781,6 +860,19 @@ def cmd_validate(a) -> None:
                               "agrees": int(odds > 1),
                               "detail": f"{k1}/{len(top)} vs "
                                         f"{k2}/{len(bot)}"})
+        # the same events by l1_class (the classes used to annotate variants)
+        cls = {g: r.get("l1_class", "") for g, r in l1.items()}
+        tr = [e["propagated"] for e in events if cls.get(e["gene"]) == "transmitted"]
+        nt = [e["propagated"] for e in events if cls.get(e["gene"]) == "not_transmitted"]
+        if tr and nt:
+            k1, k2 = sum(tr), sum(nt)
+            odds, p = fisher_exact([[k1, len(tr) - k1], [k2, len(nt) - k2]])
+            tests.append({"test": "outlier_propagation_by_l1_class",
+                          "n": len(tr) + len(nt), "statistic": "odds_ratio",
+                          "value": float(odds), "p": float(p), "expected": "+",
+                          "agrees": int(odds > 1),
+                          "detail": f"transmitted {k1}/{len(tr)} vs "
+                                    f"not_transmitted {k2}/{len(nt)}"})
         print(f"  {len(events)} RNA outliers, "
               f"{sum(e['propagated'] for e in events)} reaching the protein")
 
@@ -832,6 +924,10 @@ def main():
                    help="noise-corrected sd across tissues (log2) below "
                         "which a gene is flat (default %(default)s)")
     s.add_argument("--min-reliability", type=float, default=0.3)
+    s.add_argument("--class-high", type=float, default=0.5,
+                   help="l1_class transmitted: ci_low above this")
+    s.add_argument("--class-low", type=float, default=0.3,
+                   help="l1_class not_transmitted: ci_high below this")
     s.add_argument("--min-reliability-tissues", type=int, default=5,
                    help="tissues with two samples needed for the "
                         "reliabilities (default %(default)s)")
