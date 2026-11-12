@@ -1,0 +1,29 @@
+# Liste de ce qu'on garde sur Curta (archiver_curta.py --garder). Une ligne par chemin,
+# séparateur : tabulation. Tout le reste des racines (--racines) est archivé.
+#   anr     CHEMIN [NOM]  résultat derrière le texte ANR : copié, en lecture seule, dans ANR_AAPG2027/
+#   dev     CHEMIN [NOM]  résultat final de la version actuelle : gardé en place et copié dans dev/resultats_finaux/
+#   garder  CHEMIN        gardé en place, non copié
+#   depot   CHEMIN        dépôt git : .git et fichiers suivis gardés, le reste archivé sauf s'il est listé
+# Les chemins ci-dessous sont ceux attendus d'après mitoloop_v0 (README) : à corriger avec
+# l'inventaire (cles.tsv), en particulier pour savoir quel fichier de boucles donne les 2 193
+# boucles / 907 promoteurs et quel recouvrement donne 208 / 1 057.
+depot	~/mitoloop_v0
+garder	~/mitoloop_v0/data
+garder	~/mitoloop_v0/.venv-regulome
+garder	~/mitoloop_v0/genes.txt
+garder	~/mitoloop_v0/controls.txt
+# version déposée à l'ANR (AAPG 2027)
+anr	~/mitoloop_v0/results/libraries.tsv	libraries_66_HiC.tsv
+anr	~/mitoloop_v0/results/loops/loops.tsv	boucles_2193.tsv
+anr	~/mitoloop_v0/results/loops/assoc_loops.tsv	assoc_boucles_mtCN.tsv
+anr	~/mitoloop_v0/results/re2g/re2g_elements.tsv	elements_re2g_3135.tsv
+anr	~/mitoloop_v0/results/re2g/re2g_per_gene.tsv
+anr	~/mitoloop_v0/results/overlap	recouvrement_boucles_elements
+anr	~/mitoloop_v0/results/eqtl	eqtl_controles
+# version en développement : listes finales
+dev	~/mitoloop_v0/results/loops/loops.tsv	boucles_finales.tsv
+dev	~/mitoloop_v0/results/re2g/re2g_elements.tsv	elements_re2g_finaux.tsv
+dev	~/mitoloop_v0/results/overlap	recouvrement_final
+dev	~/mitoloop_v0/results/l1_raw/l1.tsv	transmission_arn_proteine.tsv
+garder	~/mitoloop_v0/results/regulome
+garder	~/mitoloop_v0/results/promoters
