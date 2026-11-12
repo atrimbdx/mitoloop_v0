@@ -42,8 +42,6 @@ Usage
 Python 3 standard library ; tar and git.
 """
 
-from __future__ import annotations
-
 import argparse
 import datetime
 import hashlib
@@ -182,7 +180,7 @@ def main():
         {l for c, _k, _n, l in keep_rows if c != "depot"}
     for c, k, _n, _l in keep_rows:                 # dépôt : .git et fichiers suivis
         if c == "depot":
-            res = subprocess.run(["git", "-C", k, "ls-files", "-z"], capture_output=True, text=True)
+            res = subprocess.run(["git", "-C", k, "ls-files", "-z"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             if res.returncode:
                 sys.exit(f"{k} n'est pas un dépôt git")
             keep |= {os.path.join(k, ".git")} | {os.path.join(k, x) for x in res.stdout.split("\0") if x}
@@ -228,7 +226,9 @@ def main():
         d.mkdir(parents=True, exist_ok=True)
         tgt = d / n
         if os.path.isdir(k):
-            shutil.copytree(k, tgt, symlinks=False, dirs_exist_ok=True)
+            if tgt.exists():
+                shutil.rmtree(str(tgt))
+            shutil.copytree(k, str(tgt), symlinks=False)       # Python 3.6 : pas de dirs_exist_ok
             files = [x for x in tgt.rglob("*") if x.is_file()]
         else:
             shutil.copy2(k, tgt)
@@ -245,12 +245,12 @@ def main():
         repo = real(repo)
         anr.mkdir(parents=True, exist_ok=True)
         subprocess.run(["git", "-C", repo, "tag", "-f", "anr-aapg2027", commit], check=True,
-                       capture_output=True)
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         b = anr / f"{os.path.basename(repo)}_anr-aapg2027.bundle"
         subprocess.run(["git", "-C", repo, "bundle", "create", str(b), "anr-aapg2027"], check=True,
-                       capture_output=True)
-        full = subprocess.run(["git", "-C", repo, "rev-parse", commit], capture_output=True,
-                              text=True).stdout.strip()
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        full = subprocess.run(["git", "-C", repo, "rev-parse", commit], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              universal_newlines=True).stdout.strip()
         man.append(("anr", f"{repo}@{full}", str(b), b.stat().st_size, sha256(b)))
     if man:
         with open(ref / "MANIFEST.tsv", "w") as fo:
@@ -284,7 +284,7 @@ def main():
         lst.write_text("".join(os.path.relpath(u, "/") + "\n" for u in us))
         print(f"archive : {tgz} ({len(us)} éléments, {hum(sum(sizes[u] for u in us))})")
         subprocess.run(["tar", "-czf", str(tgz), "-C", "/", "--files-from", str(lst)], check=True)
-        members = set(subprocess.run(["tar", "-tzf", str(tgz)], capture_output=True, text=True,
+        members = set(subprocess.run(["tar", "-tzf", str(tgz)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                                      check=True).stdout.splitlines())
         members = {m.rstrip("/") for m in members}
         missing = [u for u in us if os.path.relpath(u, "/") not in members]

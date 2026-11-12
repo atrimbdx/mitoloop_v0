@@ -90,7 +90,7 @@ for r in roots:
     for dp, dn, fn in os.walk(r):
         if ".git" in dn:
             g = dp
-            q = lambda *a: subprocess.run(["git", "-C", g, *a], capture_output=True, text=True).stdout.strip()
+            q = lambda *a: subprocess.run(["git", "-C", g, *a], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True).stdout.strip()
             res.append(f"   {g}\n      remote {q('remote', 'get-url', 'origin') or '-'} ; branche {q('rev-parse', '--abbrev-ref', 'HEAD')} ; "
                        f"commit {q('log', '-1', '--format=%h %cs %s')[:90]} ; modifiés non commités {len(q('status', '--porcelain').splitlines())}")
             dn.remove(".git")
