@@ -46,6 +46,11 @@ for a in M1 K1; do
 done
 python3 "$S/loops_par_tissu.py" partenaires --dir T --export exp_old --out manq.tsv 2> p.log || { cat p.log; fail partenaires; }
 [ "$(cut -f1 manq.tsv | tail -n +2)" = "P_chr2_900000" ] || { cat manq.tsv; fail "missing partners"; }
+# --genes: only the partners of the peaks of the wanted genes
+printf 'term\tgene\tchrom\tvp_pos\tn_libs\tstart\tend\tsummit\tsummit_ratio\nrein\tGB\tchr2\t70000\t1\t890000\t910000\t900000\t2\nrein\tCTRL\tchr1\t10000\t1\t290000\t310000\t300000\t2\n' > T/rein/peaks_mito.tsv
+printf 'GB\n' > mito.txt
+python3 "$S/loops_par_tissu.py" partenaires --dir T --export exp_old --genes mito.txt --out manq2.tsv 2> p2.log || { cat p2.log; fail "partenaires --genes"; }
+grep -q "^2 partenaires\|^1 partenaires" p2.log && [ "$(cut -f1 manq2.tsv | tail -n +2)" = "P_chr2_900000" ] || { cat p2.log manq2.tsv; fail "partenaires --genes content"; }
 python3 "$S/loops_par_tissu.py" fusionner --export exp_old exp_new --out exp_all 2> f.log || { cat f.log; fail fusionner; }
 [ "$(zcat exp_all/K1.tsv.gz | cut -f1,4 | tr '\t\n' ' ;')" = "name -10000;P_chr1_300000 1;P_chr2_900000 4;" ] \
     || { zcat exp_all/K1.tsv.gz; fail "merged export"; }

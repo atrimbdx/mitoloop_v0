@@ -115,9 +115,20 @@ def export_names(path):
 
 
 def cmd_partenaires(a):
+    # partenaires des pics des gènes voulus (--genes : sans les gènes témoins de l'export)
+    want = set(Path(a.genes).read_text().split()) if a.genes else None
+    keep_pos = None
+    if want is not None:
+        keep_pos = set()
+        for f in sorted(Path(a.dir).glob("*/peaks_mito.tsv")):
+            for r in read_tsv(f):
+                if r["gene"] in want:
+                    keep_pos.add((r["chrom"], str(int(float(r["summit"])))))
     parts, names = [], set()
     for f in sorted(Path(a.dir).glob("*/partners.tsv")):      # partenaires de tous les tissus
         for p in read_tsv(f):
+            if keep_pos is not None and (p["chrom"], str(int(float(p["pos"])))) not in keep_pos:
+                continue
             if p["name"] not in names:
                 names.add(p["name"])
                 parts.append(p)
@@ -128,7 +139,8 @@ def cmd_partenaires(a):
         fo.write("name\tchrom\tpos\tset\n")
         for p in miss:
             fo.write(f"{p['name']}\t{p['chrom']}\t{p['pos']}\t{p.get('set', 'partner')}\n")
-    print(f"{len(parts)} partenaires (tous tissus), {len(parts) - len(miss)} déjà dans {a.export}, "
+    print(f"{len(parts)} partenaires (tous tissus{', gènes de --genes' if want else ''}), "
+          f"{len(parts) - len(miss)} déjà dans {a.export}, "
           f"{len(miss)} à extraire -> {a.out}", file=sys.stderr)
 
 
@@ -217,6 +229,7 @@ def main():
     s = sub.add_parser("partenaires")
     s.add_argument("--dir", required=True, help="dossier des tissus (<tissu>/partners.tsv)")
     s.add_argument("--export", required=True, help="existing partner export folder")
+    s.add_argument("--genes", default="", help="viewpoints kept (genes.txt : mitochondrial only)")
     s.add_argument("--out", required=True)
     s = sub.add_parser("fusionner")
     s.add_argument("--export", nargs=2, required=True, help="two export folders")
