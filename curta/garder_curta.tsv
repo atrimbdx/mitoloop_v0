@@ -1,0 +1,50 @@
+# Liste à garder pour archiver_curta.py, établie d'après l'inventaire du 12/11/2026.
+# Racines : /scratch/atrimouille/MITODARK /scratch/atrimouille/mitoloop_v0 /gpfs/home/atrimouille/mitoloop_v0
+# Tout ce qui n'est pas listé ici (ni cible d'un lien utilisé) est archivé.
+#
+# ---- version déposée à l'ANR (AAPG 2027) : copiée en lecture seule dans ANR_AAPG2027/resultats/
+# boucles : 2 193 boucles à 907 promoteurs (>= 3 tissus) et association avec le mtCN
+anr	/scratch/atrimouille/MITODARK/loops/assoc_loops.tsv	boucles_2193_907promoteurs_mtCN.tsv
+anr	/scratch/atrimouille/MITODARK/loops/assoc_global.tsv	association_globale_mtCN.tsv
+anr	/scratch/atrimouille/MITODARK/loops/assoc_null.tsv	association_null_permutations.tsv
+anr	/scratch/atrimouille/MITODARK/loops/loops.tsv	boucles_toutes_4392.tsv
+anr	/scratch/atrimouille/MITODARK/loops/loops_calls.tsv	appels_peakC.tsv
+anr	/scratch/atrimouille/MITODARK/loops/loops_tissues.tsv	boucles_par_tissu.tsv
+anr	/scratch/atrimouille/MITODARK/loops/assoc_volcano.svg	assoc_volcano.svg
+anr	/scratch/atrimouille/MITODARK/loops_both/tissue_strength_libraries.tsv	librairies_66_HiC_force.tsv
+anr	/scratch/atrimouille/MITODARK/libraries.tsv	librairies_HiC.tsv
+anr	/scratch/atrimouille/MITODARK/loops_ctrl	boucles_temoins
+# éléments rE2G (70 390 éléments, 3 334 gènes mito + témoins ; les 3 135 répliqués en sont tirés)
+anr	/scratch/atrimouille/MITODARK/figure1C	elements_re2g
+# recouvrement boucles / éléments (« seulement 20 % »)
+anr	/scratch/atrimouille/MITODARK/figure1CD_muscle/peaks_vs_elements.tsv	recouvrement_boucles_elements_muscle.tsv
+# figures (la figure 1 de l'ANR et ses versions)
+anr	/scratch/atrimouille/MITODARK/figure1	figure1
+anr	/scratch/atrimouille/MITODARK/figures	figures
+anr	/scratch/atrimouille/MITODARK/figure1E	figure1E
+anr	/scratch/atrimouille/MITODARK/figure_distance	figure_distance_eqtl
+#
+# ---- version en développement : listes finales copiées dans dev/resultats_finaux/ et gardées en place
+dev	/scratch/atrimouille/MITODARK/loops/assoc_loops.tsv	boucles_finales_2193.tsv
+dev	/scratch/atrimouille/MITODARK/loops/loops.tsv	boucles_toutes.tsv
+dev	/gpfs/home/atrimouille/mitoloop_v0/results/re2g/re2g_elements.tsv	elements_re2g.tsv
+dev	/scratch/atrimouille/MITODARK/figure1CD_muscle/peaks_vs_elements.tsv	recouvrement_boucles_elements.tsv
+#
+# ---- dépôt de la version actuelle (code suivi par git) et ce qu'il faut pour relancer
+depot	/gpfs/home/atrimouille/mitoloop_v0
+garder	/gpfs/home/atrimouille/mitoloop_v0/data
+garder	/gpfs/home/atrimouille/mitoloop_v0/.venv-regulome
+garder	/gpfs/home/atrimouille/mitoloop_v0/genes.txt
+garder	/gpfs/home/atrimouille/mitoloop_v0/results/re2g
+garder	/gpfs/home/atrimouille/mitoloop_v0/results/l1
+garder	/gpfs/home/atrimouille/mitoloop_v0/results/l1_raw
+garder	/gpfs/home/atrimouille/mitoloop_v0/results/regulome
+garder	/gpfs/home/atrimouille/mitoloop_v0/results/promoters
+garder	/gpfs/home/atrimouille/mitoloop_v0/results/jiang2020
+garder	/gpfs/home/atrimouille/mitoloop_v0/results/kopajtich
+#
+# ---- données publiques volumineuses, re-téléchargeables (ENCODE) : laissées en place, pas
+#      d'archive de 157 Go ; à supprimer à la main plus tard si l'espace manque (accessions ENCFF
+#      dans les noms de fichiers)
+garder	/scratch/atrimouille/MITODARK/hic
+garder	/scratch/atrimouille/MITODARK/data/re2g
