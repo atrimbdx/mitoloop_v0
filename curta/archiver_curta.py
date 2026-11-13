@@ -225,6 +225,7 @@ def main():
         d = (anr / "resultats") if c == "anr" else dev
         d.mkdir(parents=True, exist_ok=True)
         tgt = d / n
+        tgt.parent.mkdir(parents=True, exist_ok=True)
         if os.path.isdir(k):
             if tgt.exists():
                 shutil.rmtree(str(tgt))

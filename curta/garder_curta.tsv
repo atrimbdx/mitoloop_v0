@@ -23,6 +23,65 @@ anr	/scratch/atrimouille/MITODARK/figure1	figure1
 anr	/scratch/atrimouille/MITODARK/figures	figures
 anr	/scratch/atrimouille/MITODARK/figure1E	figure1E
 anr	/scratch/atrimouille/MITODARK/figure_distance	figure_distance_eqtl
+
+# code et entrées qui ont produit les résultats de l'ANR (versions de MITODARK, telles qu'exécutées)
+anr	/scratch/atrimouille/MITODARK/README.md	code/README.md
+anr	/scratch/atrimouille/MITODARK/_common.sh	code/_common.sh
+anr	/scratch/atrimouille/MITODARK/01_setup.sh	code/01_setup.sh
+anr	/scratch/atrimouille/MITODARK/02_hic_fetch.sh	code/02_hic_fetch.sh
+anr	/scratch/atrimouille/MITODARK/10_re2g.sbatch	code/10_re2g.sbatch
+anr	/scratch/atrimouille/MITODARK/11_hic.sbatch	code/11_hic.sbatch
+anr	/scratch/atrimouille/MITODARK/20_hic_panel.sbatch	code/20_hic_panel.sbatch
+anr	/scratch/atrimouille/MITODARK/extract.sbatch	code/extract.sbatch
+anr	/scratch/atrimouille/MITODARK/run_r.sbatch	code/run_r.sbatch
+anr	/scratch/atrimouille/MITODARK/run_vp4c.sh	code/run_vp4c.sh
+anr	/scratch/atrimouille/MITODARK/submit_all.sh	code/submit_all.sh
+anr	/scratch/atrimouille/MITODARK/submit_hic_panel.sh	code/submit_hic_panel.sh
+anr	/scratch/atrimouille/MITODARK/curta.env.example	code/curta.env.example
+anr	/scratch/atrimouille/MITODARK/encode_manifest.py	code/encode_manifest.py
+anr	/scratch/atrimouille/MITODARK/check_extract.py	code/check_extract.py
+anr	/scratch/atrimouille/MITODARK/hic_panel.py	code/hic_panel.py
+anr	/scratch/atrimouille/MITODARK/vp4c.py	code/vp4c.py
+anr	/scratch/atrimouille/MITODARK/vp4c_enrich.py	code/vp4c_enrich.py
+anr	/scratch/atrimouille/MITODARK/vp4c_events.py	code/vp4c_events.py
+anr	/scratch/atrimouille/MITODARK/v4c_pipeline.py	code/v4c_pipeline.py
+anr	/scratch/atrimouille/MITODARK/v4c_loops.R	code/v4c_loops.R
+anr	/scratch/atrimouille/MITODARK/re2g_panel.py	code/re2g_panel.py
+anr	/scratch/atrimouille/MITODARK/peaks_vs_elements.py	code/peaks_vs_elements.py
+anr	/scratch/atrimouille/MITODARK/gtex_eqtl.py	code/gtex_eqtl.py
+anr	/scratch/atrimouille/MITODARK/make_controls.py	code/make_controls.py
+anr	/scratch/atrimouille/MITODARK/mitodark_prelim.py	code/mitodark_prelim.py
+anr	/scratch/atrimouille/MITODARK/make_figure1.py	code/make_figure1.py
+anr	/scratch/atrimouille/MITODARK/figure1E.py	code/figure1E.py
+anr	/scratch/atrimouille/MITODARK/locus_figure.py	code/locus_figure.py
+anr	/scratch/atrimouille/MITODARK/folding_figure.py	code/folding_figure.py
+anr	/scratch/atrimouille/MITODARK/make_distance_figure.py	code/make_distance_figure.py
+anr	/scratch/atrimouille/MITODARK/make_pca_figure.py	code/make_pca_figure.py
+anr	/scratch/atrimouille/MITODARK/tissues.tsv	entrees/tissues.tsv
+anr	/scratch/atrimouille/MITODARK/groups.tsv	entrees/groups.tsv
+anr	/scratch/atrimouille/MITODARK/manifest.tsv	entrees/manifest.tsv
+anr	/scratch/atrimouille/MITODARK/hic_urls.txt	entrees/hic_urls.txt
+anr	/scratch/atrimouille/MITODARK/mtcn_gtex.tsv	entrees/mtcn_gtex.tsv
+anr	/scratch/atrimouille/MITODARK/mito.txt	entrees/mito.txt
+anr	/scratch/atrimouille/MITODARK/controls.txt	entrees/controls.txt
+anr	/scratch/atrimouille/MITODARK/mitocarta_sets.tsv	entrees/mitocarta_sets.tsv
+anr	/scratch/atrimouille/MITODARK/loci.txt	entrees/loci.txt
+anr	/scratch/atrimouille/MITODARK/loci2.txt	entrees/loci2.txt
+anr	/scratch/atrimouille/MITODARK/data/hic_manifest.csv	entrees/hic_manifest.csv
+anr	/scratch/atrimouille/MITODARK/data/mito_union.txt	entrees/mito_union.txt
+anr	/scratch/atrimouille/MITODARK/data/panelapp_genes.txt	entrees/panelapp_genes.txt
+anr	/scratch/atrimouille/MITODARK/data/panelapp_provenance.json	entrees/panelapp_provenance.json
+# figure 1 (locus VDAC2, 4C virtuel) et étapes intermédiaires légères de l'appel des boucles
+anr	/scratch/atrimouille/MITODARK/figure1.pdf	figure1/figure1_racine.pdf
+anr	/scratch/atrimouille/MITODARK/figure1.png	figure1/figure1_racine.png
+anr	/scratch/atrimouille/MITODARK/loops_locus	figure1_locus/loops_locus
+anr	/scratch/atrimouille/MITODARK/vp4c_locus	figure1_locus/vp4c_locus
+anr	/scratch/atrimouille/MITODARK/export_locus	figure1_locus/export_locus
+anr	/scratch/atrimouille/MITODARK/loops/peaks_mito.tsv	boucles_intermediaires/peaks_mito.tsv
+anr	/scratch/atrimouille/MITODARK/loops/presence.tsv	boucles_intermediaires/presence.tsv
+anr	/scratch/atrimouille/MITODARK/loops/scan.tsv	boucles_intermediaires/scan_fenetre_peakC.tsv
+anr	/scratch/atrimouille/MITODARK/loops/partners.tsv	boucles_intermediaires/partners.tsv
+anr	/scratch/atrimouille/MITODARK/loops/loops_counts.tsv	boucles_intermediaires/loops_counts.tsv
 #
 # ---- version en développement : listes finales copiées dans dev/resultats_finaux/ et gardées en place
 dev	/scratch/atrimouille/MITODARK/loops/assoc_loops.tsv	boucles_finales_2193.tsv
@@ -35,6 +94,9 @@ depot	/gpfs/home/atrimouille/mitoloop_v0
 garder	/gpfs/home/atrimouille/mitoloop_v0/data
 garder	/gpfs/home/atrimouille/mitoloop_v0/.venv-regulome
 garder	/gpfs/home/atrimouille/mitoloop_v0/genes.txt
+garder	/gpfs/home/atrimouille/mitoloop_v0/controls.txt
+garder	/gpfs/home/atrimouille/mitoloop_v0/results/control_pairs.csv
+garder	/gpfs/home/atrimouille/mitoloop_v0/results/controls_check.tsv
 garder	/gpfs/home/atrimouille/mitoloop_v0/results/re2g
 garder	/gpfs/home/atrimouille/mitoloop_v0/results/l1
 garder	/gpfs/home/atrimouille/mitoloop_v0/results/l1_raw
