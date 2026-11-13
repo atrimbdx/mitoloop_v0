@@ -210,7 +210,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--groupe", action="append", default=[],
                    help="NAME=REGEX on the ENCODE term, repeatable (replaces the default groups)")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd")          # Python 3.6 (Curta) : pas de required=
     s = sub.add_parser("librairies")
     s.add_argument("--libraries", required=True)
     s.add_argument("--out", required=True)
@@ -227,6 +227,8 @@ def main():
     s.add_argument("--peaks-lib", default="", help="peaks_lib.tsv of v4c_loops.R call_lib (control)")
     s.add_argument("--tol", type=float, default=20e3)
     a = p.parse_args()
+    if not a.cmd:
+        p.error("sous-commande attendue : librairies, partenaires, fusionner ou separer")
     {"librairies": cmd_librairies, "partenaires": cmd_partenaires, "fusionner": cmd_fusionner,
      "separer": cmd_separer}[a.cmd](a)
 
