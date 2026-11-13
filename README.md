@@ -218,6 +218,33 @@ Rscript scripts/v4c_loops.R reciprocal --libraries results/libraries.tsv \
 called (`called`, separated by `|`). The same `--wsize` must be used in
 `call`, `reciprocal`, `assoc` and `tissue`.
 
+### 5b. Loops per tissue
+
+Each tissue's loops on its own Hi-C libraries only, pooled as replicates
+(peakC `combined.analysis`; `single.analysis` for a tissue with one library),
+called separately per tissue so that loop coordinates never merge across
+tissues. Tissues: muscle, cardiomyocyte (heart), neurone (brain), rein
+(kidney); terms matched by regular expressions in `loops_par_tissu.py`.
+
+```bash
+T=results/loops_tissus
+python3 scripts/loops_par_tissu.py librairies --libraries results/libraries.tsv --out $T
+EXPORT=results/export/both sbatch slurm/loops_tissus.sbatch call
+python3 scripts/loops_par_tissu.py partenaires --dir $T --export results/export/partners \
+    --out $T/partenaires_manquants.tsv
+# extract and export the missing partner profiles (slurm/extract.sbatch --anchors
+# $T/partenaires_manquants.tsv, then v4c_pipeline.py export --set partner), then
+python3 scripts/loops_par_tissu.py fusionner --export results/export/partners <new export> \
+    --out $T/export_partners
+EXPORT=$T/export_partners sbatch slurm/loops_tissus.sbatch reciprocal
+python3 scripts/loops_par_tissu.py separer --dir $T --genes genes.txt
+```
+
+`separer` writes `loops_<tissue>.tsv` (read by `ag2_balayage.py cibles
+--boucles-tissus` in reannot). As a control only, `v4c_loops.R call_lib` calls
+every library on its own; `separer --peaks-lib` then counts, for each loop, the
+tissue's libraries in which it is also found alone (`n_presents`).
+
 ### 6. Loop strength and mtDNA copy number
 
 ```bash

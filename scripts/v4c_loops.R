@@ -24,8 +24,9 @@
 #   call_lib    peakC on the mitochondrial viewpoints, library by library
 #               (single.analysis on each library alone, no pooling of the
 #               replicates of a term): peaks_lib.tsv, one row per library and
-#               peak region, so that a tissue's loops can be required in 2/2,
-#               3/3 or >= 3 of its libraries (loops_par_tissu.py).
+#               peak region; a control of the per-tissue loops (in how many of
+#               a tissue's libraries a pooled loop is also found alone,
+#               loops_par_tissu.py separer --peaks-lib).
 #   reciprocal  peakC on the profile of each partner anchor, in the same term.
 #               A mitochondrial peak is kept when the partner's profile has a
 #               peak at the mitochondrial TSS (the reciprocity criterion of

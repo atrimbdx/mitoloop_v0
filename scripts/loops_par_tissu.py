@@ -1,34 +1,49 @@
 #!/usr/bin/env python3
 """
-loops_par_tissu.py - loops of one tissue, replicated across that tissue's own
-Hi-C libraries.
+loops_par_tissu.py - loops of one tissue, called on that tissue's own Hi-C
+libraries pooled as replicates (peakC combined.analysis through
+v4c_loops.R call / reciprocal), one loop set per tissue group.
 
-Input: peaks_lib.tsv from `v4c_loops.R call_lib` (peakC on each library on its
-own) and the library table. For every tissue group (ENCODE terms matched by a
-regular expression), the peaks of its libraries are matched by summit (within
---tol bp, same viewpoint) and a loop is kept when it is found in
+The libraries of a tissue group (ENCODE terms matched by a regular
+expression: muscle, heart, brain, kidney) are treated as replicates of one
+condition: each group gets its own library table, with the group as its term,
+and the usual `call` then `reciprocal` steps of v4c_loops.R are run on it in
+the group's own folder (separately per tissue, so that loop coordinates never
+merge across tissues). A group with
+one library is called with single.analysis (flagged n_fichiers = 1). No
+pooling with other tissues and no use of the multi-tissue loop catalogue.
 
-    1 library  : its single library (flagged n_fichiers = 1)
-    2 libraries: both (2/2)
-    3 libraries: all three (3/3)
-    > 3        : at least 3
+Subcommands
+  librairies   DIR/<tissu>/libraries.tsv: the kept libraries of each group,
+               term replaced by the group name (original term in
+               term_encode); summary per group on stderr
+  partenaires  partner anchors of the per-tissue calls (DIR/*/partners.tsv of
+               v4c_loops.R call) missing from an existing partner export:
+               partenaires_manquants.tsv, to extract with v4c_pipeline.py
+  fusionner    merges two export folders library by library (rows of the
+               second added when their name is new), so that `reciprocal`
+               reads the old and the new partner profiles together
+  separer      DIR/loops_<tissu>.tsv from each DIR/<tissu>/loops.tsv, with the
+               number of the group's libraries; with --peaks-lib (v4c_loops.R call_lib, each
+               library alone) the number of those libraries in which the loop
+               is also found on its own (n_presents, control only, no filter)
 
-No pooling with other tissues and no use of the multi-tissue loop catalogue:
-a tissue's loops come from that tissue's libraries only. Reciprocity (the
-peak seen again from the partner anchor) is not required here.
-
-Outputs (--out): loops_<tissue>.tsv (gene, chrom, vp_pos, summit, start, end,
-n_fichiers, n_presents, fichiers, termes, loop_id) and resume_tissus.tsv
-(libraries, threshold, loops and viewpoints per tissue).
-
-Usage
-  python3 scripts/loops_par_tissu.py --peaks results/loops/peaks_lib.tsv \\
-      --libraries results/libraries.tsv --genes genes.txt --out results/loops_tissus
-  (--groupe NAME=REGEX, repeatable, replaces the default groups)
+Usage (mitoloop_v0 ; T = results/loops_tissus ; slurm/loops_tissus.sbatch runs
+the R steps for the four tissues)
+  python3 scripts/loops_par_tissu.py librairies --libraries libraries.tsv --out $T
+  Rscript scripts/v4c_loops.R call --libraries $T/<tissu>/libraries.tsv \
+      --export <export/both> --wsize 3 --out $T/<tissu>          (each tissue)
+  python3 scripts/loops_par_tissu.py partenaires --dir $T --export <export/partners> \
+      --out $T/partenaires_manquants.tsv
+  (v4c_pipeline.py extract + export of the missing partners, then fusionner)
+  Rscript scripts/v4c_loops.R reciprocal --libraries $T/<tissu>/libraries.tsv \
+      --export <merged partner export> --wsize 3 --out $T/<tissu>   (each tissue)
+  python3 scripts/loops_par_tissu.py separer --dir $T --genes genes.txt [--peaks-lib peaks_lib.tsv]
 """
 
 import argparse
 import csv
+import gzip
 import re
 import sys
 from collections import defaultdict
@@ -44,8 +59,6 @@ GROUPES = {
                 r"adrenal|kidney|smooth|vascul|endotheli|pericyte"),
     "rein": (r"kidney|\brenal|nephr|tubul", r"adrenal"),     # « adrenal » contient « renal »
 }
-
-
 HEAD = ("gene\tchrom\tvp_pos\tsummit\tstart\tend\tn_fichiers\tn_presents\t"
         "fichiers\ttermes\tloop_id\n")
 
@@ -55,83 +68,167 @@ def read_tsv(path):
         return list(csv.DictReader(fh, delimiter="\t"))
 
 
-def requis(n):
-    """libraries in which a loop must be found, among n libraries of the tissue"""
-    return n if n <= 3 else 3
+def groups_of(a):
+    return {k: (v, "") for k, v in (g.split("=", 1) for g in a.groupe)} if a.groupe else GROUPES
+
+
+def group_of(term, groups):
+    for k, (inc, exc) in groups.items():
+        if re.search(inc, term, re.I) and not (exc and re.search(exc, term, re.I)):
+            return k
+    return None
+
+
+def cmd_librairies(a):
+    groups = groups_of(a)
+    rows = read_tsv(a.libraries)
+    out = Path(a.out)
+    cols = list(rows[0]) + (["term_encode"] if "term_encode" not in rows[0] else [])
+    n = defaultdict(list)
+    for r in rows:
+        if r.get("kept", "1") not in ("1", "TRUE", "True"):
+            continue
+        g = group_of(r["term"], groups)
+        if g is not None:
+            n[g].append(dict(r, term_encode=r["term"], term=g))
+    for g in groups:
+        terms = sorted({r["term_encode"] for r in n[g]})
+        print(f"{g:14s} {len(n[g])} librairies"
+              + (f" ({', '.join(terms)})" if terms else " : aucune")
+              + (" -> appel sur une seule librairie (single.analysis)" if len(n[g]) == 1 else ""),
+              file=sys.stderr)
+        if not n[g]:
+            continue
+        (out / g).mkdir(parents=True, exist_ok=True)
+        with open(out / g / "libraries.tsv", "w") as fo:
+            fo.write("\t".join(cols) + "\n")
+            for r in n[g]:
+                fo.write("\t".join(str(r.get(c, "")) for c in cols) + "\n")
+    print(f"-> {out}/<tissu>/libraries.tsv (un appel call + reciprocal par tissu)", file=sys.stderr)
+
+
+def export_names(path):
+    """noms des points de vue d'un fichier d'export (première colonne)"""
+    with gzip.open(path, "rt") as fh:
+        fh.readline()
+        return {ln.split("\t", 1)[0] for ln in fh}
+
+
+def cmd_partenaires(a):
+    parts, names = [], set()
+    for f in sorted(Path(a.dir).glob("*/partners.tsv")):      # partenaires de tous les tissus
+        for p in read_tsv(f):
+            if p["name"] not in names:
+                names.add(p["name"])
+                parts.append(p)
+    files = sorted(Path(a.export).glob("*.tsv.gz"))
+    have = export_names(files[0]) if files else set()
+    miss = [p for p in parts if p["name"] not in have]
+    with open(a.out, "w") as fo:
+        fo.write("name\tchrom\tpos\tset\n")
+        for p in miss:
+            fo.write(f"{p['name']}\t{p['chrom']}\t{p['pos']}\t{p.get('set', 'partner')}\n")
+    print(f"{len(parts)} partenaires (tous tissus), {len(parts) - len(miss)} déjà dans {a.export}, "
+          f"{len(miss)} à extraire -> {a.out}", file=sys.stderr)
+
+
+def cmd_fusionner(a):
+    d1, d2, out = Path(a.export[0]), Path(a.export[1]), Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for f1 in sorted(d1.glob("*.tsv.gz")):
+        f2 = d2 / f1.name
+        with gzip.open(f1, "rt") as fh:
+            head = fh.readline()
+            lines = fh.readlines()
+        names = {ln.split("\t", 1)[0] for ln in lines}
+        if f2.exists():
+            with gzip.open(f2, "rt") as fh:
+                h2 = fh.readline()
+                if h2 != head:
+                    sys.exit(f"{f2} : colonnes différentes de {f1}")
+                lines += [ln for ln in fh if ln.split("\t", 1)[0] not in names]
+        with gzip.open(out / f1.name, "wt") as fo:
+            fo.write(head)
+            fo.writelines(lines)
+        n += 1
+    for f in (d1 / "decay.tsv", d2 / "decay.tsv"):
+        if f.exists() and not (out / "decay.tsv").exists():
+            (out / "decay.tsv").write_text(f.read_text())
+    print(f"{n} librairies fusionnées -> {out}", file=sys.stderr)
+
+
+def cmd_separer(a):
+    groups = groups_of(a)
+    d = Path(a.dir)
+    by_g, term_enc, loops_g = defaultdict(list), {}, {}
+    want = set(Path(a.genes).read_text().split()) if a.genes else None
+    for g in groups:
+        if (d / g / "libraries.tsv").exists():
+            for r in read_tsv(d / g / "libraries.tsv"):
+                by_g[g].append(r["accession"])
+                term_enc[r["accession"]] = r.get("term_encode", r["term"])
+        lf = d / g / "loops.tsv"
+        loops_g[g] = [r for r in read_tsv(lf) if want is None or r["gene"] in want] if lf.exists() else []
+        if by_g[g] and not lf.exists():
+            print(f"{g} : {lf} absent (call + reciprocal pas encore faits)", file=sys.stderr)
+    seen = defaultdict(list)                     # (gene, groupe) -> [(start, end, accession)]
+    if a.peaks_lib:
+        for p in read_tsv(a.peaks_lib):
+            g = group_of(term_enc.get(p["accession"], p.get("term", "")), groups)
+            if g:
+                seen[(p["gene"], g)].append((float(p["start"]), float(p["end"]), p["accession"]))
+    out = d
+    resume = []
+    for g in groups:
+        accs = by_g.get(g, [])
+        rows = []
+        for r in loops_g[g]:
+            s, e = float(r["start"]), float(r["end"])
+            pres = sorted({x for ps, pe, x in seen.get((r["gene"], g), [])
+                           if ps <= e + a.tol and s <= pe + a.tol}) if a.peaks_lib else []
+            rows.append([r["gene"], r["chrom"], r["vp_pos"], r["summit"], r["start"], r["end"],
+                         len(accs), len(pres) if a.peaks_lib else ".",
+                         "|".join(pres) if a.peaks_lib else "|".join(accs),
+                         "|".join(sorted({term_enc[x] for x in accs})), r["loop_id"]])
+        with open(out / f"loops_{g}.tsv", "w") as fo:
+            fo.write(HEAD)
+            for x in rows:
+                fo.write("\t".join(map(str, x)) + "\n")
+        genes = {x[0] for x in rows}
+        resume.append([g, len(accs), len(rows), len(genes)])
+        print(f"{g:14s} {len(accs)} librairies ; {len(rows)} boucles réciproques à "
+              f"{len(genes)} promoteurs" + ("  (une seule librairie)" if len(accs) == 1 else ""),
+              file=sys.stderr)
+    with open(out / "resume_tissus.tsv", "w") as fo:
+        fo.write("tissu\tlibrairies\tboucles\tpromoteurs\n")
+        for x in resume:
+            fo.write("\t".join(map(str, x)) + "\n")
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--peaks", required=True, help="peaks_lib.tsv (v4c_loops.R call_lib)")
-    p.add_argument("--libraries", required=True, help="libraries.tsv (column kept used)")
-    p.add_argument("--genes", default="", help="viewpoints kept (default: all)")
     p.add_argument("--groupe", action="append", default=[],
-                   help="NAME=REGEX on the ENCODE term, repeatable (replaces the defaults)")
-    p.add_argument("--tol", type=float, default=20e3, help="bp between summits of one loop")
-    p.add_argument("--out", required=True)
+                   help="NAME=REGEX on the ENCODE term, repeatable (replaces the default groups)")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("librairies")
+    s.add_argument("--libraries", required=True)
+    s.add_argument("--out", required=True)
+    s = sub.add_parser("partenaires")
+    s.add_argument("--dir", required=True, help="dossier des tissus (<tissu>/partners.tsv)")
+    s.add_argument("--export", required=True, help="existing partner export folder")
+    s.add_argument("--out", required=True)
+    s = sub.add_parser("fusionner")
+    s.add_argument("--export", nargs=2, required=True, help="two export folders")
+    s.add_argument("--out", required=True)
+    s = sub.add_parser("separer")
+    s.add_argument("--dir", required=True, help="dossier des tissus (<tissu>/loops.tsv)")
+    s.add_argument("--genes", default="")
+    s.add_argument("--peaks-lib", default="", help="peaks_lib.tsv of v4c_loops.R call_lib (control)")
+    s.add_argument("--tol", type=float, default=20e3)
     a = p.parse_args()
-    groups = {k: (v, "") for k, v in (g.split("=", 1) for g in a.groupe)} if a.groupe else GROUPES
-    libs = [r for r in read_tsv(a.libraries) if r.get("kept", "1") in ("1", "TRUE", "True")]
-    term_of = {r["accession"]: r["term"] for r in libs}
-    want = set(Path(a.genes).read_text().split()) if a.genes else None
-    peaks = [r for r in read_tsv(a.peaks) if r["accession"] in term_of
-             and (want is None or r["gene"] in want)]
-    out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=True)
-    resume = []
-    for name, (inc, exc) in groups.items():
-        ri, re_ = re.compile(inc, re.I), re.compile(exc, re.I) if exc else None
-        accs = sorted(x for x, t in term_of.items() if ri.search(t) and not (re_ and re_.search(t)))
-        n = len(accs)
-        if not n:
-            print(f"{name:14s} aucune librairie Hi-C (termes : {inc})", file=sys.stderr)
-            resume.append([name, 0, 0, 0, 0, ""])
-            rows = []
-            with open(out / f"loops_{name}.tsv", "w") as fo:
-                fo.write(HEAD)
-            continue
-        need = requis(n)
-        by_gene = defaultdict(list)
-        for r in peaks:
-            if r["accession"] in accs:
-                by_gene[r["gene"]].append(r)
-        rows = []
-        for g, pk in sorted(by_gene.items()):
-            pk.sort(key=lambda r: float(r["summit"]))
-            clusters, cur = [], []
-            for r in pk:          # chaining summits within tol, never wider than 2 x tol
-                s = float(r["summit"])
-                if cur and (s - float(cur[-1]["summit"]) > a.tol or
-                            s - float(cur[0]["summit"]) > 2 * a.tol):
-                    clusters.append(cur)
-                    cur = []
-                cur.append(r)
-            if cur:
-                clusters.append(cur)
-            for cl in clusters:
-                present = sorted({r["accession"] for r in cl})
-                if len(present) < need:
-                    continue
-                best = max(cl, key=lambda r: float(r["summit_ratio"]))
-                summits = sorted(float(r["summit"]) for r in cl)
-                summit = int(summits[len(summits) // 2])
-                rows.append([g, best["chrom"], best["vp_pos"], summit,
-                             int(min(float(r["start"]) for r in cl)),
-                             int(max(float(r["end"]) for r in cl)), n, len(present),
-                             "|".join(present), "|".join(sorted({term_of[x] for x in present})),
-                             f"{g}:{summit}"])
-        with open(out / f"loops_{name}.tsv", "w") as fo:
-            fo.write(HEAD)
-            for r in rows:
-                fo.write("\t".join(map(str, r)) + "\n")
-        terms = sorted({term_of[x] for x in accs})
-        resume.append([name, n, need, len(rows), len({r[0] for r in rows}), "|".join(terms)])
-        print(f"{name:14s} {n} librairies ({', '.join(terms)}) ; seuil {need}/{n} ; "
-              f"{len(rows)} boucles à {len({r[0] for r in rows})} promoteurs", file=sys.stderr)
-    with open(out / "resume_tissus.tsv", "w") as fo:
-        fo.write("tissu\tlibrairies\tseuil\tboucles\tpromoteurs\ttermes\n")
-        for r in resume:
-            fo.write("\t".join(map(str, r)) + "\n")
+    {"librairies": cmd_librairies, "partenaires": cmd_partenaires, "fusionner": cmd_fusionner,
+     "separer": cmd_separer}[a.cmd](a)
 
 
 if __name__ == "__main__":

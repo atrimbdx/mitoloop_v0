@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# test_loops_par_tissu.sh - per-tissue replication of loops (loops_par_tissu.py)
+# test_loops_par_tissu.sh - per-tissue loops (loops_par_tissu.py)
 #
-# Purpose      Two muscle libraries, four heart libraries, one kidney library
-#              and one smooth-muscle library (excluded from muscle). A loop is
-#              kept in 2/2 muscle libraries, in >= 3 of the 4 heart ones, and
-#              from the single kidney library; summits 10 kb apart are one
-#              loop. Prints "PASS test_loops_par_tissu".
+# Purpose      librairies: kept libraries grouped by tissue, one folder per
+#              tissue, adrenal gland not kidney, smooth muscle not muscle;
+#              partenaires: partner anchors of all tissues missing from an
+#              existing export; fusionner: two export folders merged library
+#              by library; separer: loops_<tissue>.tsv from each tissue's
+#              loops.tsv, with the per-library control count (call_lib).
+#              The R steps (call, reciprocal) are not run here. Prints
+#              "PASS test_loops_par_tissu".
 # Usage        bash tests/test_loops_par_tissu.sh
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -19,34 +22,44 @@ M1	gastrocnemius medialis	x	1	1	1	1
 M2	psoas muscle	x	1	1	1	1
 H1	heart left ventricle	x	1	1	1	1
 H2	heart left ventricle	x	1	1	1	1
-H3	right atrium auricular region	x	1	1	1	1
-H4	heart right ventricle	x	1	1	1	1
+H3	right cardiac atrium	x	1	1	1	1
 K1	kidney	x	1	1	1	1
 A1	adrenal gland	x	1	1	1	1
 S1	smooth muscle of the stomach	x	1	1	1	1
 X1	gastrocnemius medialis	x	1	1	1	0
 T
-{
-printf 'accession\tterm\tgene\tchrom\tvp_pos\tstart\tend\tsummit\tsummit_ratio\n'
-for l in M1 M2; do printf '%s\tt\tGA\tchr1\t50000\t95000\t105000\t100000\t3\n' $l; done
-printf 'M2\tt\tGA\tchr1\t50000\t300000\t310000\t305000\t2\n'          # 1/2 : dropped
-printf 'S1\tt\tGA\tchr1\t50000\t300000\t310000\t305000\t2\n'          # smooth muscle: not muscle
-printf 'X1\tt\tGA\tchr1\t50000\t300000\t310000\t305000\t2\n'          # library not kept
-for l in H1 H2; do printf '%s\tt\tGA\tchr1\t50000\t195000\t205000\t200000\t3\n' $l; done
-printf 'H3\tt\tGA\tchr1\t50000\t205000\t215000\t210000\t4\n'          # 10 kb away: same loop
-printf 'H1\tt\tGA\tchr1\t50000\t395000\t405000\t400000\t2\n'
-printf 'H4\tt\tGA\tchr1\t50000\t395000\t405000\t400000\t2\n'          # 2/4 : dropped
-printf 'A1\tt\tGB\tchr2\t70000\t895000\t905000\t900000\t2\n'          # adrenal gland: not kidney
-printf 'K1\tt\tGB\tchr2\t70000\t495000\t505000\t500000\t2\n'
-printf 'K1\tt\tGZ\tchr2\t70000\t495000\t505000\t500000\t2\n'          # not in --genes
-} > peaks_lib.tsv
+python3 "$S/loops_par_tissu.py" librairies --libraries libs.tsv --out T 2> l.log || { cat l.log; fail librairies; }
+[ "$(cut -f1 T/muscle/libraries.tsv | tail -n +2 | tr '\n' ' ')" = "M1 M2 " ] || fail "muscle libraries"
+[ "$(cut -f1 T/rein/libraries.tsv | tail -n +2 | tr '\n' ' ')" = "K1 " ] || fail "kidney: adrenal excluded"
+[ "$(cut -f2 T/cardiomyocyte/libraries.tsv | tail -n +2 | sort -u)" = "cardiomyocyte" ] || fail "term = tissue"
+head -1 T/muscle/libraries.tsv | grep -q "term_encode" || fail "term_encode column"
+[ ! -e T/neurone ] || fail "no folder without library"
+grep -q "rein           1 librairies (kidney) -> appel sur une seule librairie" l.log || { cat l.log; fail "single library flag"; }
+
+# partner anchors: P_chr1_300000 already exported, P_chr2_900000 new
+printf 'name\tchrom\tpos\tset\nP_chr1_300000\tchr1\t300000\tpartner\n' > T/muscle/partners.tsv
+printf 'name\tchrom\tpos\tset\nP_chr1_300000\tchr1\t300000\tpartner\nP_chr2_900000\tchr2\t900000\tpartner\n' > T/rein/partners.tsv
+mkdir -p exp_old exp_new
+for a in M1 K1; do
+    printf 'name\tchrom\tpos\t-10000\t0\t10000\nP_chr1_300000\tchr1\t300000\t1\t2\t3\n' | gzip > exp_old/$a.tsv.gz
+    printf 'name\tchrom\tpos\t-10000\t0\t10000\nP_chr2_900000\tchr2\t900000\t4\t5\t6\nP_chr1_300000\tchr1\t300000\t9\t9\t9\n' | gzip > exp_new/$a.tsv.gz
+done
+python3 "$S/loops_par_tissu.py" partenaires --dir T --export exp_old --out manq.tsv 2> p.log || { cat p.log; fail partenaires; }
+[ "$(cut -f1 manq.tsv | tail -n +2)" = "P_chr2_900000" ] || { cat manq.tsv; fail "missing partners"; }
+python3 "$S/loops_par_tissu.py" fusionner --export exp_old exp_new --out exp_all 2> f.log || { cat f.log; fail fusionner; }
+[ "$(zcat exp_all/K1.tsv.gz | cut -f1,4 | tr '\t\n' ' ;')" = "name -10000;P_chr1_300000 1;P_chr2_900000 4;" ] \
+    || { zcat exp_all/K1.tsv.gz; fail "merged export"; }
+
+# separer: each tissue's loops.tsv, control count from peaks_lib.tsv
+printf 'gene\tchrom\tvp_pos\tsummit\tstart\tend\tn_terms\tcalled\tloop_id\nGA\tchr1\t50000\t100000\t90000\t110000\t1\tmuscle\tGA:100000\nGZ\tchr1\t50000\t100000\t90000\t110000\t1\tmuscle\tGZ:100000\n' > T/muscle/loops.tsv
+printf 'gene\tchrom\tvp_pos\tsummit\tstart\tend\tn_terms\tcalled\tloop_id\nGB\tchr2\t70000\t500000\t490000\t510000\t1\trein\tGB:500000\n' > T/rein/loops.tsv
+printf 'accession\tterm\tgene\tchrom\tvp_pos\tstart\tend\tsummit\tsummit_ratio\nM1\tgastrocnemius medialis\tGA\tchr1\t50000\t95000\t105000\t100000\t3\nM2\tpsoas muscle\tGA\tchr1\t50000\t300000\t310000\t305000\t2\n' > peaks_lib.tsv
 printf 'GA\nGB\n' > genes.txt
-python3 "$S/loops_par_tissu.py" --peaks peaks_lib.tsv --libraries libs.tsv --genes genes.txt --out o 2> log \
-    || { cat log; fail run; }
-[ "$(cut -f1,4,7,8 o/loops_muscle.tsv | tail -n +2)" = "$(printf 'GA\t100000\t2\t2')" ] || { cat o/loops_muscle.tsv; fail muscle; }
-[ "$(cut -f1,4,7,8,9 o/loops_cardiomyocyte.tsv | tail -n +2)" = "$(printf 'GA\t200000\t4\t3\tH1|H2|H3')" ] \
-    || { cat o/loops_cardiomyocyte.tsv; fail heart; }
-[ "$(cut -f1,4,7,8 o/loops_rein.tsv | tail -n +2)" = "$(printf 'GB\t500000\t1\t1')" ] || { cat o/loops_rein.tsv; fail kidney; }
-[ -f o/loops_neurone.tsv ] && [ "$(tail -n +2 o/loops_neurone.tsv | wc -l)" = "0" ] || fail neurone
-grep -q "^neurone	0	0	0	0" o/resume_tissus.tsv || { cat o/resume_tissus.tsv; fail resume; }
+python3 "$S/loops_par_tissu.py" separer --dir T --genes genes.txt --peaks-lib peaks_lib.tsv 2> s.log \
+    || { cat s.log; fail separer; }
+[ "$(cut -f1,4,7,8,9,10 T/loops_muscle.tsv | tail -n +2)" = "$(printf 'GA\t100000\t2\t1\tM1\tgastrocnemius medialis|psoas muscle')" ] \
+    || { cat T/loops_muscle.tsv; fail "muscle loops"; }
+[ "$(cut -f1,7 T/loops_rein.tsv | tail -n +2)" = "$(printf 'GB\t1')" ] || { cat T/loops_rein.tsv; fail "kidney loops"; }
+[ -f T/loops_neurone.tsv ] && [ "$(tail -n +2 T/loops_neurone.tsv | wc -l)" = "0" ] || fail "neurone empty"
+grep -q "^rein	1	1	1" T/resume_tissus.tsv || { cat T/resume_tissus.tsv; fail resume; }
 echo "PASS test_loops_par_tissu"
