@@ -22,6 +22,7 @@ H2	heart left ventricle	x	1	1	1	1
 H3	right atrium auricular region	x	1	1	1	1
 H4	heart right ventricle	x	1	1	1	1
 K1	kidney	x	1	1	1	1
+A1	adrenal gland	x	1	1	1	1
 S1	smooth muscle of the stomach	x	1	1	1	1
 X1	gastrocnemius medialis	x	1	1	1	0
 T
@@ -35,6 +36,7 @@ for l in H1 H2; do printf '%s\tt\tGA\tchr1\t50000\t195000\t205000\t200000\t3\n' 
 printf 'H3\tt\tGA\tchr1\t50000\t205000\t215000\t210000\t4\n'          # 10 kb away: same loop
 printf 'H1\tt\tGA\tchr1\t50000\t395000\t405000\t400000\t2\n'
 printf 'H4\tt\tGA\tchr1\t50000\t395000\t405000\t400000\t2\n'          # 2/4 : dropped
+printf 'A1\tt\tGB\tchr2\t70000\t895000\t905000\t900000\t2\n'          # adrenal gland: not kidney
 printf 'K1\tt\tGB\tchr2\t70000\t495000\t505000\t500000\t2\n'
 printf 'K1\tt\tGZ\tchr2\t70000\t495000\t505000\t500000\t2\n'          # not in --genes
 } > peaks_lib.tsv

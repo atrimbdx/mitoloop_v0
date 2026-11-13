@@ -37,7 +37,7 @@ import urllib.request
 from pathlib import Path
 
 PORTAL = "https://www.encodeproject.org"
-DEFAULT = (r"kidney|renal|nephr|tubul|HK-2|RPTEC|heart|cardiac|ventric|atri(um|al)|"
+DEFAULT = (r"kidney|\brenal|nephr|tubul|HK-2|RPTEC|heart|cardiac|ventric|atri(um|al)|"
            r"brain|cortex|gyrus|caudate|putamen|cerebell|hippocamp|neuron|astrocyte")
 
 

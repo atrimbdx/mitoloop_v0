@@ -37,11 +37,12 @@ from pathlib import Path
 # ENCODE Hi-C terms of each tissue group: (included, excluded)
 GROUPES = {
     "muscle": (r"gastrocnemius|psoas|skeletal muscle|muscle of (the )?(leg|arm|trunk|back)|"
-               r"myotube|myoblast|quadriceps|vastus", r"smooth|cardiac|heart"),
+               r"limb muscle|myotube|myoblast|quadriceps|vastus", r"smooth|cardiac|heart"),
     "cardiomyocyte": (r"heart|cardiac|ventric|atri(um|al)", r"smooth"),
     "neurone": (r"brain|cortex|gyrus|caudate|putamen|cerebell|hippocamp|neuron|"
-                r"nucleus accumbens|substantia nigra|amygdala", r"adrenal|kidney"),
-    "rein": (r"kidney|renal|nephr|tubul", r""),
+                r"nucleus accumbens|substantia nigra|amygdala",
+                r"adrenal|kidney|smooth|vascul|endotheli|pericyte"),
+    "rein": (r"kidney|\brenal|nephr|tubul", r"adrenal"),     # « adrenal » contient « renal »
 }
 
 
