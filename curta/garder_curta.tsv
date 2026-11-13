@@ -43,8 +43,7 @@ garder	/gpfs/home/atrimouille/mitoloop_v0/results/promoters
 garder	/gpfs/home/atrimouille/mitoloop_v0/results/jiang2020
 garder	/gpfs/home/atrimouille/mitoloop_v0/results/kopajtich
 #
-# ---- données publiques volumineuses, re-téléchargeables (ENCODE) : laissées en place, pas
-#      d'archive de 157 Go ; à supprimer à la main plus tard si l'espace manque (accessions ENCFF
-#      dans les noms de fichiers)
+# ---- données publiques volumineuses (ENCODE) : gardées en place pour éviter un long
+#      re-téléchargement (Hi-C 135 Go, liens rE2G de tous les biosamples 22 Go) ; pas d'archive
 garder	/scratch/atrimouille/MITODARK/hic
 garder	/scratch/atrimouille/MITODARK/data/re2g
