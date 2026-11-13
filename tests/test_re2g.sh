@@ -67,7 +67,7 @@ for f in re2g_elements.tsv re2g_per_gene.tsv re2g_summary.tsv \
     [ -s "re2g/$f" ] || fail "missing re2g/$f"
 done
 [ "$(head -1 re2g/re2g_elements.tsv)" = \
-  "$(printf 'gene\tset\tchrom\tstart\tend\tdistance\tprevalence\tcelltypes')" ] \
+  "$(printf 'gene\tset\tchrom\tstart\tend\tdistance\tprevalence\tcelltypes\tbiosamples')" ] \
     || fail "re2g_elements.tsv header"
 # celltypes: as many as the prevalence at most, all within --keep
 python3 - re2g/re2g_elements.tsv "$KEEP" <<'PY' || fail "celltypes"
@@ -78,6 +78,8 @@ rx = re.compile(sys.argv[2], re.I)
 for _, r in el.iterrows():
     ct = r.celltypes.split(";")
     assert ct and all(rx.search(c) for c in ct) and len(ct) <= r.prevalence, r
+    bs = r.biosamples.split(";")
+    assert len(bs) == r.prevalence and {b.split("=", 1)[1] for b in bs} == set(ct), r
 PY
 grep -q "threshold 0.201" run1.log || fail "dhs_megamap threshold not detected"
 grep -q "6 files" run1.log || fail "--keep did not select the 6 muscle files"

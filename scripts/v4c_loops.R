@@ -21,6 +21,11 @@
 #               combined.analysis (rank product over replicates) when the term
 #               has two libraries or more, single.analysis when it has one.
 #               Writes the peaks and the partner anchors to extract.
+#   call_lib    peakC on the mitochondrial viewpoints, library by library
+#               (single.analysis on each library alone, no pooling of the
+#               replicates of a term): peaks_lib.tsv, one row per library and
+#               peak region, so that a tissue's loops can be required in 2/2,
+#               3/3 or >= 3 of its libraries (loops_par_tissu.py).
 #   reciprocal  peakC on the profile of each partner anchor, in the same term.
 #               A mitochondrial peak is kept when the partner's profile has a
 #               peak at the mitochondrial TSS (the reciprocity criterion of
@@ -65,6 +70,8 @@
 #   scan        scan.tsv: window, window_kb, median_j, q1, q3, peaks_per_lib
 #   call        peaks_mito.tsv: term, gene, chrom, vp_pos, n_libs, start, end,
 #               summit, summit_ratio; partners.tsv: name, chrom, pos, set
+#   call_lib    peaks_lib.tsv: accession, term, gene, chrom, vp_pos, start,
+#               end, summit, summit_ratio
 #   reciprocal  peaks_mito.tsv with a column reciprocal (0/1); loops.tsv:
 #               gene, chrom, vp_pos, summit, start, end, n_terms, called (the
 #               ENCODE terms in which the loop is reciprocal, |-separated),
@@ -177,8 +184,8 @@ die <- function(...) {
   quit(save = "no", status = 1)
 }
 
-COMMANDS <- c("scan", "call", "reciprocal", "deseq", "assoc", "tissue")
-NEED_WSIZE <- c("call", "reciprocal", "deseq", "assoc", "tissue")
+COMMANDS <- c("scan", "call", "call_lib", "reciprocal", "deseq", "assoc", "tissue")
+NEED_WSIZE <- c("call", "call_lib", "reciprocal", "deseq", "assoc", "tissue")
 
 # name, default, type (chr, num, choice), allowed values, subcommands, help
 OPTIONS <- list(
@@ -196,11 +203,11 @@ OPTIONS <- list(
        "bp; peaks beyond are dropped, upper edge of the distance band"),
   list("alpha_fdr", 0.1, "num", NULL, c("call", "reciprocal"),
        "peakC alphaFDR of combined.analysis (two libraries or more)"),
-  list("qwr", 1, "num", NULL, c("scan", "call", "reciprocal"),
+  list("qwr", 1, "num", NULL, c("scan", "call", "call_lib", "reciprocal"),
        "peakC qWr, ratio threshold over the background"),
-  list("qwd", 1.5, "num", NULL, c("scan", "call", "reciprocal"),
+  list("qwd", 1.5, "num", NULL, c("scan", "call", "call_lib", "reciprocal"),
        "peakC qWd of single.analysis (one library)"),
-  list("min_bins", 20, "num", NULL, c("scan", "call", "reciprocal"),
+  list("min_bins", 20, "num", NULL, c("scan", "call", "call_lib", "reciprocal"),
        "minimum finite bins in a profile (half on each side of the viewpoint)"),
   list("single", "yes", "choice", c("yes", "no"), c("call", "reciprocal"),
        "call peaks in terms with one library (single.analysis)"),
@@ -534,6 +541,41 @@ cmd_call <- function(opt) {
   cat(sprintf("%d peak regions, %d partner anchors to extract\n",
               nrow(peaks), nrow(partners)))
   print(peaks[, .(regions = .N, viewpoints = uniqueN(gene)), by = .(term, n_libs)])
+}
+
+# ---------------------------------------------------------------------------
+# call_lib: every library on its own (single.analysis), for replication rules
+
+cmd_call_lib <- function(opt) {
+  lib <- read_libraries(opt$libraries)
+  ex <- read_export(opt$export, lib$accession)
+  opt$res <- diff(ex[[1]]$offsets[1:2])
+  opt$thin_f <- NULL                       # no thinning: each library as it is
+  opt$single <- "yes"
+  accs <- intersect(lib$accession, names(ex))
+  term_of <- setNames(lib$term, lib$accession)
+  genes <- unique(unlist(lapply(ex, function(x) rownames(x$m))))
+  cat(sprintf("%d libraries, %d viewpoints, window %d bins, one library at a time\n",
+              length(accs), length(genes), opt$wsize))
+  res <- mclapply(genes, function(g) {
+    e <- ex[[which(sapply(ex, function(x) g %in% rownames(x$m)))[1]]]
+    vp <- e$pos[[g]]; ch <- e$chrom[[g]]
+    rbindlist(lapply(accs, function(a) {
+      r <- run_peakc(term_profiles(ex, a, g, vp, opt), vp, opt)
+      if (is.null(r)) return(NULL)
+      rg <- regions(r$peak, r$pos, r$ratio, opt$res)
+      if (is.null(rg)) return(NULL)
+      cbind(data.table(accession = a, term = term_of[[a]], gene = g, chrom = ch,
+                       vp_pos = vp), rg)
+    }))
+  }, mc.cores = opt$cores)
+  peaks <- rbindlist(res)
+  dir.create(opt$out, showWarnings = FALSE, recursive = TRUE)
+  if (nrow(peaks) == 0) die("no peak called in any library; nothing written")
+  fwrite(peaks, file.path(opt$out, "peaks_lib.tsv"), sep = "\t")
+  cat(sprintf("%d peak regions in %d libraries -> %s\n", nrow(peaks),
+              uniqueN(peaks$accession), file.path(opt$out, "peaks_lib.tsv")))
+  print(peaks[, .(regions = .N, viewpoints = uniqueN(gene)), by = .(term)])
 }
 
 # ---------------------------------------------------------------------------
@@ -1219,6 +1261,7 @@ opt <- parse_args(commandArgs(trailingOnly = TRUE))
 switch(opt$cmd,
        scan = cmd_scan(opt),
        call = cmd_call(opt),
+       call_lib = cmd_call_lib(opt),
        reciprocal = cmd_reciprocal(opt),
        deseq = cmd_deseq(opt),
        assoc = cmd_assoc(opt),

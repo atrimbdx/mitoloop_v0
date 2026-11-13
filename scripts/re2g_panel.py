@@ -70,6 +70,8 @@ Outputs (in --out)
                             cumulative distributions of registry candidates
                             per gene and of linked elements per gene (one
                             biosample, union, intersection)
+                            biosamples: each linking file and its CellType
+                            (file=CellType;...), for per-tissue replication
     biosamples_found.tsv    file, CellType; written when --keep is empty or
                             with --list-biosamples
     genes_without_tss.txt   symbols left out for lack of a TSS
@@ -1112,9 +1114,11 @@ def main():
             parsed.append((c_, int(s_), int(e_), n))
         for c_, s_, e_, n in sorted(parsed):
             w = bit[f"{c_}:{s_}-{e_}"]
-            types = sorted({ct_of[lab] for bi, lab in enumerate(bio_order) if w >> bi & 1})
+            labs = [lab for bi, lab in enumerate(bio_order) if w >> bi & 1]
+            types = sorted({ct_of[lab] for lab in labs})
             elements.append((g, "mito" if g in mito else "control", c_,
-                             s_, e_, (s_ + e_) // 2 - pos, n, ";".join(types)))
+                             s_, e_, (s_ + e_) // 2 - pos, n, ";".join(types),
+                             ";".join(f"{lab}={ct_of[lab]}" for lab in labs)))
         n_ccre = (ccre_in_window(mids, chrom, pos, a.window) if mids
                   else np.nan)
         never = (1 - min(1.0, len(unions) / n_ccre)) if (
@@ -1140,7 +1144,7 @@ def main():
         print("\nno registry: elements compared on their own coordinates, so "
               "the union is inflated and the intersection deflated")
     with open(out / "re2g_elements.tsv", "w") as fh:
-        fh.write("gene\tset\tchrom\tstart\tend\tdistance\tprevalence\tcelltypes\n")
+        fh.write("gene\tset\tchrom\tstart\tend\tdistance\tprevalence\tcelltypes\tbiosamples\n")
         for r in elements:
             fh.write("\t".join(str(x) for x in r) + "\n")
     print(f"{len(elements):,} gene-element pairs -> "
