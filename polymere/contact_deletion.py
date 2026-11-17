@@ -141,7 +141,10 @@ def main():
     conds = [k for k in par_cond if k != "SAUVAGE"]
     fig, ax = plt.subplots(figsize=(1.2 + 0.9 * len(autres), 2.4))
     w = 0.8 / max(1, len(conds))
-    coul = {"SANSELEMENT": "#C78A20", "SANSANCRE": "#2166AC"}
+    pal = ["#2166AC", "#1B9E77", "#7570B3", "#E7298A"]
+    coul = {"SANSELEMENT": "#C78A20"}
+    for k, cond in enumerate(c_ for c_ in par_cond if c_ not in ("SAUVAGE", "SANSELEMENT")):
+        coul[cond] = pal[k % len(pal)]
     for k, cond in enumerate(conds):
         rr = [r for r in rows if r["condition"] == cond]
         x = np.arange(len(rr)) + (k - (len(conds) - 1) / 2) * w

@@ -25,8 +25,11 @@ Subcommands
                                      ctcf_encode.py on --ctcf-pics)
                ctcf_SANSELEMENT.bed  the same without the sites inside the
                                      elements on anchor
-               ctcf_SANSANCRE.bed    without the sites within --ancre-demi
-                                     of the gene's distal loop summits
+               ctcf_SANSANCRE<kb>.bed  one per distal loop summit of the
+                                     gene: without the sites within
+                                     --ancre-ctcf of that summit (one
+                                     10-kb anchor and half an anchor on
+                                     each side), each loop tested alone
                plan_ajustement.tsv   path A, condition SAUVAGE, every
                                      parameter set, --replicats-ajustement
              A deletion that removes no CTCF site leaves path A with the
@@ -54,7 +57,6 @@ import sys
 import urllib.request
 from pathlib import Path
 
-CONDITIONS = ("SAUVAGE", "SANSELEMENT", "SANSANCRE")
 N_JEUX_A = 18          # simpol config.GRILLE_A : 3 x 3 x 2
 
 
@@ -167,18 +169,19 @@ def cmd_preparer(a):
 
     def centre(r):
         return (int(r[1]) + int(r[2])) / 2
-    zones = {
-        "SANSELEMENT": [(int(e["debut"]), int(e["fin"])) for e in elems],
-        "SANSANCRE": [(s - a.ancre_demi, s + a.ancre_demi) for s in summits
-                      if abs(s - tss) > a.ancre_demi],
-    }
+    zones = {"SANSELEMENT": [(int(e["debut"]), int(e["fin"])) for e in elems]}
+    for s in summits:
+        if abs(s - tss) > a.ancre_ctcf:
+            zones[f"SANSANCRE{s // 1000}"] = [(s - a.ancre_ctcf, s + a.ancre_ctcf)]
     bilan = []
     for cond, zs in zones.items():
         garde = [r for r in sites if not any(z0 <= centre(r) <= z1 for z0, z1 in zs)]
         ecrire_bed(garde, out / f"ctcf_{cond}.bed")
         retires = len(sites) - len(garde)
         bilan.append((cond, retires))
-        msg = f"  {cond:12s} {retires} site(s) CTCF retiré(s) sur {len(sites)}"
+        enleves = [f"{int(centre(r)):,}({r[5]})" for r in sites if r not in garde]
+        msg = (f"  {cond:16s} {retires} site(s) CTCF retiré(s) sur {len(sites)}"
+               + (f" : {', '.join(enleves)}" if enleves else ""))
         if not retires:
             msg += ("  -> même entrée que SAUVAGE : la voie A ne peut prédire aucun changement "
                     "(différentiel nul par construction)")
@@ -209,8 +212,8 @@ def cmd_plan(a):
         print(f"jeu retenu : {jeu} (profils r={float(rows[0]['profils_pearson_moyen']):.3f}, "
               f"{rows[0]['parametres']})")
     retires = {r["condition"]: int(r["sites_retires"]) for r in read_tsv(d / "conditions.tsv")}
-    conds = [c for c in CONDITIONS if c == "SAUVAGE" or retires.get(c, 0) > 0]
-    for c in CONDITIONS:
+    conds = [c for c in retires if c == "SAUVAGE" or retires[c] > 0]
+    for c in retires:
         if c not in conds:
             print(f"  {c} : aucun site retiré, pas simulé (nul par construction)")
     n = 0
@@ -246,6 +249,8 @@ def main():
     s.add_argument("--marge", type=int, default=300000, help="flanc simulé de part et d'autre")
     s.add_argument("--flanc", type=int, default=150000, help="fenêtre analysée autour des ancres")
     s.add_argument("--ancre-demi", type=int, default=5000)
+    s.add_argument("--ancre-ctcf", type=int, default=10000,
+                   help="délétion d'ancre : sites CTCF à moins de N pb du sommet de la boucle")
     s.add_argument("--replicats-ajustement", type=int, default=4)
     s.add_argument("--out", required=True)
     q = sub.add_parser("plan")
