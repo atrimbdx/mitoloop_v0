@@ -34,6 +34,7 @@ Python 3 standard library ; needs access to www.encodeproject.org.
 import argparse
 import datetime
 import json
+import os
 import re
 import sys
 import urllib.parse
@@ -88,7 +89,9 @@ def main():
     p.add_argument("--max", type=int, default=0, help="at most N files (0: all)")
     a = p.parse_args()
     dest = Path(a.dest)
-    have = sorted({m.group(0) for f in dest.glob("*") for m in [re.search(r"ENCFF[0-9A-Z]+", f.name)] if m})
+    # fichiers complets seulement (un .part interrompu sera retéléchargé)
+    have = sorted({m.group(0) for f in dest.glob("*") if not f.name.endswith(".part")
+                   for m in [re.search(r"ENCFF[0-9A-Z]+", f.name)] if m})
     if not have:
         sys.exit(f"aucun fichier ENCFF dans {dest} : impossible de savoir quel type de fichier prendre")
     ref_types, ref_formats, ref_subtypes = set(), set(), set()
@@ -193,7 +196,10 @@ def main():
         return
     for i, (acc, _an, term, _c, _o, href, _t) in enumerate(rows, 1):
         tgt = dest / Path(href).name
-        part = tgt.with_name(tgt.name + ".part")
+        if tgt.exists():                         # déjà là (autre lancement) : rien à faire
+            print(f"  [{i}/{len(rows)}] {acc} déjà présent", file=sys.stderr)
+            continue
+        part = tgt.with_name(f"{tgt.name}.{os.getpid()}.part")   # propre à ce processus
         print(f"  [{i}/{len(rows)}] {acc} ({term})", file=sys.stderr)
         with urllib.request.urlopen(PORTAL + href, timeout=600) as r, open(part, "wb") as fo:
             while True:
@@ -201,7 +207,10 @@ def main():
                 if not b:
                     break
                 fo.write(b)
-        part.rename(tgt)
+        if tgt.exists():                         # un autre lancement l'a fini entre-temps
+            part.unlink()
+        else:
+            part.rename(tgt)
     print("terminé : relancer re2g_panel.py (étape paquet de reannot) pour les prendre en compte",
           file=sys.stderr)
 
