@@ -143,6 +143,15 @@ def cmd_preparer(a):
 
     # sites CTCF orientés, puis les conditions de délétion
     pics = a.ctcf_pics
+    if not pics and a.ctcf_biosample:
+        # premier fichier de pics GRCh38 publié pour ce terme ENCODE (simpol ctcf_encode.py)
+        sys.path.insert(0, str(Path(__file__).resolve().parent / "simpol"))
+        from ctcf_encode import chercher_encode
+        acc, pics = chercher_encode(a.ctcf_biosample)
+        print(f"CTCF : ENCODE {acc} ({a.ctcf_biosample}) {pics}")
+        (out / "ctcf_source.txt").write_text(f"{acc}\t{a.ctcf_biosample}\t{pics}\n")
+    if not pics:
+        sys.exit("--ctcf-pics ou --ctcf-biosample requis")
     if pics.startswith(("http://", "https://")):
         loc = out / Path(pics.split("?")[0]).name
         if not loc.exists():
@@ -228,7 +237,9 @@ def main():
     s.add_argument("--hic", default="", help=".hic ou URL : matrice mesurée (choix du jeu)")
     s.add_argument("--res", type=int, default=10000)
     s.add_argument("--norm", default="SCALE")
-    s.add_argument("--ctcf-pics", required=True, help="pics CTCF ENCODE (URL ou bed[.gz])")
+    s.add_argument("--ctcf-pics", default="", help="pics CTCF ENCODE (URL ou bed[.gz])")
+    s.add_argument("--ctcf-biosample", default="",
+                   help="terme ENCODE : le fichier de pics CTCF est cherché sur le portail")
     s.add_argument("--genome", required=True)
     s.add_argument("--nom", default="", help="nom du locus (défaut : gène en minuscules)")
     s.add_argument("--bin", type=int, default=5000)
