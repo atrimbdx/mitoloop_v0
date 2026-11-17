@@ -92,7 +92,8 @@ def _api(chemin, **params):
 
 def _fichier_pics(acc, assemblage):
     """Meilleur BED de pics d'une experience, ou None."""
-    det, _ = _api(f"/experiments/{acc}/")
+    # format=json : sans lui, le portail renvoie la page HTML de l'experience
+    det, _ = _api(f"/experiments/{acc}/", format="json")
     cands = [f for f in det.get("files", [])
              if f.get("file_format") == "bed"
              and f.get("assembly") == assemblage
