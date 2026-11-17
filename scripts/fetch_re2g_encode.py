@@ -84,6 +84,7 @@ def main():
                    help="at most N files per biosample term (0: all ; enough for the >= 3 rule)")
     p.add_argument("--sans-controle-modele", action="store_true",
                    help="do not check that the model columns match the files already present")
+    p.add_argument("--paralleles", type=int, default=8, help="headers read in parallel")
     p.add_argument("--max", type=int, default=0, help="at most N files (0: all)")
     a = p.parse_args()
     dest = Path(a.dest)
@@ -101,6 +102,7 @@ def main():
             ref_subtypes.add(d.get("annotation_subtype", ""))
             print(f"référence {acc} : {f.get('output_type')} / {f.get('file_format')} ; "
                   f"{d.get('accession')} {d.get('description', '')[:80]}", file=sys.stderr)
+    print("recherche des annotations rE2G sur ENCODE (une à quelques minutes)...", file=sys.stderr, flush=True)
     res = get("/search/", type="Annotation",
               annotation_type="element gene regulatory interaction predictions",
               status="released", assembly="GRCh38", limit="all", format="json",
@@ -132,20 +134,35 @@ def main():
     # même modèle rE2G que les fichiers présents (re2g_panel.py applique le seuil d'un seul modèle)
     if not a.sans_controle_modele:
         ref = features_local(next(f for f in sorted(dest.glob("*.bed.gz"))))
-        keep, n_out, n_err = [], 0, 0
-        per_term = {}
-        for r in rows:
-            if a.max_par_biosample and per_term.get(r[2], 0) >= a.max_par_biosample:
-                continue
+        # en-têtes lus en parallèle, par lots, jusqu'à --max-par-biosample fichiers du bon modèle
+        from concurrent.futures import ThreadPoolExecutor
+
+        def check(r):
             try:
-                ok = features_distant(r[5]) == ref
+                return r, features_distant(r[5]) == ref, False
             except Exception:                    # en-tête illisible : écarté, compté
-                ok, n_err = False, n_err + 1
-            if ok:
-                keep.append(r)
-                per_term[r[2]] = per_term.get(r[2], 0) + 1
-            else:
-                n_out += 1
+                return r, False, True
+        keep, n_out, n_err, per_term, vu = [], 0, 0, {}, 0
+        by_term = {}
+        for r in rows:
+            by_term.setdefault(r[2], []).append(r)
+        print(f"contrôle du modèle : {len(rows)} candidats, {len(by_term)} biosamples", file=sys.stderr)
+        with ThreadPoolExecutor(max_workers=a.paralleles) as ex:
+            for t, cand in sorted(by_term.items()):
+                i = 0
+                while i < len(cand) and (not a.max_par_biosample or per_term.get(t, 0) < a.max_par_biosample):
+                    lot = cand[i:i + a.paralleles]
+                    i += len(lot)
+                    for r, ok, err in ex.map(check, lot):
+                        vu += 1
+                        n_err += err
+                        if ok and (not a.max_par_biosample or per_term.get(t, 0) < a.max_par_biosample):
+                            keep.append(r)
+                            per_term[t] = per_term.get(t, 0) + 1
+                        elif not ok:
+                            n_out += 1
+                print(f"   {t:45s} {per_term.get(t, 0)} gardés ({vu} en-têtes lus au total)",
+                      file=sys.stderr, flush=True)
         print(f"modèle : {len(ref)} colonnes Feature de référence ; {n_out} fichiers d'un autre modèle "
               f"écartés ({n_err} en-têtes illisibles)", file=sys.stderr)
         rows = keep
