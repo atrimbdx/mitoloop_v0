@@ -12,6 +12,9 @@ Purpose
       midpoint of its two positions (observed / expected by default)
       an optional arc panel of the loops of loops.tsv in the window, for the
       requested gene and for every other viewpoint that falls in the window
+      an optional track of the ENCODE-rE2G elements linked to the gene
+      (--elements), those of one tissue's biosamples with --elements-tissu;
+      an element on a called loop anchor is drawn in gold
       an optional gene track read from a GTF
       the virtual 4C profile of the viewpoint, with the called loops marked
 
@@ -405,6 +408,15 @@ def main():
     p.add_argument("--arcs-others", default="",
                    help="restrict the other genes drawn to this comma "
                         "separated list; empty keeps them all")
+    p.add_argument("--elements",
+                   help="re2g_elements.tsv (re2g_panel.py): rE2G elements "
+                        "linked to --gene, drawn as a track")
+    p.add_argument("--elements-tissu", default="",
+                   help="muscle, cardiomyocyte, neurone, rein (biosamples of "
+                        "that tissue, as choisir_locus.py) or a regex on "
+                        "CellType; empty: every biosample")
+    p.add_argument("--elements-min", type=int, default=1,
+                   help="at least N biosamples (of the tissue) linking it")
     p.add_argument("--genes-track", action="store_true",
                    help="draw the genes of the window under the map; needs "
                         "--gtf")
@@ -620,14 +632,62 @@ def main():
               + (f", the rest at {', '.join(others)}" if others else ""))
     arcs_h = a.arcs_height if arcs else 0
 
+    elems = []                   # (start, end, biosamples, on a loop anchor)
+    if a.elements:
+        if not a.gene:
+            sys.exit("--elements needs --gene")
+        import re as _re
+        try:
+            from choisir_locus import CELLTYPES
+        except ImportError:
+            CELLTYPES = {}
+        if a.elements_tissu in CELLTYPES:
+            inc, exc = CELLTYPES[a.elements_tissu]
+        else:
+            inc, exc = a.elements_tissu, ""
+        ri = _re.compile(inc, _re.I) if inc else None
+        rx = _re.compile(exc, _re.I) if exc else None
+        summits = []
+        if a.loops:
+            for r in read_tsv(a.loops):
+                if r.get("gene") == a.gene and same_chrom(r.get("chrom", ""), chrom):
+                    try:
+                        summits.append(float(r["summit"]))
+                    except (KeyError, ValueError):
+                        pass
+        for r in read_tsv(a.elements):
+            if r.get("gene") != a.gene or not same_chrom(r.get("chrom", ""), chrom):
+                continue
+            s_, e_ = int(float(r["start"])), int(float(r["end"]))
+            if e_ < start or s_ > end:
+                continue
+            if r.get("biosamples"):
+                cts = [x.split("=", 1)[1] for x in r["biosamples"].split(";")
+                       if "=" in x]
+            else:
+                cts = [x for x in r.get("celltypes", "").split(";") if x]
+            n_b = sum(1 for c in cts if (ri is None or ri.search(c))
+                      and not (rx and rx.search(c)))
+            if n_b < a.elements_min:
+                continue
+            on = any(s_ - a.anchor_half <= sm <= e_ + a.anchor_half
+                     for sm in summits)
+            elems.append((s_, e_, n_b, on))
+        print(f"  {len(elems)} rE2G elements of {a.gene} in the window"
+              + (f" ({a.elements_tissu})" if a.elements_tissu else "")
+              + f", {sum(1 for x in elems if x[3])} on a called loop anchor")
+    elem_h = 0.32 if a.elements else 0
+
     gx = None
     ax2 = None
-    if m is None and not n_rows and not arcs:
+    ex = None
+    if m is None and not n_rows and not arcs and not elem_h:
         fig, bx = plt.subplots(1, 1, figsize=(fig_w, prof_h + 0.95))
         ax = None
     else:
         heights = ([map_h] if m is not None else []) + \
                   ([arcs_h] if arcs else []) + \
+                  ([elem_h] if elem_h else []) + \
                   ([gene_h] if n_rows else []) + [prof_h]
         fig, axes = plt.subplots(
             len(heights), 1, figsize=(fig_w, sum(heights) + 0.95), sharex=True,
@@ -635,6 +695,7 @@ def main():
         axes = list(np.atleast_1d(axes))
         ax = axes.pop(0) if m is not None else None
         ax2 = axes.pop(0) if arcs else None
+        ex = axes.pop(0) if elem_h else None
         gx = axes.pop(0) if n_rows else None
         bx = axes.pop(0)
 
@@ -692,7 +753,8 @@ def main():
                      ("balanced contacts" if a.norm.upper() != "NONE"
                       else "contacts"), fontsize=fs(7))
     else:
-        bx.set_title(title, fontsize=fs(9), loc="left")
+        first = next(x for x in (ax2, ex, gx, bx) if x is not None)
+        first.set_title(title, fontsize=fs(9), loc="left")
 
     if ax2 is not None:
         from matplotlib.path import Path as MPath
@@ -722,6 +784,25 @@ def main():
             ax2.plot([v_, s_], [0, 0], ls="none", marker="o", ms=2.4,
                      color=col, zorder=4 if mine else 2,
                      alpha=1.0 if mine else 0.55)
+
+    if ex is not None:
+        from matplotlib.patches import Rectangle
+        ex.set_xlim(edges[0], edges[-1])
+        ex.set_ylim(0, 1)
+        ex.set_yticks([])
+        ex.set_ylabel("rE2G", fontsize=fs(7), rotation=0, ha="right",
+                      va="center", labelpad=2)
+        for s in ("top", "right", "left", "bottom"):
+            ex.spines[s].set_visible(False)
+        ex.tick_params(axis="x", length=0)
+        top_b = max([x[2] for x in elems] or [1])
+        for s_, e_, n_b, on in sorted(elems, key=lambda x: x[3]):
+            # at least one bin wide, so that a 500 bp element stays visible
+            w = max(e_ - s_, res / 2)
+            ex.add_patch(Rectangle(((s_ + e_) / 2 - w / 2, 0.15), w, 0.7,
+                                   color=GOLD if on else GREY, lw=0,
+                                   alpha=0.35 + 0.65 * n_b / top_b))
+        ex.axvline(vp, color="black", lw=0.7, ls=(0, (1, 2)), zorder=0)
 
     if gx is not None:
         gx.set_xlim(edges[0], edges[-1])
@@ -809,7 +890,7 @@ def main():
     fig.canvas.draw()
     if ax is not None:
         box = ax.get_position()
-        for other in (ax2, gx, bx):
+        for other in (ax2, ex, gx, bx):
             if other is not None:
                 q = other.get_position()
                 other.set_position([box.x0, q.y0, box.width, q.height])

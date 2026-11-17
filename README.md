@@ -50,6 +50,7 @@ PanelApp "Mitochondrial disorders" panel), as are the control genes, which
 | `scripts/v4c_loops.R` | R | peakC window choice, loop calling per ENCODE term, reciprocity filter, association of loop strength with mtCN (limma), one loop-strength value per GTEx tissue |
 | `scripts/peaks_vs_elements.py` | Python | overlap between loop anchors and replicable rE2G elements, with permutation nulls |
 | `scripts/locus_figure.py` | Python | one locus: rotated Hi-C map, loop arcs, gene track, virtual 4C profile with the called loops |
+| `scripts/choisir_locus.py` | Python | ranks the promoters of one tissue by how well they illustrate a loop ending on a same-tissue rE2G element, and writes the `locus_figure.py` call for each |
 | `scripts/folding_figure.py` | Python | schematic chromatin folding of a locus drawn from the called loops |
 | `scripts/svg_to_pptx.py` | Python | convert a matplotlib SVG into editable PowerPoint shapes |
 | `scripts/promoter_elements.py` | Python | core promoter elements (TATA box, initiator, G-quadruplex), tissue specificity (tau) and promoter type, used by `promoter_features.py` |
@@ -292,6 +293,9 @@ python3 scripts/locus_figure.py --npz results/raw/ACCESSION.npz \
     --loops results/loops/loops.tsv --gtf data/gencode.gtf.gz \
     --arcs --genes-track --window 1000000 --max-distance 1000000 \
     --norm SCALE --out figures/locus_GENE1
+# the locus to show, per tissue: a loop on an element of the same tissue
+python3 scripts/choisir_locus.py --dir results/loops_tissus --tissu muscle \
+    --elements results/re2g/re2g_elements.tsv --interet genes.txt --top 15
 python3 scripts/folding_figure.py --loops results/loops/loops.tsv \
     --gene GENE1 --window 1000000 \
     --elements results/re2g/re2g_elements.tsv --gtf data/gencode.gtf.gz \
