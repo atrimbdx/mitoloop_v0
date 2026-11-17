@@ -277,21 +277,25 @@ def genes_in(gtf, chrom, start, end, types):
 
 
 def pack_rows(genes, span, n_rows):
-    """Greedy rows so that neither a gene nor its label overlaps the next."""
-    ends, rows = [], []
+    """Greedy rows so that neither a gene nor its label overlaps another. The
+    label sits after the 3' end of the arrow: right of a + gene, left of a -
+    gene, so the space it takes is on that side."""
+    rows_iv, rows = [], []
     for g in genes:
         pad = max(span * 0.012 * (len(g[0]) + 2), span * 0.02)
-        for r, last in enumerate(ends):
-            if g[1] > last:
-                ends[r] = g[2] + pad
+        strand = g[3] if len(g) > 3 else "+"
+        iv = (g[1] - pad, g[2]) if strand == "-" else (g[1], g[2] + pad)
+        for r, ivs in enumerate(rows_iv):
+            if all(iv[1] < a or iv[0] > b for a, b in ivs):
+                ivs.append(iv)
                 rows.append(r)
                 break
         else:
-            if len(ends) >= n_rows:
+            if len(rows_iv) >= n_rows:
                 rows.append(None)        # no room, left out
                 continue
-            ends.append(g[2] + pad)
-            rows.append(len(ends) - 1)
+            rows_iv.append([iv])
+            rows.append(len(rows_iv) - 1)
     return rows
 
 
@@ -885,6 +889,11 @@ def main():
                 # matrix it sits at their midpoint, at half their separation.
                 # The same marker as the panel below, lifted a few points so
                 # that it points at the pixel without covering it.
+                # guides from the loop pixel down to its two anchors on the
+                # diagonal: the contact sits above their midpoint, not above
+                # the anchors themselves
+                ax.plot([vp, (vp + s_) / 2, s_], [0, abs(s_ - vp) / 2, 0],
+                        color=GOLD, lw=0.8, ls=(0, (2, 2)), zorder=5)
                 ax.plot([(vp + s_) / 2], [abs(s_ - vp) / 2], marker="v",
                         ms=a.marker_size, color=GOLD, clip_on=False,
                         transform=offset_copy(ax.transData, fig,
