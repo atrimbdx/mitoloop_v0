@@ -417,6 +417,9 @@ def main():
                         "CellType; empty: every biosample")
     p.add_argument("--elements-min", type=int, default=1,
                    help="at least N biosamples (of the tissue) linking it")
+    p.add_argument("--elements-frac", type=float, default=0,
+                   help="at least this share of the tissue's biosamples linking "
+                        "it (biosamples column; 0: --elements-min only)")
     p.add_argument("--genes-track", action="store_true",
                    help="draw the genes of the window under the map; needs "
                         "--gtf")
@@ -655,20 +658,33 @@ def main():
                         summits.append(float(r["summit"]))
                     except (KeyError, ValueError):
                         pass
+        def mine(ct):
+            return (ri is None or ri.search(ct)) and not (rx and rx.search(ct))
+        tissue_files, cand = set(), []
         for r in read_tsv(a.elements):
+            bios = [x.split("=", 1) for x in (r.get("biosamples") or "").split(";")
+                    if "=" in x]
+            # biosamples of the tissue over the whole table, for --elements-frac
+            tissue_files.update(f for f, ct in bios if mine(ct))
             if r.get("gene") != a.gene or not same_chrom(r.get("chrom", ""), chrom):
                 continue
             s_, e_ = int(float(r["start"])), int(float(r["end"]))
             if e_ < start or s_ > end:
                 continue
-            if r.get("biosamples"):
-                cts = [x.split("=", 1)[1] for x in r["biosamples"].split(";")
-                       if "=" in x]
+            if bios:
+                n_b = len({f for f, ct in bios if mine(ct)})
             else:
-                cts = [x for x in r.get("celltypes", "").split(";") if x]
-            n_b = sum(1 for c in cts if (ri is None or ri.search(c))
-                      and not (rx and rx.search(c)))
-            if n_b < a.elements_min:
+                n_b = sum(1 for c in (r.get("celltypes", "") or "").split(";")
+                          if c and mine(c))
+            cand.append((s_, e_, n_b))
+        need = a.elements_min
+        if a.elements_frac > 0 and tissue_files:
+            need = max(need, -(-int(a.elements_frac * 1000) * len(tissue_files) // 1000))
+            print(f"  {len(tissue_files)} rE2G biosamples"
+                  + (f" of {a.elements_tissu}" if a.elements_tissu else "")
+                  + f"; an element needs {need}")
+        for s_, e_, n_b in cand:
+            if n_b < need:
                 continue
             on = any(s_ - a.anchor_half <= sm <= e_ + a.anchor_half
                      for sm in summits)

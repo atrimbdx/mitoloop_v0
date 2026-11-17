@@ -47,4 +47,11 @@ python3 "$S/locus_figure.py" --npz M1.npz --gene GA --loops T/muscle/loops.tsv -
     --elements el.tsv --elements-tissu muscle --window 500000 --out fig/GA > f.log 2>&1 || { cat f.log; fail figure; }
 grep -q "2 rE2G elements of GA in the window (muscle), 1 on a called loop anchor" f.log || { cat f.log; fail "element track"; }
 [ -s fig/GA.svg ] || fail svg
+grep -q "biosamples rE2G par tissu (seuil) : muscle 2 (2)" c.log || { cat c.log; fail "frac-tissu threshold"; }
+# figure with the 80 % rule: muscle has 2 biosamples, an element needs 2 -> the
+# 1,100,000 element (1 muscle biosample) is left out
+python3 "$S/locus_figure.py" --npz M1.npz --gene GA --loops T/muscle/loops.tsv --arcs \
+    --elements el.tsv --elements-tissu muscle --elements-frac 0.8 --window 500000 --out fig/GA8 > f8.log 2>&1 || { cat f8.log; fail "figure frac"; }
+grep -q "an element needs 2" f8.log && grep -q "1 rE2G elements of GA in the window (muscle), 1 on a called loop anchor" f8.log \
+    || { cat f8.log; fail "element track frac"; }
 echo "PASS test_choisir_locus"

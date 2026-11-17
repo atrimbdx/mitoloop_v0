@@ -20,6 +20,9 @@ Inputs
   --elements   re2g_elements.tsv (re2g_panel.py), with its biosamples column
                (file=CellType;...); elements linked to the gene of the loop
   --interet    optional list of genes to keep (MITO list)
+  --frac-tissu an element counts when it is linked to the gene in at least
+               this share of the tissue's rE2G biosamples (default 0.8, the
+               rule of the reannot paquet and of the AlphaGenome targets)
   --l1         optional l1.tsv of `l1_score.py score` (results/l1_raw/l1.tsv,
                the one of the reannot paquet): only the genes whose l1_class
                is in --l1-classes are kept (default transmitted: RNA changes
@@ -41,9 +44,9 @@ first, columns:
 
 Ranking (by gene, its best loop; stated, not tuned on anything)
   required   the loop anchor (summit +/- --tol) holds an element linked to the
-             gene in >= 1 biosample of the tissue
+             gene in >= --frac-tissu of the tissue's biosamples
   score      presence (n_presents / n_fichiers, 1 when not measured)
-             + min(biosamples of the tissue, 3) / 3
+             + share of the tissue's biosamples linking the element
              + min(log2(summit_ratio), 2) / 2
              + 1 if --dmin <= distance <= --dmax
              - 0.25 per extra loop of the gene beyond 2
@@ -90,22 +93,30 @@ def num(x, default=float("nan")):
         return default
 
 
-def de_tissu(cts, tissu):
+def du_tissu(ct, tissu):
     inc, exc = CELLTYPES[tissu]
-    ri, rx = re.compile(inc, re.I), re.compile(exc, re.I)
-    return sum(1 for c in cts if ri.search(c) and not rx.search(c))
+    return bool(re.search(inc, ct, re.I)) and not re.search(exc, ct, re.I)
+
+
+def de_tissu(bios, tissu):
+    """biosamples (fichiers distincts) du tissu qui relient l'élément"""
+    return len({f for f, ct in bios if du_tissu(ct, tissu)})
 
 
 def lire_elements(path):
-    """gene -> [(chrom, start, end, [CellType per biosample])]"""
-    el = defaultdict(list)
+    """gene -> [(chrom, start, end, [(fichier, CellType)])] et, par tissu, le nombre de
+    biosamples (fichiers distincts de la colonne biosamples sur toute la table)"""
+    el, tous = defaultdict(list), set()
     for r in read_tsv(path):
         if r.get("biosamples"):
-            cts = [x.split("=", 1)[1] for x in r["biosamples"].split(";") if "=" in x]
-        else:
-            cts = [x for x in r.get("celltypes", "").split(";") if x]
-        el[r["gene"]].append((r["chrom"], int(num(r["start"], 0)), int(num(r["end"], 0)), cts))
-    return el
+            bios = [tuple(x.split("=", 1)) for x in r["biosamples"].split(";") if "=" in x]
+        else:                                   # ancien format : un CellType par biosample
+            bios = [(f"{r['gene']}:{i}", x) for i, x in
+                    enumerate(x for x in r.get("celltypes", "").split(";") if x)]
+        tous.update(bios)
+        el[r["gene"]].append((r["chrom"], int(num(r["start"], 0)), int(num(r["end"], 0)), bios))
+    taille = {t: len({f for f, ct in tous if du_tissu(ct, t)}) for t in TISSUS}
+    return el, taille
 
 
 def sur_ancre(elements, chrom, summit, tol):
@@ -153,6 +164,7 @@ def main():
                    help="classes kept, comma-separated, or 'tous'")
     p.add_argument("--class-high", type=float, default=0.5)
     p.add_argument("--class-low", type=float, default=0.3)
+    p.add_argument("--frac-tissu", type=float, default=0.8)
     p.add_argument("--tol", type=int, default=10_000, help="bp around the summit (one bin)")
     p.add_argument("--dmin", type=int, default=50_000)
     p.add_argument("--dmax", type=int, default=500_000)
@@ -176,7 +188,10 @@ def main():
             print(f"L1 : {len(sel)} gènes de classe {', '.join(sorted(garder))} "
                   f"sur {len(l1)}", file=sys.stderr)
             interet = sel if interet is None else interet & sel
-    el = lire_elements(a.elements)
+    el, taille = lire_elements(a.elements)
+    seuil = {t: max(1, math.ceil(a.frac_tissu * taille[t])) for t in TISSUS}
+    print("biosamples rE2G par tissu (seuil) : "
+          + ", ".join(f"{t} {taille[t]} ({seuil[t]})" for t in TISSUS), file=sys.stderr)
     loops = {t: boucles(d, t, interet) for t in TISSUS}
     if not loops[a.tissu]:
         sys.exit(f"aucune boucle dans {d}/loops_{a.tissu}.tsv")
@@ -185,7 +200,8 @@ def main():
     for t, rows in loops.items():
         for r in rows:
             s = int(num(r["summit"], 0))
-            if any(de_tissu(e[3], t) for e in sur_ancre(el.get(r["gene"], []), r["chrom"], s, a.tol)):
+            if any(de_tissu(e[3], t) >= seuil[t]
+                   for e in sur_ancre(el.get(r["gene"], []), r["chrom"], s, a.tol)):
                 avec[r["gene"]].add(t)
     rat = ratios(d, a.tissu)
     rows = loops[a.tissu]
@@ -200,7 +216,7 @@ def main():
             dist = abs(s - vp)
             on = sur_ancre(el.get(g, []), r["chrom"], s, a.tol)
             n_t = max((de_tissu(e[3], a.tissu) for e in on), default=0)
-            if not n_t:
+            if n_t < seuil[a.tissu]:
                 continue
             n_all = max((len(e[3]) for e in on), default=0)
             nf, npr = num(r["n_fichiers"], 1), num(r["n_presents"])
@@ -211,7 +227,7 @@ def main():
                        and abs(int(num(x["vp_pos"], 0)) - vp) <= fen
                        and abs(int(num(x["summit"], 0)) - vp) <= fen)
             autres = dans - len(rs)
-            score = (pres + min(n_t, 3) / 3
+            score = (pres + n_t / max(1, taille[a.tissu])
                      + (min(math.log2(sr), 2) / 2 if sr > 1 else 0)
                      + (1 if a.dmin <= dist <= a.dmax else 0)
                      - 0.25 * max(0, len(rs) - 2) - 0.1 * max(0, autres - 3))
@@ -220,7 +236,7 @@ def main():
                 cmd = (f"python3 scripts/locus_figure.py --tissues {d}/{a.tissu}/libraries.tsv "
                        f"--term-column accession --term {acc} --gene {g} --gtf {a.gtf} "
                        f"--loops {d}/{a.tissu}/loops.tsv --arcs --genes-track "
-                       f"--elements {a.elements} --elements-tissu {a.tissu} "
+                       f"--elements {a.elements} --elements-tissu {a.tissu} --elements-frac {a.frac_tissu} "
                        f"--window {fen} --max-distance {fen} --norm SCALE "
                        f"--out figures/locus_{a.tissu}_{g}")
                 c1, v1 = l1.get(g, ("." if not a.l1 else "absent", ""))
