@@ -295,7 +295,8 @@ python3 scripts/locus_figure.py --npz results/raw/ACCESSION.npz \
     --norm SCALE --out figures/locus_GENE1
 # the locus to show, per tissue: a loop on an element of the same tissue
 python3 scripts/choisir_locus.py --dir results/loops_tissus --tissu muscle \
-    --elements results/re2g/re2g_elements.tsv --interet genes.txt --top 15
+    --elements results/re2g/re2g_elements.tsv --interet genes.txt \
+    --l1 results/l1_raw/l1.tsv --top 15
 python3 scripts/folding_figure.py --loops results/loops/loops.tsv \
     --gene GENE1 --window 1000000 \
     --elements results/re2g/re2g_elements.tsv --gtf data/gencode.gtf.gz \

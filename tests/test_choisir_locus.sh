@@ -35,8 +35,14 @@ np.savez("M1.npz",names=np.array(["GA"]),chrom=np.array(["chr1"]),pos=np.array([
 PY
 python3 "$S/choisir_locus.py" --dir T --tissu muscle --elements el.tsv 2> c.log || { cat c.log; fail choisir; }
 [ "$(cut -f1 T/locus_muscle.tsv | tail -n +2 | tr '\n' ' ')" = "GA GB " ] || { cat T/locus_muscle.tsv; fail "ranking"; }
-[ "$(awk -F'\t' 'NR==2{print $4, $9, $10}' T/locus_muscle.tsv)" = "1200000 2 3" ] || { cat T/locus_muscle.tsv; fail "best loop of GA"; }
+[ "$(awk -F'\t' 'NR==2{print $6, $11, $12}' T/locus_muscle.tsv)" = "1200000 2 3" ] || { cat T/locus_muscle.tsv; fail "best loop of GA"; }
 grep -q -- "--elements-tissu muscle" T/locus_muscle.tsv || fail "command"
+# --l1: GB transmitted (95% interval above 0.5), GA uncertain -> GB alone; tous keeps both
+printf 'gene\tscore\tci_low\tci_high\tstatus\nGA\t0.5\t0.2\t0.8\testimable\nGB\t0.8\t0.6\t0.9\testimable\n' > l1.tsv
+python3 "$S/choisir_locus.py" --dir T --tissu muscle --elements el.tsv --l1 l1.tsv --out l1.out 2> c2.log || { cat c2.log; fail "--l1"; }
+[ "$(cut -f1-3 l1.out | tail -n +2)" = "$(printf 'GB\ttransmitted\t0.80')" ] || { cat l1.out; fail "L1 filter"; }
+python3 "$S/choisir_locus.py" --dir T --tissu muscle --elements el.tsv --l1 l1.tsv --l1-classes tous --out l1b.out 2> c3.log
+[ "$(cut -f1,2 l1b.out | tail -n +2 | tr '\t\n' ': ')" = "GA:uncertain GB:transmitted " ] || { cat l1b.out; fail "L1 tous"; }
 python3 "$S/locus_figure.py" --npz M1.npz --gene GA --loops T/muscle/loops.tsv --arcs \
     --elements el.tsv --elements-tissu muscle --window 500000 --out fig/GA > f.log 2>&1 || { cat f.log; fail figure; }
 grep -q "2 rE2G elements of GA in the window (muscle), 1 on a called loop anchor" f.log || { cat f.log; fail "element track"; }

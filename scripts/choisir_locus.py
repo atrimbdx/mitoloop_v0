@@ -19,11 +19,19 @@ Inputs
   --tissu      muscle, cardiomyocyte, neurone or rein
   --elements   re2g_elements.tsv (re2g_panel.py), with its biosamples column
                (file=CellType;...); elements linked to the gene of the loop
-  --interet    optional list of genes to keep (MITO list, L1-sensitive genes)
+  --interet    optional list of genes to keep (MITO list)
+  --l1         optional l1.tsv of `l1_score.py score` (results/l1_raw/l1.tsv,
+               the one of the reannot paquet): only the genes whose l1_class
+               is in --l1-classes are kept (default transmitted: RNA changes
+               reach the protein, so a regulatory variant at the locus can
+               matter); --l1-classes tous keeps every gene and only adds the
+               class. A l1.tsv without l1_class is classed by the rule of
+               l1_score.py (95% interval above --class-high: transmitted,
+               below --class-low: not_transmitted)
 
 Output (--out, default <dir>/locus_<tissu>.tsv), one row per gene, best loop
 first, columns:
-  gene chrom vp_pos summit distance_kb n_fichiers n_presents summit_ratio
+  gene l1_class l1 chrom vp_pos summit distance_kb n_fichiers n_presents summit_ratio
   elements_tissu   biosamples of the tissue linking the element on the anchor
   elements_tous    biosamples of any tissue linking it
   boucles_gene     loops of this gene in the tissue
@@ -121,6 +129,18 @@ def ratios(d, tissu):
     return out
 
 
+def classe_l1(r, high, low):
+    """the rule of l1_score.py, for a l1.tsv without the l1_class column"""
+    if r.get("l1_class"):
+        return r["l1_class"]
+    if not str(r.get("status", "")).startswith("estimable"):
+        return "not_estimable"
+    lo, hi = num(r.get("ci_low")), num(r.get("ci_high"))
+    if math.isnan(lo) or math.isnan(hi):
+        return "uncertain"
+    return "transmitted" if lo > high else "not_transmitted" if hi < low else "uncertain"
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -128,6 +148,11 @@ def main():
     p.add_argument("--tissu", required=True, choices=TISSUS)
     p.add_argument("--elements", required=True)
     p.add_argument("--interet", help="genes to keep (whitespace-separated)")
+    p.add_argument("--l1", help="l1.tsv (l1_score.py score)")
+    p.add_argument("--l1-classes", default="transmitted",
+                   help="classes kept, comma-separated, or 'tous'")
+    p.add_argument("--class-high", type=float, default=0.5)
+    p.add_argument("--class-low", type=float, default=0.3)
     p.add_argument("--tol", type=int, default=10_000, help="bp around the summit (one bin)")
     p.add_argument("--dmin", type=int, default=50_000)
     p.add_argument("--dmax", type=int, default=500_000)
@@ -140,6 +165,17 @@ def main():
 
     d = Path(a.dir)
     interet = set(Path(a.interet).read_text().split()) if a.interet else None
+    l1 = {}
+    if a.l1:
+        for r in read_tsv(a.l1):
+            l1[r["gene"]] = (classe_l1(r, a.class_high, a.class_low),
+                             r.get("l1") or r.get("score", ""))
+        if a.l1_classes != "tous":
+            garder = {x.strip() for x in a.l1_classes.split(",") if x.strip()}
+            sel = {g for g, (c, _) in l1.items() if c in garder}
+            print(f"L1 : {len(sel)} gènes de classe {', '.join(sorted(garder))} "
+                  f"sur {len(l1)}", file=sys.stderr)
+            interet = sel if interet is None else interet & sel
     el = lire_elements(a.elements)
     loops = {t: boucles(d, t, interet) for t in TISSUS}
     if not loops[a.tissu]:
@@ -187,13 +223,18 @@ def main():
                        f"--elements {a.elements} --elements-tissu {a.tissu} "
                        f"--window {fen} --max-distance {fen} --norm SCALE "
                        f"--out figures/locus_{a.tissu}_{g}")
-                best = (score, [g, r["chrom"], vp, s, f"{dist / 1000:.0f}", r["n_fichiers"],
+                c1, v1 = l1.get(g, ("." if not a.l1 else "absent", ""))
+                try:
+                    v1 = f"{float(v1):.2f}"
+                except ValueError:
+                    v1 = v1 or "."
+                best = (score, [g, c1, v1, r["chrom"], vp, s, f"{dist / 1000:.0f}", r["n_fichiers"],
                                 r["n_presents"], f"{sr:.2f}", n_t, n_all, len(rs), dans,
                                 ",".join(sorted(avec[g])), f"{score:.2f}", cmd])
         if best:
             meilleurs.append(best)
     meilleurs.sort(key=lambda x: -x[0])
-    head = ["gene", "chrom", "vp_pos", "summit", "distance_kb", "n_fichiers", "n_presents",
+    head = ["gene", "l1_class", "l1", "chrom", "vp_pos", "summit", "distance_kb", "n_fichiers", "n_presents",
             "summit_ratio", "elements_tissu", "elements_tous", "boucles_gene",
             "boucles_fenetre", "tissus_avec", "score", "commande"]
     out = Path(a.out) if a.out else d / f"locus_{a.tissu}.tsv"
@@ -203,10 +244,10 @@ def main():
             fo.write("\t".join(map(str, x)) + "\n")
     print(f"{a.tissu} : {len(par_gene)} promoteurs avec boucle, {len(meilleurs)} dont une "
           f"boucle finit sur un élément rE2G du même tissu -> {out}", file=sys.stderr)
-    print("gene\tdist_kb\tpresents\tratio\tbios_tissu\tboucles\tfenetre\ttissus\tscore", file=sys.stderr)
+    print("gene\tL1\tdist_kb\tpresents\tratio\tbios_tissu\tboucles\tfenetre\ttissus\tscore", file=sys.stderr)
     for _, x in meilleurs[:a.top]:
-        print("\t".join(map(str, [x[0], x[4], f"{x[6]}/{x[5]}", x[7], x[8], x[10], x[11],
-                                  x[12], x[13]])), file=sys.stderr)
+        print("\t".join(map(str, [x[0], x[1], x[6], f"{x[8]}/{x[7]}", x[9], x[10], x[12],
+                                  x[13], x[14], x[15]])), file=sys.stderr)
 
 
 if __name__ == "__main__":
