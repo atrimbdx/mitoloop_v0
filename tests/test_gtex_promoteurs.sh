@@ -32,3 +32,35 @@ l G1 | cut -f11 | grep -qx 'hors_deletion' && ok "G1 hors_deletion seul" || ko "
 [ "$(l G2 | cut -f7,12)" = "$(printf '+15000\t0.100')" ] && ok "G2 TSS +15000" || ko "G2 $(l G2)"
 l G2 | cut -f11 | grep -qx 'promoteur_dominant_autre,hors_deletion' && ok "G2 deux alertes" || ko "G2 alerte"
 [ "$(l G3 | cut -f11,12)" = "$(printf '.\t1.000')" ] && ok "G3 sans alerte" || ko "G3 $(l G3)"
+# GENCODE v26 of GTEx (--gtf-gtex), tags, CAGE peaks (FANTOM5), dominant TSS out of the deletion
+ex() { printf 'chr1\tHAVANA\texon\t%s\t%s\t.\t%s\t.\tgene_id "%s.1"; transcript_id "%s.1"; gene_name "%s"; exon_number 1;%s\n' "$@"; }
+{
+  # G4 (VDAC1-like), + : MANE TSS 60000, exon 1 of 300 bp ; G5 the same at 80000
+  tx 60000 70000 + ENSG4 ENST41 G4 G4-201 ' tag "MANE_Select";'
+  ex 60000 60299 + ENSG4 ENST41 G4 ' tag "MANE_Select";'
+  tx 80000 90000 + ENSG5 ENST51 G5 G5-201 ' tag "MANE_Select";'
+  ex 80000 80299 + ENSG5 ENST51 G5 ' tag "MANE_Select";'
+} > "$T/p.gtf"
+{
+  # v26: G4-202 starts at +233 (exon 1 of 167 bp), untagged ; G5-202 at +233 tagged mRNA_start_NF
+  tx 60000 70000 + ENSG4 ENST41 G4 G4-201 ' tag "basic";'
+  tx 60233 70000 + ENSG4 ENST42 G4 G4-202 ' tag "basic"; transcript_support_level "1";'
+  ex 60233 60399 + ENSG4 ENST42 G4 ''
+  tx 80000 90000 + ENSG5 ENST51 G5 G5-201 ' tag "basic";'
+  tx 80233 90000 + ENSG5 ENST52 G5 G5-202 ' tag "mRNA_start_NF";'
+  ex 80233 80399 + ENSG5 ENST52 G5 ''
+} > "$T/v26.gtf"
+printf 'chr1\t60220\t60240\tp1@G4\t9\t+\nchr1\t80220\t80240\tp1@G5\t9\t+\nchr1\t59990\t60010\tp2@G4\t9\t+\n' > "$T/cage.bed"
+python3 -c 'import json; json.dump({"data":[{"transcriptId":"ENST41.1","tissueSiteDetailId":"Muscle_Skeletal","median":1.0},{"transcriptId":"ENST42.1","tissueSiteDetailId":"Muscle_Skeletal","median":30.0}],"tissus":["Muscle_Skeletal"]}, open("'"$T"'/cache/G4.json","w"))'
+python3 -c 'import json; json.dump({"data":[{"transcriptId":"ENST51.1","tissueSiteDetailId":"Muscle_Skeletal","median":1.0},{"transcriptId":"ENST52.1","tissueSiteDetailId":"Muscle_Skeletal","median":30.0}],"tissus":["Muscle_Skeletal"]}, open("'"$T"'/cache/G5.json","w"))'
+printf 'G4 G5\n' > "$T/genes2.txt"
+python3 scripts/gtex_promoteurs.py --genes "$T/genes2.txt" --gtf "$T/p.gtf" --gtf-gtex "$T/v26.gtf" --cage "$T/cage.bed" \
+  --tissus muscle=Muscle_Skeletal --cache "$T/cache" --out "$T/o2.tsv" --tss-dominants "$T/tdom.tsv" 2> "$T/log2" || { cat "$T/log2"; ko "v26"; }
+cat "$T/o2.tsv" "$T/tdom.tsv"
+c() { awk -F'\t' -v g="$1" -v k="$2" 'NR==1{for(i=1;i<=NF;i++) h[$i]=i} $1==g{print $h[k]}' "$T/o2.tsv"; }
+[ "$(c G4 statut_tss) $(c G4 part_couverte_calib) $(c G4 promoteur_dominant) $(c G4 cage_dominant) $(c G4 meme_pic_cage)" = "dominant_confirme 0.032 +233 oui non" ] \
+  && ok "G4 TSS dominant +233 confirmé par la CAGE" || ko "G4 $(grep G4 "$T/o2.tsv")"
+[ "$(c G5 statut_tss) $(c G5 part_mrna_start_nf)" = "dominant_non_confirme 0.968" ] && c G5 alerte | grep -q dominant_tronque_5p \
+  && ok "G5 transcrit tronqué en 5' : non confirmé" || ko "G5 $(grep G5 "$T/o2.tsv")"
+[ "$(tail -n +2 "$T/tdom.tsv")" = "$(printf 'G4\tmuscle\tchr1\t60232\t+\t60399\t233')" ] \
+  && ok "tss_dominants : G4 seul" || ko "tss_dominants $(cat "$T/tdom.tsv")"
