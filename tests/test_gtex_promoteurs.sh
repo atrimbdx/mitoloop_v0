@@ -43,9 +43,10 @@ ex() { printf 'chr1\tHAVANA\texon\t%s\t%s\t.\t%s\t.\tgene_id "%s.1"; transcript_
 } > "$T/p.gtf"
 {
   # v26: G4-202 starts at +233 (exon 1 of 167 bp), untagged ; G5-202 at +233 tagged mRNA_start_NF
-  tx 60000 70000 + ENSG4 ENST41 G4 G4-201 ' tag "basic";'
-  tx 60233 70000 + ENSG4 ENST42 G4 G4-202 ' tag "basic"; transcript_support_level "1";'
-  ex 60233 60399 + ENSG4 ENST42 G4 ''
+  # G4 carries its old v26 name (G4OLD, like ATP5A1 -> ATP5F1A) : matched by gene_id
+  tx 60000 70000 + ENSG4 ENST41 G4OLD G4OLD-201 ' tag "basic";'
+  tx 60233 70000 + ENSG4 ENST42 G4OLD G4-202 ' tag "basic"; transcript_support_level "1";'
+  ex 60233 60399 + ENSG4 ENST42 G4OLD ''
   tx 80000 90000 + ENSG5 ENST51 G5 G5-201 ' tag "basic";'
   tx 80233 90000 + ENSG5 ENST52 G5 G5-202 ' tag "mRNA_start_NF";'
   ex 80233 80399 + ENSG5 ENST52 G5 ''

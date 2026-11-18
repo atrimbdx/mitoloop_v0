@@ -113,11 +113,13 @@ def attr(f9, cle):
     return m.group(1) if m else ""
 
 
-def lire_gtf(gtf, genes):
+def lire_gtf(gtf, genes, par_id=None):
     """gène -> {ENST sans version: dict(nom, tss 1-based, brin, mane, chrom, tags,
     fin_exon1 0-based, exon1)}, et gène -> gene_id sans version. tags : mRNA_start_NF,
     basic, tsl<N> ; fin_exon1 : fin exclue de l'exon 1 sur le brin +, début 0-based sur
-    le brin - ; exon1 : longueur de l'exon 1"""
+    le brin - ; exon1 : longueur de l'exon 1. par_id (ENSG sans version -> nom) : gènes
+    appariés par gene_id plutôt que par nom (GENCODE v26 : gènes renommés depuis,
+    ex. ATP5A1 -> ATP5F1A)"""
     tx, gid = defaultdict(dict), {}
     ex1 = {}
     op = gzip.open if str(gtf).endswith(".gz") else open
@@ -128,10 +130,16 @@ def lire_gtf(gtf, genes):
             f = ln.split("\t")
             if len(f) < 9 or f[2] not in ("transcript", "exon"):
                 continue
-            m = re.search(r'gene_name "([^"]+)"', f[8])
-            if not m or m.group(1) not in genes:
-                continue
-            g = m.group(1)
+            if par_id is not None:
+                mi = re.search(r'gene_id "([^".]+)', f[8])
+                if not mi or mi.group(1) not in par_id:
+                    continue
+                g = par_id[mi.group(1)]
+            else:
+                m = re.search(r'gene_name "([^"]+)"', f[8])
+                if not m or m.group(1) not in genes:
+                    continue
+                g = m.group(1)
             t = re.search(r'transcript_id "([^".]+)', f[8]).group(1)
             if f[2] == "exon":
                 if re.search(r'exon_number "?1"?;', f[8]):
@@ -227,7 +235,7 @@ def main():
     amont_b, aval_b = (int(x) for x in a.fenetre_balayage.split(":"))
     tissus = dict(x.split("=", 1) for x in a.tissus.split(",") if "=" in x)
     tx_p, gid = lire_gtf(a.gtf, genes)
-    tx = lire_gtf(a.gtf_gtex, genes)[0] if a.gtf_gtex else tx_p
+    tx = lire_gtf(a.gtf_gtex, genes, {v: k for k, v in gid.items()})[0] if a.gtf_gtex else tx_p
     cage, epd = lire_pics(a.cage), lire_pics(a.epd)
     cache = Path(a.cache)
     cache.mkdir(parents=True, exist_ok=True)
@@ -338,7 +346,7 @@ def main():
                          ("oui" if (pm_mane and pc_d == pm_mane) else "non") if a.cage else ".",
                          statut, mane["chrom"], brin, str(tss_d - 1), "." if fin1 is None else str(fin1)])
             if (typ in a.types_campagne.split(",") and tot >= a.tpm_min and part_c == part_c
-                    and part_c < 0.5 and statut == "dominant_confirme" and fin1 is not None):
+                    and part_c < a.couverte_min and statut == "dominant_confirme" and fin1 is not None):
                 dominants.append([g, typ, mane["chrom"], str(tss_d - 1), brin, str(fin1), str(rel)])
     cols = ["gene", "type", "tissu", "tpm_total", "part_mane", "tss_mane", "promoteur_dominant",
             "part_dominant", "transcrits_dominant", "part_absents", "alerte", "part_couverte",
