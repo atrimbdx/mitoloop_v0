@@ -85,4 +85,31 @@ assert float(e["sauvage"]) == 1.0 and float(e["deletion"]) < 0.2 and float(e["ci
 assert abs(float(r[("SANSANCRE700", "element_1")]["log2_ratio"])) < 0.01
 PY
 [ -s L/contacts_deletion.png ] || fail png
+# witnesses: equal arrest forces, CTCF sites at random positions
+python3 "$P/preparer_locus.py" temoins --dir L --jeu 5 --jeux 5 --tirages 2 --replicats 2 > t.log || { cat t.log; fail temoins; }
+grep -q "plan_temoins.tsv : 6 trajectoires" t.log && [ "$(cut -f7 L/ctcf_UNIFORME.bed | sort -u | wc -l)" = "1" ] \
+    && [ "$(cut -f6 L/ctcf_ALEATOIRE1.bed | sort | tr '\n' ' ')" = "$(cut -f6 L/ctcf_SAUVAGE.bed | sort | tr '\n' ' ')" ] \
+    || { cat t.log L/ctcf_UNIFORME.bed L/ctcf_ALEATOIRE1.bed; fail "temoins content"; }
+# observed / expected agreement: measured matrix with a promoter-element peak
+SIMPOL_LOCI=L/loci.json P="$P" python3 - <<'PY'
+import os, sys
+sys.path.insert(0, os.environ["P"] + "/simpol")
+import config as cfg
+n, d0, f0 = cfg.geometrie("ga")
+with open("L/matrice.tsv", "w") as fo:
+    fo.write("startA\tendA\tstartB\tendB\tN\n")
+    for i in range(450_000, 750_000, 10_000):
+        for j in range(i, 750_000, 10_000):
+            v = 100 / (1 + (j - i) / 10_000)
+            if i == 500_000 and j == 620_000:
+                v *= 6
+            fo.write(f"{i}\t{i + 10000}\t{j}\t{j + 10000}\t{v}\n")
+PY
+SIMPOL_LOCI=L/loci.json python3 "$P/evaluer_4c.py" --dir L --locus ga > e.log 2>&1 || { cat e.log; fail evaluer_4c; }
+python3 - <<'PY' || { cat e.log; fail "evaluer_4c content"; }
+import csv
+r = {(x["condition"], x["jeu"]): x for x in csv.DictReader(open("L/evaluation_4c.tsv"), delimiter="\t")}
+assert float(r[("MESURE", ".")]["oe_promoteur_GA__element_1"]) > 3
+assert float(r[("SAUVAGE", "5")]["oe_promoteur_GA__element_1"]) > float(r[("SANSELEMENT", "5")]["oe_promoteur_GA__element_1"])
+PY
 echo "PASS test_polymere"

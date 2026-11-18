@@ -36,6 +36,11 @@ Subcommands
              same input: its differential is then null by construction, and
              the script says so (the element is not architectural under the
              CTCF-extrusion hypothesis).
+  temoins    ctcf_UNIFORME.bed (every site at the strongest signal: the
+             arrest no longer follows the ChIP signal) and ctcf_ALEATOIRE<k>.bed
+             (the same sites at random positions in the simulated window,
+             orientations and signals kept), plan_temoins.tsv (UNIFORME on the
+             whole grid, ALEATOIRE with --jeu)
   plan       plan_deletion.tsv: the chosen parameter set (--jeu, or the best
              path-A set of comparaison_SAUVAGE.tsv), every condition,
              --replicats replicates
@@ -228,6 +233,42 @@ def cmd_plan(a):
           f"{a.replicats} réplicats)")
 
 
+def cmd_temoins(a):
+    """témoins de la voie A : forces d'arrêt égales (UNIFORME), et sites CTCF placés au
+    hasard dans la fenêtre simulée, mêmes orientations et mêmes signaux (ALEATOIRE<k>)"""
+    import random
+    d = Path(a.dir)
+    loc = next(iter(json.loads((d / "loci.json").read_text()).values()))
+    d0, f0 = loc["debut"] - loc["marge"], loc["fin"] + loc["marge"]
+    sites = lire_bed(d / "ctcf_SAUVAGE.bed")
+    sig_max = max(float(r[6]) for r in sites)
+    ecrire_bed([r[:6] + [f"{sig_max:g}"] for r in sites], d / "ctcf_UNIFORME.bed")
+    rnd = random.Random(a.graine)
+    conds = ["UNIFORME"]
+    for k in range(1, a.tirages + 1):
+        rows = []
+        for r in sites:
+            c = rnd.randrange(d0 + 20, f0 - 20)
+            rows.append([r[0], str(c - 10), str(c + 10)] + r[3:])
+        rows.sort(key=lambda r: int(r[1]))
+        ecrire_bed(rows, d / f"ctcf_ALEATOIRE{k}.bed")
+        conds.append(f"ALEATOIRE{k}")
+    jeux = [int(x) for x in a.jeux.split(",")] if a.jeux else list(range(N_JEUX_A))
+    n = 0
+    with open(d / "plan_temoins.tsv", "w") as fo:
+        fo.write("condition\tvoie\tjeu\treplicat\n")
+        for j in jeux:                         # UNIFORME : toute la grille
+            for r in range(a.replicats):
+                fo.write(f"UNIFORME\tA\t{j}\t{r}\n")
+                n += 1
+        for c in conds[1:]:                    # ALEATOIRE : jeu retenu de SAUVAGE
+            for r in range(a.replicats):
+                fo.write(f"{c}\tA\t{a.jeu}\t{r}\n")
+                n += 1
+    print(f"UNIFORME : {len(sites)} sites, tous au signal {sig_max:g} ; "
+          f"{a.tirages} tirages ALEATOIRE ; plan_temoins.tsv : {n} trajectoires")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -257,7 +298,17 @@ def main():
     q.add_argument("--dir", required=True)
     q.add_argument("--jeu", type=int, default=None)
     q.add_argument("--replicats", type=int, default=20)
+    t = sub.add_parser("temoins")
+    t.add_argument("--dir", required=True)
+    t.add_argument("--jeu", type=int, required=True, help="jeu retenu (ALEATOIRE)")
+    t.add_argument("--jeux", default="", help="jeux pour UNIFORME (défaut : les 18)")
+    t.add_argument("--tirages", type=int, default=5)
+    t.add_argument("--replicats", type=int, default=4)
+    t.add_argument("--graine", type=int, default=1)
     a = p.parse_args()
+    if a.cmd == "temoins":
+        cmd_temoins(a)
+        return
     if a.cmd == "preparer":
         a.nom = a.nom or a.gene.lower()
         cmd_preparer(a)
