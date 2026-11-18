@@ -112,4 +112,26 @@ r = {(x["condition"], x["jeu"]): x for x in csv.DictReader(open("L/evaluation_4c
 assert float(r[("MESURE", ".")]["oe_promoteur_GA__element_1"]) > 3
 assert float(r[("SAUVAGE", "5")]["oe_promoteur_GA__element_1"]) > float(r[("SANSELEMENT", "5")]["oe_promoteur_GA__element_1"])
 PY
+# deletions in the UNIFORME setting, and the reading against UNIFORME
+python3 "$P/preparer_locus.py" uniforme --dir L --jeu 5 --replicats 2 > un.log || { cat un.log; fail uniforme; }
+grep -q "plan_uniforme.tsv : 8 trajectoires" un.log && [ "$(cut -f7 L/ctcf_UNIF_SANSANCRE700.bed | sort -u | wc -l)" = "1" ] \
+    || { cat un.log L/plan_uniforme.tsv; fail "uniforme content"; }
+SIMPOL_LOCI=L/loci.json P="$P" python3 - <<'PY'
+import os, sys
+import numpy as np
+sys.path.insert(0, os.environ["P"] + "/simpol")
+import config as cfg
+n, d0, f0 = cfg.geometrie("ga")
+idx = cfg.indices_ancres("ga")
+rng = np.random.default_rng(1)
+for cond, proche in (("UNIFORME", True), ("UNIF_SANSELEMENT", False)):
+    for r in range(3):
+        conf = np.cumsum(rng.normal(0, 1, (200, n, 3)), axis=1) * 3
+        if proche:
+            conf[:, idx["element_1"]] = conf[:, idx["promoteur_GA"]] + 0.5
+        np.save(f"L/resultats/ga_{cond}_A_jeu005_rep{r:02d}.npy", conf.astype(np.float32))
+PY
+SIMPOL_LOCI=L/loci.json python3 "$P/contact_deletion.py" --dir L --locus ga --reference UNIFORME --conditions conditions_uniforme.tsv --tirages 100 > cu.log 2>&1 \
+    || { cat cu.log; fail "contact_deletion UNIFORME"; }
+grep -q "UNIF_SANSELEMENT promoteur_GA <-> element_1" cu.log || { cat cu.log; fail "uniforme reading"; }
 echo "PASS test_polymere"

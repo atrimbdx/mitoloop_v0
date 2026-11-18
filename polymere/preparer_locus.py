@@ -269,6 +269,37 @@ def cmd_temoins(a):
           f"{a.tirages} tirages ALEATOIRE ; plan_temoins.tsv : {n} trajectoires")
 
 
+def cmd_uniforme(a):
+    """délétions dans le réglage UNIFORME (tous les sites au signal le plus fort) :
+    ctcf_UNIF_<condition>.bed depuis chaque ctcf_SANS*.bed, conditions_uniforme.tsv,
+    plan_uniforme.tsv (UNIFORME et chaque délétion qui retire au moins un site, --jeu,
+    --replicats)"""
+    d = Path(a.dir)
+    sauvage = lire_bed(d / "ctcf_SAUVAGE.bed")
+    sig = max(float(r[6]) for r in sauvage)
+    retires = {r["condition"]: int(r["sites_retires"]) for r in read_tsv(d / "conditions.tsv")}
+    conds = ["UNIFORME"]
+    lignes = ["condition\tsites_retires", "UNIFORME\t0"]
+    for c, n in retires.items():
+        if c == "SAUVAGE":
+            continue
+        rows = lire_bed(d / f"ctcf_{c}.bed")
+        ecrire_bed([r[:6] + [f"{sig:g}"] for r in rows], d / f"ctcf_UNIF_{c}.bed")
+        lignes.append(f"UNIF_{c}\t{n}")
+        if n > 0:
+            conds.append(f"UNIF_{c}")
+    (d / "conditions_uniforme.tsv").write_text("\n".join(lignes) + "\n")
+    n = 0
+    with open(d / "plan_uniforme.tsv", "w") as fo:
+        fo.write("condition\tvoie\tjeu\treplicat\n")
+        for c in conds:
+            for r in range(a.replicats):
+                fo.write(f"{c}\tA\t{a.jeu}\t{r}\n")
+                n += 1
+    print(f"réglage UNIFORME (signal {sig:g}) : {', '.join(conds)} ; plan_uniforme.tsv : {n} trajectoires "
+          f"(jeu {a.jeu}, {a.replicats} réplicats ; les réplicats déjà faits sont sautés)")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -305,7 +336,14 @@ def main():
     t.add_argument("--tirages", type=int, default=5)
     t.add_argument("--replicats", type=int, default=4)
     t.add_argument("--graine", type=int, default=1)
+    u = sub.add_parser("uniforme")
+    u.add_argument("--dir", required=True)
+    u.add_argument("--jeu", type=int, required=True)
+    u.add_argument("--replicats", type=int, default=20)
     a = p.parse_args()
+    if a.cmd == "uniforme":
+        cmd_uniforme(a)
+        return
     if a.cmd == "temoins":
         cmd_temoins(a)
         return

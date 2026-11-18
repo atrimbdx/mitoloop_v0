@@ -58,6 +58,9 @@ def main():
     p.add_argument("--dir", required=True)
     p.add_argument("--locus", required=True)
     p.add_argument("--jeu", type=int, default=None, help="défaut : jeu_retenu.txt")
+    p.add_argument("--reference", default="SAUVAGE", help="condition de référence (ex. UNIFORME)")
+    p.add_argument("--conditions", default="conditions.tsv",
+                   help="liste des conditions et sites retirés (ex. conditions_uniforme.tsv)")
     p.add_argument("--seuil", type=float, default=2.0, help="distance de contact (comparer.py)")
     p.add_argument("--max-conformations", type=int, default=3000, dest="max_conf",
                    help="par réplicat, sous-échantillonnage régulier")
@@ -71,28 +74,29 @@ def main():
     promo = c["ancres"][0][0]
     autres = [nm for nm in idx if nm != promo]
     js = [idx[nm] for nm in autres]
+    REF = a.reference
     retires = {}
-    if (d / "conditions.tsv").exists():
-        for ln in (d / "conditions.tsv").read_text().splitlines()[1:]:
+    if (d / a.conditions).exists():
+        for ln in (d / a.conditions).read_text().splitlines()[1:]:
             k, v = ln.split("\t")
             retires[k] = int(v)
     res = d / "resultats"
     par_cond = {}
-    for cond in ["SAUVAGE"] + [k for k in retires if k != "SAUVAGE"]:
+    for cond in [REF] + [k for k in retires if k != REF]:
         fs = sorted(res.glob(f"{a.locus}_{cond}_A_jeu{jeu:03d}_rep*.npy"))
         if not fs:
             continue
         par_cond[cond] = np.array([contacts(sous_echantillon(np.load(f), a.max_conf),
                                             idx[promo], js, a.seuil) for f in fs])
         print(f"{cond:12s} {len(fs)} réplicats (jeu {jeu})")
-    if "SAUVAGE" not in par_cond:
-        sys.exit(f"aucun réplicat SAUVAGE du jeu {jeu} dans {res}")
+    if REF not in par_cond:
+        sys.exit(f"aucun réplicat {REF} du jeu {jeu} dans {res}")
     rng = np.random.default_rng(a.graine)
-    W = par_cond["SAUVAGE"]
+    W = par_cond[REF]
     eps = 1e-4
     rows = []
     for cond, X in par_cond.items():
-        if cond == "SAUVAGE":
+        if cond == REF:
             continue
         obs = np.log2((X.mean(0) + eps) / (W.mean(0) + eps))
         boot = np.array([np.log2((X[rng.integers(0, len(X), len(X))].mean(0) + eps)
@@ -115,7 +119,7 @@ def main():
                              sites_ctcf_retires=retires.get(cond, "."),
                              nul_par_construction="oui" if retires.get(cond) == 0 else "non"))
     for cond, n in retires.items():
-        if cond != "SAUVAGE" and n == 0:
+        if cond != REF and n == 0:
             for nm in autres:
                 rows.append(dict(condition=cond, ancre=nm, sauvage=W.mean(0)[autres.index(nm)],
                                  deletion=float("nan"), log2_ratio=0.0, ci_bas=float("nan"),
@@ -138,12 +142,12 @@ def main():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     plt.rcParams.update({"svg.fonttype": "none", "font.size": 7})
-    conds = [k for k in par_cond if k != "SAUVAGE"]
+    conds = [k for k in par_cond if k != REF]
     fig, ax = plt.subplots(figsize=(1.2 + 0.9 * len(autres), 2.4))
     w = 0.8 / max(1, len(conds))
     pal = ["#2166AC", "#1B9E77", "#7570B3", "#E7298A"]
     coul = {"SANSELEMENT": "#C78A20"}
-    for k, cond in enumerate(c_ for c_ in par_cond if c_ not in ("SAUVAGE", "SANSELEMENT")):
+    for k, cond in enumerate(c_ for c_ in par_cond if c_ not in (REF, "SANSELEMENT")):
         coul[cond] = pal[k % len(pal)]
     for k, cond in enumerate(conds):
         rr = [r for r in rows if r["condition"] == cond]
@@ -155,7 +159,7 @@ def main():
     ax.axhline(0, color="black", lw=0.6)
     ax.set_xticks(range(len(autres)))
     ax.set_xticklabels([nm.replace("_", "\n") for nm in autres], fontsize=6)
-    ax.set_ylabel(f"contact avec {promo.replace('_', ' ')}\nlog2 délétion / sauvage")
+    ax.set_ylabel(f"contact avec {promo.replace('_', ' ')}\nlog2 délétion / référence")
     ax.set_title(f"{a.locus.upper()} - extrusion CTCF seule (voie A), jeu {jeu}", fontsize=7, loc="left")
     if conds:
         ax.legend(frameon=False, fontsize=6)
