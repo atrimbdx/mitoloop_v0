@@ -1,0 +1,14 @@
+sORF lus : 15141 ; après exclusion chrM et vides : 15141
+après dédoublonnage par coordonnées : 8762
+manuel MTLN (mitoregulin, MOXI chez la souris) : 0 candidat(s), non apparié
+manuel BRAWNIN : 0 candidat(s), non apparié
+manuel SMIM4 : 0 candidat(s), non apparié
+manuel MOCCI : 0 candidat(s), non apparié
+manuel SMIM26 : 0 candidat(s), non apparié
+manuel SLC35A4-MP (STREMI) : 2 candidat(s), non apparié (SLC35A4_139946150_21aa--6_Chen2020, SLC35A4:NM_080670:chr5:+:346:510--1_Ji2015)
+manuel altMiD51 / MIEF1-MP : 0 candidat(s), non apparié
+manuel PIGBOS : 0 candidat(s), non apparié
+manuel ASAP : 0 candidat(s), non apparié
+manuel MP31 : 0 candidat(s), non apparié
+manuel STMP1 : 0 candidat(s), non apparié
+niveaux mito : fort=0, modere=0, faible=0, hypothese=1852, aucun=6910

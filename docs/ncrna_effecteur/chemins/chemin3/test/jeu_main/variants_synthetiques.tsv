@@ -1,0 +1,15 @@
+chr	pos	ref	alt	note
+chrT1	101	A	G	TOYA ATG>GTG
+chrT1	113	T	G	TOYA codon 5
+chrT1	119	A	T	TOYA codon 7 AAA>TAA
+chrT1	233	A	T	TOYA codon 45
+chrT1	238	A	C	TOYA TAA>TAC
+chrT1	130	TC	T	TOYA délétion 1 nt
+chrT1	121	N	A	référence discordante
+chrT1	1030	A	C	TOYB exon 1 (fin du sORF, brin -)
+chrT1	1061	T	A	TOYB site d'épissage
+chrT1	1250	A	AG	TOYB insertion 1 nt
+chrT1	2018	A	C	TOYC codon 6
+chrT1	2502	T	C	TOYD ATG>ACG
+chrT1	500	A	C	intergénique
+chrM	3243	A	G	chrM hors périmètre

@@ -1,0 +1,15 @@
+chr	pos	ref	alt	note	NC_chemin3
+chrT1	101	A	G	TOYA ATG>GTG	1.0|fort|start_lost dans TOYA_orf (hôte TOYA, 45 aa) : codon d'initiation ATG>GTG ; mito fort : table manuelle : TOYA-peptide (synthetique) (fort)
+chrT1	113	T	G	TOYA codon 5	0.5|modere|missense dans TOYA_orf (hôte TOYA, 45 aa) : L5V ; mito fort : table manuelle : TOYA-peptide (synthetique) (fort)
+chrT1	119	A	T	TOYA codon 7 AAA>TAA	1.0|fort|stop_gained dans TOYA_orf (hôte TOYA, 45 aa) : stop au codon 7/45 (87 % du peptide retiré) ; mito fort : table manuelle : TOYA-peptide (synthetique) (fort)
+chrT1	233	A	T	TOYA codon 45	0.5|modere|stop_gained dans TOYA_orf (hôte TOYA, 45 aa) : stop au codon 45/45 (2 % du peptide retiré) ; mito fort : table manuelle : TOYA-peptide (synthetique) (fort)
+chrT1	238	A	C	TOYA TAA>TAC	0.6|modere|stop_lost dans TOYA_orf (hôte TOYA, 45 aa) : codon stop TAA perdu ; mito fort : table manuelle : TOYA-peptide (synthetique) (fort)
+chrT1	130	TC	T	TOYA délétion 1 nt	1.0|fort|frameshift dans TOYA_orf (hôte TOYA, 45 aa) : décalage au codon 10/45 (80 % du peptide touché) ; mito fort : table manuelle : TOYA-peptide (synthetique) (fort)
+chrT1	121	N	A	référence discordante	0.0|aucun|TOYA_orf : allèle de référence discordant avec la table (A attendu)
+chrT1	1030	A	C	TOYB exon 1 (fin du sORF, brin -)	0.075|hypothese|missense dans TOYB_orf (hôte TOYB, 40 aa) : S32A ; mito hypothese : hélice transmembranaire prédite (outil dédié), non spécifique de la mitochondrie
+chrT1	1061	T	A	TOYB site d'épissage	0.12|hypothese|splice_site_orf dans TOYB_orf (hôte TOYB, 40 aa) : site canonique d'une jonction du sORF épissé ; mito hypothese : hélice transmembranaire prédite (outil dédié), non spécifique de la mitochondrie
+chrT1	1250	A	AG	TOYB insertion 1 nt	0.15|hypothese|frameshift dans TOYB_orf (hôte TOYB, 40 aa) : décalage au codon 5/40 (90 % du peptide touché) ; mito hypothese : hélice transmembranaire prédite (outil dédié), non spécifique de la mitochondrie
+chrT1	2018	A	C	TOYC codon 6	0.35|faible|missense dans TOYC_orf (hôte TOYC, 30 aa) : Q6H ; mito modere : peptide détecté dans un protéome mitochondrial publié
+chrT1	2502	T	C	TOYD ATG>ACG	0.4|faible|start_lost dans TOYD_orf (hôte TOYD, 35 aa) : codon d'initiation ATG>ACG ; mito faible : présequence prédite (TargetP)
+chrT1	500	A	C	intergénique	0|aucun|aucun sORF traduit chevauché
+chrM	3243	A	G	chrM hors périmètre	0|aucun|chrM hors périmètre (humanine, MOTS-c exclus)

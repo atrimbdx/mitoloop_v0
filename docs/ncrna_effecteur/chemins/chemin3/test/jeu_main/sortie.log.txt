@@ -1,0 +1,5 @@
+sORF lus : 4 ; après exclusion chrM et vides : 4
+après dédoublonnage par coordonnées : 4
+peptides discordants avec la traduction du génome : 0
+manuel TOYA-peptide (synthetique) -> TOYA_orf
+niveaux mito : fort=1, modere=1, faible=1, hypothese=1, aucun=0
