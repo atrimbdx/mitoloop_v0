@@ -298,7 +298,7 @@ def main():
         e_mane = pic_proche(epd, mane["chrom"], tss_m, brin, a.dist_pic)
         for typ, ti in tissus.items():
             tot = tot_all[ti]
-            if par[ti]:
+            if par[ti] and tot > 0:            # tissu où tous les transcrits sont à 0 : non évaluable
                 dom = max(par[ti], key=par[ti].get)
                 part_m, part_d = par[ti].get(p_mane, 0.0) / tot, par[ti][dom] / tot
             else:

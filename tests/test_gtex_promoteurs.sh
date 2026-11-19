@@ -19,7 +19,10 @@ j() { python3 -c 'import json,sys; a=sys.argv[1:]; print(json.dumps({"data":[{"t
 j ENST11 2 ENST12 18 > "$T/cache/G1.json"
 j ENST21 3 ENST22 27 > "$T/cache/G2.json"
 j ENST31 40 > "$T/cache/G3.json"
-printf 'G1 G2 G3\n' > "$T/genes.txt"
+# G6 : tous les transcrits à 0 TPM dans le tissu (total nul) : ligne non évaluable, sans plantage
+{ cat "$T/g.gtf"; tx 60000 70000 + ENSG6 ENST61 G6 G6-201 ' tag "MANE_Select";'; } > "$T/g2.gtf"; mv "$T/g2.gtf" "$T/g.gtf"
+j ENST61 0 > "$T/cache/G6.json"
+printf 'G1 G2 G3 G6\n' > "$T/genes.txt"
 python3 scripts/gtex_promoteurs.py --genes "$T/genes.txt" --gtf "$T/g.gtf" --tissus muscle=Muscle_Skeletal \
   --cache "$T/cache" --out "$T/o.tsv" 2> "$T/log"
 cat "$T/o.tsv"
@@ -32,6 +35,7 @@ l G1 | cut -f11 | grep -qx 'hors_deletion' && ok "G1 hors_deletion seul" || ko "
 [ "$(l G2 | cut -f7,12)" = "$(printf '+15000\t0.100')" ] && ok "G2 TSS +15000" || ko "G2 $(l G2)"
 l G2 | cut -f11 | grep -qx 'promoteur_dominant_autre,hors_deletion' && ok "G2 deux alertes" || ko "G2 alerte"
 [ "$(l G3 | cut -f11,12)" = "$(printf '.\t1.000')" ] && ok "G3 sans alerte" || ko "G3 $(l G3)"
+l G6 | cut -f11 | grep -q peu_exprime && ok "G6 total nul : peu_exprime, sans plantage" || ko "G6 $(l G6)"
 # GENCODE v26 of GTEx (--gtf-gtex), tags, CAGE peaks (FANTOM5), dominant TSS out of the deletion
 ex() { printf 'chr1\tHAVANA\texon\t%s\t%s\t.\t%s\t.\tgene_id "%s.1"; transcript_id "%s.1"; gene_name "%s"; exon_number 1;%s\n' "$@"; }
 {
