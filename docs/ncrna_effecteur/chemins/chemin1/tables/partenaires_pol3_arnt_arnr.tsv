@@ -1,0 +1,109 @@
+arn	partenaire	ensemble_mito	agit_sur_arn_nucleaire	lien	source
+RMRP	POP1	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	POP4	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	POP5	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	POP7	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	RMP24	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	RMP64	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	RPP14	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	RPP25	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	RPP30	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	RPP38	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RMRP	RPP40	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	POP1	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	POP4	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	POP5	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	POP7	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	RMP24	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	RMP64	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	RPP14	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	RPP25	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	RPP30	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	RPP38	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+RPPH1	RPP40	non	oui	groupe HGNC : RNase MRP complex subunits	HGNC hgnc_complete_set
+TERC	DKC1	non	oui	groupe HGNC : Telomerase holoenzyme subunits	HGNC hgnc_complete_set
+TERC	GAR1	non	oui	groupe HGNC : Telomerase holoenzyme subunits	HGNC hgnc_complete_set
+TERC	NHP2	non	oui	groupe HGNC : Telomerase holoenzyme subunits	HGNC hgnc_complete_set
+TERC	NOP10	non	oui	groupe HGNC : Telomerase holoenzyme subunits	HGNC hgnc_complete_set
+TERC	TERT	non	oui	groupe HGNC : Telomerase holoenzyme subunits	HGNC hgnc_complete_set
+TERC	WRAP53	non	oui	groupe HGNC : Telomerase holoenzyme subunits	HGNC hgnc_complete_set
+TERC	DKC1	non	oui	groupe HGNC : H/ACA ribonucleoprotein complex	HGNC hgnc_complete_set
+TERC	GAR1	non	oui	groupe HGNC : H/ACA ribonucleoprotein complex	HGNC hgnc_complete_set
+TERC	NHP2	non	oui	groupe HGNC : H/ACA ribonucleoprotein complex	HGNC hgnc_complete_set
+TERC	NOP10	non	oui	groupe HGNC : H/ACA ribonucleoprotein complex	HGNC hgnc_complete_set
+RN7SK	LARP7	non	oui	groupe HGNC : 7SK snRNP complex	HGNC hgnc_complete_set
+RN7SK	MEPCE	non	oui	groupe HGNC : 7SK snRNP complex	HGNC hgnc_complete_set
+RN7SL	SRP14	non	oui	groupe HGNC : Signal recognition particle	HGNC hgnc_complete_set
+RN7SL	SRP19	non	oui	groupe HGNC : Signal recognition particle	HGNC hgnc_complete_set
+RN7SL	SRP54	non	oui	groupe HGNC : Signal recognition particle	HGNC hgnc_complete_set
+RN7SL	SRP68	non	oui	groupe HGNC : Signal recognition particle	HGNC hgnc_complete_set
+RN7SL	SRP72	non	oui	groupe HGNC : Signal recognition particle	HGNC hgnc_complete_set
+RN7SL	SRP9	non	oui	groupe HGNC : Signal recognition particle	HGNC hgnc_complete_set
+RN7SL	SRP54	non	oui	groupe HGNC : Signal recognition particle GTPases	HGNC hgnc_complete_set
+RN7SL	SRPRA	non	oui	groupe HGNC : Signal recognition particle GTPases	HGNC hgnc_complete_set
+RN7SL	SRPRB	non	oui	groupe HGNC : Signal recognition particle GTPases	HGNC hgnc_complete_set
+ARNt	AIMP1	non	oui	groupe HGNC : Aminoacyl tRNA synthetase complex interacting multifunctional proteins	HGNC hgnc_complete_set
+ARNt	AIMP2	non	oui	groupe HGNC : Aminoacyl tRNA synthetase complex interacting multifunctional proteins	HGNC hgnc_complete_set
+ARNt	EEF1E1	non	oui	groupe HGNC : Aminoacyl tRNA synthetase complex interacting multifunctional proteins	HGNC hgnc_complete_set
+ARNt	CARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	CARS2	MitoCarta3.0	non (paralogue mitochondrial : cysteinyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	EARS2	MitoCarta3.0	non (paralogue mitochondrial : glutamyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	EPRS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	IARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	IARS2	MitoCarta3.0	non (paralogue mitochondrial : isoleucyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	LARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	LARS2	MitoCarta3.0	non (paralogue mitochondrial : leucyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	MARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	MARS2	MitoCarta3.0	non (paralogue mitochondrial : methionyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	QARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	RARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	RARS2	MitoCarta3.0	non (paralogue mitochondrial : arginyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	VARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	VARS2	MitoCarta3.0	non (paralogue mitochondrial : valyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	WARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	WARS2	MitoCarta3.0	non (paralogue mitochondrial : tryptophanyl tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	YARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	YARS2	MitoCarta3.0	a_verifier (gene de l'ensemble mito sans mention mitochondrial dans le nom HGNC)	groupe HGNC : Aminoacyl tRNA synthetases, Class I	HGNC hgnc_complete_set
+ARNt	AARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	AARS2	MitoCarta3.0	non (paralogue mitochondrial : alanyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	DARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	DARS2	MitoCarta3.0	non (paralogue mitochondrial : aspartyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	EPRS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	FARS2	MitoCarta3.0	non (paralogue mitochondrial : phenylalanyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	FARSA	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	FARSB	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	GARS1	MitoCarta3.0	a_verifier (gene de l'ensemble mito sans mention mitochondrial dans le nom HGNC)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	HARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	HARS2	MitoCarta3.0	non (paralogue mitochondrial : histidyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	KARS1	MitoCarta3.0	a_verifier (gene de l'ensemble mito sans mention mitochondrial dans le nom HGNC)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	NARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	NARS2	MitoCarta3.0	non (paralogue mitochondrial : asparaginyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	PARS2	MitoCarta3.0	non (paralogue mitochondrial : prolyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	SARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	SARS2	MitoCarta3.0	non (paralogue mitochondrial : seryl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	TARS1	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	TARS2	MitoCarta3.0	non (paralogue mitochondrial : threonyl-tRNA synthetase 2, mitochondrial)	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	TARS3	non	oui	groupe HGNC : Aminoacyl tRNA synthetases, Class II	HGNC hgnc_complete_set
+ARNt	DTWD1	non	oui	groupe HGNC : DTW motif tRNA-uridine aminocarboxypropyltransferases	HGNC hgnc_complete_set
+ARNt	DTWD2	non	oui	groupe HGNC : DTW motif tRNA-uridine aminocarboxypropyltransferases	HGNC hgnc_complete_set
+ARNt	GATB	MitoCarta3.0	a_verifier (gene de l'ensemble mito sans mention mitochondrial dans le nom HGNC)	groupe HGNC : Glutamyl-tRNA amidotransferase subunits	HGNC hgnc_complete_set
+ARNt	GATC	MitoCarta3.0	a_verifier (gene de l'ensemble mito sans mention mitochondrial dans le nom HGNC)	groupe HGNC : Glutamyl-tRNA amidotransferase subunits	HGNC hgnc_complete_set
+ARNt	QRSL1	MitoCarta3.0	a_verifier (gene de l'ensemble mito sans mention mitochondrial dans le nom HGNC)	groupe HGNC : Glutamyl-tRNA amidotransferase subunits	HGNC hgnc_complete_set
+ARNt	DDX1	non	oui	groupe HGNC : tRNA splicing ligase complex	HGNC hgnc_complete_set
+ARNt	RTCB	non	oui	groupe HGNC : tRNA splicing ligase complex	HGNC hgnc_complete_set
+ARNt	RTRAF	non	oui	groupe HGNC : tRNA splicing ligase complex	HGNC hgnc_complete_set
+ARNt	TSLIG1	non	oui	groupe HGNC : tRNA splicing ligase complex	HGNC hgnc_complete_set
+ARNt	TSLIG2	non	oui	groupe HGNC : tRNA splicing ligase complex	HGNC hgnc_complete_set
+ARNt	TSLIG3A	non	oui	groupe HGNC : tRNA splicing ligase complex	HGNC hgnc_complete_set
+ARNt	TSLIG3B	non	oui	groupe HGNC : tRNA splicing ligase complex	HGNC hgnc_complete_set
+ARNt	TSLIG3C	non	oui	groupe HGNC : tRNA splicing ligase complex	HGNC hgnc_complete_set
+ARNt	TYW3	non	oui	groupe HGNC : tRNA wybutosine-synthesizing protein domain containing	HGNC hgnc_complete_set
+ARNt	TSEN15	non	oui	groupe HGNC : tRNA-splicing endonuclease subunits	HGNC hgnc_complete_set
+ARNt	TSEN2	non	oui	groupe HGNC : tRNA-splicing endonuclease subunits	HGNC hgnc_complete_set
+ARNt	TSEN34	non	oui	groupe HGNC : tRNA-splicing endonuclease subunits	HGNC hgnc_complete_set
+ARNt	TSEN54	non	oui	groupe HGNC : tRNA-splicing endonuclease subunits	HGNC hgnc_complete_set
+ARNt	TYW1	non	oui	groupe HGNC : tRNA-yW synthesizing protein 1 homologs	HGNC hgnc_complete_set
+ARNt	TYW1B	non	oui	groupe HGNC : tRNA-yW synthesizing protein 1 homologs	HGNC hgnc_complete_set
+RMRP	PNPT1	MitoCarta3.0	oui (import mitochondrial de RMRP dépendant de PNPase)	import mitochondrial de RMRP dépendant de PNPase	Wang et al. 2010 Cell doi:10.1016/j.cell.2010.06.035
+RPPH1	PNPT1	MitoCarta3.0	oui (import mitochondrial de l'ARN de la RNase P dépendant de PNPase)	import mitochondrial de l'ARN de la RNase P dépendant de PNPase	Wang et al. 2010 Cell doi:10.1016/j.cell.2010.06.035
+RNA5S	PNPT1	MitoCarta3.0	oui (import mitochondrial de l'ARNr 5S dépendant de PNPase)	import mitochondrial de l'ARNr 5S dépendant de PNPase	Wang et al. 2010 Cell doi:10.1016/j.cell.2010.06.035
