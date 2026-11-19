@@ -1,0 +1,12 @@
+id	chr	pos	ref	alt	nature	attendu_niveau	commentaire
+T01	chr14	20343288	C	A	CONSTRUIT_A_LA_MAIN	faible	RPPH1 n.120 (v27), dans la plage d'import publiee 103-140 (Wang 2010) ; variant fictif
+T02	chr14	20343388	C	A	CONSTRUIT_A_LA_MAIN	hypothese	RPPH1 n.20 (v27), hors element d'import ; variant fictif
+T03	chr9	35657947	T	C	CONSTRUIT_A_LA_MAIN	hypothese	RMRP : A>G dans le triplet AAA du fondateur CHH n.71A>G / n.72A>G (temoin phenocopie ; coordonnee exacte a confirmer dans ClinVar sur Curta) ; element MRP non cartographie
+T04	chr1	228610382	T	C	CONSTRUIT_A_LA_MAIN	hypothese	RNA5S1 n.5, helice I (domaine publie, coordonnees derivees) ; multicopie -> plafond hypothese ; variant fictif
+T05	chr3	169764961	A	G	CONSTRUIT_A_LA_MAIN	hypothese	TERC n.100 ; element non utilisable ; variant fictif
+T06	chr20	62554335	T	C	CONSTRUIT_A_LA_MAIN	hypothese	MIR1-1 n.30 ; preuve souris seulement ; variant fictif
+T07	chr11	65500000	T	G	CONSTRUIT_A_LA_MAIN	hypothese	MALAT1 ; preuve fractionnement/imagerie tumorale, APEX negatif ; variant fictif
+T08	chr12	120291839	T	TA	TEMOIN_CATALOGUE	aucun	RNU4-2 n.64_65insT (point chaud ReNU, catalogue) : phenocopie hors table -> aucun (specificite)
+T09	chr2	1000000	A	G	CONSTRUIT_A_LA_MAIN	aucun	intergenique, hors table
+T10	chr14	20343288	G	A	CONSTRUIT_A_LA_MAIN	hypothese	RPPH1 dans l'element mais REF volontairement faux : pliage non calcule, message REF discordant, plafond hypothese
+T11	chr1	228610300	C	CAA	CONSTRUIT_A_LA_MAIN	hypothese	RNA5S1 insertion dans boucle E-helice IV (derive) ; multicopie
