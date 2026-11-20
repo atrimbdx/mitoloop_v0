@@ -1,0 +1,6 @@
+miRTarBase ID,miRNA,Species (miRNA),Target Gene,Target Gene (Entrez ID),Species (Target Gene),Experiments,Support Type,References (PMID)
+SYNTH0001,hsa-miR-210-3p,Homo sapiens,ISCU,0,Homo sapiens,SYNTHETIQUE Luciferase reporter assay,Functional MTI,0
+SYNTH0002,hsa-miR-181a-5p,Homo sapiens,COX11,0,Homo sapiens,SYNTHETIQUE Luciferase reporter assay,Functional MTI,0
+SYNTH0003,hsa-let-7a-5p,Homo sapiens,ATP5MC1,0,Homo sapiens,SYNTHETIQUE CLIP-seq,Functional MTI (Weak),0
+SYNTH0004,mmu-miR-1a-3p,Mus musculus,Cox1,0,Mus musculus,SYNTHETIQUE ne doit pas sortir,Functional MTI,0
+SYNTH0005,hsa-miR-9999-5p,Homo sapiens,TFAM,0,Homo sapiens,SYNTHETIQUE miARN inexistant,Functional MTI,0

@@ -1,0 +1,75 @@
+type_id	element	cible	type_cible	nature	position_cible	preuve	source	reference
+snorna_cd	SNORD32A	COX4I2	arnm	modification_2OMe	.	experimentale_humaine	Elliott 2025 bioRxiv (préprint) : KO U32A en HEK293T, RTL-P, hausse de la protéine COX4I2	10.1101/2025.07.23.666475
+snorna_cd	SNORD32A	PXDN	arnm	modification_2OMe	A3150 (ADNc du construit PXDN)	experimentale_humaine	Elliott 2019 Nat Commun : KO de deux SNORD redondants en HEK293T, RTL-P, mutation A3150C	10.1038/s41467-019-11375-7
+sdrna	SCARNA15	CDK19	arnm	repression_graine	.	experimentale_humaine	Ender 2008 Mol Cell : petits ARN dérivés d'ACA45 (SCARNA15) chargés sur AGO ; cible CDC2L6 (= CDK19), luciférase	10.1016/j.molcel.2008.10.017
+svrna	*	CYP3A4	arnm	clivage	.	experimentale_humaine	Persson 2009 Nat Cell Biol : svRNAb (issu d'un vtRNA) guide le clivage AGO de CYP3A4	10.1038/ncb1972
+vault_rna	VTRNA1-1	SQSTM1	proteine_partenaire	liaison	.	experimentale_humaine	Horos 2019 Cell : vtRNA1-1 lie p62/SQSTM1 et freine l'autophagie	10.1016/j.cell.2019.01.030
+vault_rna	*	MVP	proteine_partenaire	liaison	.	experimentale_animale	Kong 2000 RNA : composition de la voûte (MVP, TEP1, VPARP, vRNA), particules de rat	10.1017/s1355838200000157
+vault_rna	*	TEP1	proteine_partenaire	liaison	.	experimentale_animale	Kong 2000 RNA : composition de la voûte (MVP, TEP1, VPARP, vRNA), particules de rat	10.1017/s1355838200000157
+vault_rna	*	PARP4	proteine_partenaire	liaison	.	experimentale_animale	Kong 2000 RNA : composition de la voûte (VPARP = PARP4), particules de rat	10.1017/s1355838200000157
+vault_rna	*	SSB	proteine_partenaire	liaison	.	experimentale_humaine	Kickhoefer 2002 J Biol Chem : La lie l'ARN de voûte (HeLa, in vitro)	10.1074/jbc.M206980200
+vault_nc886	VTRNA2-1	EIF2AK2	proteine_partenaire	liaison	.	experimentale_humaine	Lee 2011 RNA : nc886 (pré-miR-886) associé à PKR et module son activité	10.1261/rna.2701111
+y_rna	*	RO60	proteine_partenaire	liaison	.	base_de_donnees	HGNC groupe « RNAs, Ro60-associated Y » (RNY1, RNY3, RNY4, RNY5)	HGNC hgnc_complete_set (copie locale, session 2026-11)
+rn7sk	RN7SK	CDK9	proteine_partenaire	sequestration	.	experimentale_humaine	Nguyen 2001 Nature : 7SK lie et inhibe CDK9/cycline T (HeLa)	10.1038/35104581
+rn7sk	RN7SK	CCNT1	proteine_partenaire	sequestration	.	experimentale_humaine	Nguyen 2001 Nature : 7SK lie et inhibe CDK9/cycline T (HeLa)	10.1038/35104581
+rn7sk	RN7SK	HEXIM1	proteine_partenaire	liaison	.	experimentale_humaine	Yik 2003 Mol Cell : HEXIM1 inhibe P-TEFb de façon dépendante de 7SK	10.1016/s1097-2765(03)00388-5
+rdna_pRNA_papas	*	C1QBP	proteine_partenaire	liaison	.	experimentale_humaine	Feng 2023 PNAS : la protéine RIEP codée par PAPAS lie directement C1QBP	10.1073/pnas.2221109120
+rdna_pRNA_papas	*	CHCHD2	proteine_partenaire	liaison	.	experimentale_humaine	Feng 2023 PNAS : la protéine RIEP codée par PAPAS lie directement CHCHD2	10.1073/pnas.2221109120
+lncrna_mito	GAS5	FH	proteine_partenaire	liaison	.	experimentale_humaine	Sang 2021 Nat Metab : GAS5 dissocie FH/MDH2/CS (étude unique)	10.1038/s42255-020-00325-z
+lncrna_mito	GAS5	MDH2	proteine_partenaire	liaison	.	experimentale_humaine	Sang 2021 Nat Metab : GAS5 dissocie FH/MDH2/CS (étude unique)	10.1038/s42255-020-00325-z
+lncrna_mito	GAS5	CS	proteine_partenaire	liaison	.	experimentale_humaine	Sang 2021 Nat Metab : GAS5 dissocie FH/MDH2/CS (étude unique)	10.1038/s42255-020-00325-z
+lncrna_mito	SAMMSON	C1QBP	proteine_partenaire	liaison	.	experimentale_humaine	Leucci 2016 Nature : SAMMSON lie p32/C1QBP (mélanome)	10.1038/nature17161
+lncrna_mito	SAMMSON	XRN2	proteine_partenaire	liaison	.	experimentale_humaine	Vendramin 2018 Nat Struct Mol Biol : complexe SAMMSON-CARF-XRN2	10.1038/s41594-018-0143-4
+lncrna_mito	SAMMSON	CDKN2AIP	proteine_partenaire	liaison	.	experimentale_humaine	Vendramin 2018 Nat Struct Mol Biol : CARF (= CDKN2AIP)	10.1038/s41594-018-0143-4
+lncrna_mito	TUG1	PPARGC1A	proteine_partenaire	liaison	.	experimentale_animale	Long 2016 J Clin Invest : Tug1 lie PGC-1α sur le promoteur de Ppargc1a (souris)	10.1172/JCI87927
+lncrna_general	PINK1-AS	PINK1	gene_voisin_cis	cis	.	experimentale_humaine	Scheele 2007 BMC Genomics : naPINK1 stabilise svPINK1 (étude unique)	10.1186/1471-2164-8-74
+lncrna_general	SLC16A1-AS1	SLC16A1	gene_voisin_cis	cis	.	experimentale_humaine	Logotheti 2020 Theranostics : co-régulation SLC16A1-AS1 / MCT1	10.7150/thno.44176
+lncrna_general	HNF1A-AS1	HNF1A	gene_voisin_cis	cis	.	experimentale_animale	Beucher 2022 Nat Cell Biol : le promoteur HASTER règle HNF1A en cis (ADN plutôt qu'ARN)	10.1038/s41556-022-00996-8
+micropeptide_lncrna_sorf	LINC00467	ATP5F1A	proteine_partenaire	liaison	.	experimentale_humaine	Ge 2021 J Clin Invest : micropeptide ASAP lie ATP5A	10.1172/JCI152911
+micropeptide_lncrna_sorf	LINC00467	ATP5F1C	proteine_partenaire	liaison	.	experimentale_humaine	Ge 2021 J Clin Invest : micropeptide ASAP lie ATP5C	10.1172/JCI152911
+mirna_canonique	MIR181C	MT-CO1	arnm	repression_graine	extrémité 3' de MT-CO1	experimentale_animale	Das 2012 Circ Res : miR-181c importé dans la mitochondrie, lie mt-COX1 (rat)	10.1161/CIRCRESAHA.112.267732
+mirna_canonique	MIR21	MT-CYB	arnm	liaison	.	experimentale_animale	Li 2016 Circulation : miR-21 stimule la traduction de mt-Cytb (rat SHR)	10.1161/CIRCULATIONAHA.116.023926
+mirna_canonique	MIR378A	MT-ATP6	arnm	repression_graine	.	experimentale_animale	Jagannathan 2015 Circ Cardiovasc Genet : miR-378 mitochondrial réprime ATP6 (souris)	10.1161/CIRCGENETICS.115.001067
+mirna_canonique	MIR378A	CRAT	arnm	repression_graine	.	experimentale_animale	Carrer 2012 PNAS : cibles CRAT et MED13 (souris)	10.1073/pnas.1207605109
+mirna_canonique	MIR378A	MED13	arnm	repression_graine	.	experimentale_animale	Carrer 2012 PNAS : cibles CRAT et MED13 (souris)	10.1073/pnas.1207605109
+mirna_canonique	MIR762	MT-ND2	arnm	repression_graine	séquence codante de MT-ND2	experimentale_animale	Yan 2019 Cell Death Dis : miR-762 mitochondrial réprime ND2	10.1038/s41419-019-1734-7
+mirna_canonique	MIR4485	MT-RNR2	arnr	liaison	.	experimentale_humaine	Sripada 2017 J Mol Med : miR-4485 lie l'ARNr 16S mitochondrial	10.1007/s00109-017-1517-5
+mirna_canonique	MIR210	ISCU	arnm	repression_graine	.	experimentale_humaine	Chan 2009 Cell Metab : miR-210 réprime ISCU1/2	10.1016/j.cmet.2009.08.015
+mirna_canonique	MIR210	COX10	arnm	repression_graine	.	experimentale_humaine	Chen 2010 Oncogene : miR-210 cible ISCU et COX10	10.1038/onc.2010.193
+mirna_canonique	MIR338	COX4I1	arnm	repression_graine	.	experimentale_animale	Aschrafi 2008 J Neurosci : miR-338 réprime l'ARNm axonal de COXIV (rat)	10.1523/JNEUROSCI.3338-08.2008
+mirna_canonique	MIR338	ATP5MC1	arnm	repression_graine	.	experimentale_animale	Aschrafi 2012 Cell Mol Life Sci : miR-338 réprime ATP5G1 (rat)	10.1007/s00018-012-1064-8
+mirna_canonique	MIR33A	HADHB	arnm	repression_graine	.	experimentale_humaine	Dávalos 2011 PNAS : miR-33a/b ciblent HADHB et CPT1A	10.1073/pnas.1102281108
+mirna_canonique	MIR33A	CPT1A	arnm	repression_graine	.	experimentale_humaine	Dávalos 2011 PNAS : miR-33a/b ciblent HADHB et CPT1A	10.1073/pnas.1102281108
+mirna_canonique	MIR33B	HADHB	arnm	repression_graine	.	experimentale_humaine	Dávalos 2011 PNAS : miR-33a/b ciblent HADHB et CPT1A	10.1073/pnas.1102281108
+mirna_canonique	MIR33B	CPT1A	arnm	repression_graine	.	experimentale_humaine	Dávalos 2011 PNAS : miR-33a/b ciblent HADHB et CPT1A	10.1073/pnas.1102281108
+mirna_canonique	MIR484	FIS1	arnm	repression_graine	séquence codante de FIS1	experimentale_animale	Wang 2012 Nat Commun : miR-484 réprime la traduction de Fis1 (souris)	10.1038/ncomms1770
+mirna_canonique	MIR494	TFAM	arnm	repression_graine	.	experimentale_animale	Yamamoto 2012 Am J Physiol Endocrinol Metab : miR-494 réprime mtTFA (C2C12)	10.1152/ajpendo.00097.2012
+mirna_canonique	MIR761	MFF	arnm	repression_graine	.	experimentale_animale	Long 2013 Free Radic Biol Med : MFF cible directe de miR-761	10.1016/j.freeradbiomed.2013.07.009
+mirna_canonique	MIR499A	PPP3CA	arnm	repression_graine	.	experimentale_animale	Wang 2011 Nat Med : miR-499 cible la calcineurine (souris)	10.1038/nm.2282
+mirna_canonique	MIR499A	PPP3CB	arnm	repression_graine	.	experimentale_animale	Wang 2011 Nat Med : miR-499 cible la calcineurine (souris)	10.1038/nm.2282
+mirna_canonique	MIR499A	FNIP1	arnm	repression_graine	.	experimentale_animale	Liu 2016 EMBO Mol Med : miR-499 cible Fnip1 (souris)	10.15252/emmm.201606372
+mirna_canonique	MIR9-1	TRMU	arnm	repression_graine	.	experimentale_humaine	Meseguer 2015 Hum Mol Genet : miR-9 (TRMU, GTPBP3) et miR-9* (MTO1), cybrides MELAS	10.1093/hmg/ddu427
+mirna_canonique	MIR9-1	GTPBP3	arnm	repression_graine	.	experimentale_humaine	Meseguer 2015 Hum Mol Genet : miR-9 (TRMU, GTPBP3) et miR-9* (MTO1), cybrides MELAS	10.1093/hmg/ddu427
+mirna_canonique	MIR9-1	MTO1	arnm	repression_graine	.	experimentale_humaine	Meseguer 2015 Hum Mol Genet : miR-9 (TRMU, GTPBP3) et miR-9* (MTO1), cybrides MELAS	10.1093/hmg/ddu427
+mirna_canonique	MIR9-2	TRMU	arnm	repression_graine	.	experimentale_humaine	Meseguer 2015 Hum Mol Genet : miR-9 (TRMU, GTPBP3) et miR-9* (MTO1), cybrides MELAS	10.1093/hmg/ddu427
+mirna_canonique	MIR9-2	GTPBP3	arnm	repression_graine	.	experimentale_humaine	Meseguer 2015 Hum Mol Genet : miR-9 (TRMU, GTPBP3) et miR-9* (MTO1), cybrides MELAS	10.1093/hmg/ddu427
+mirna_canonique	MIR9-2	MTO1	arnm	repression_graine	.	experimentale_humaine	Meseguer 2015 Hum Mol Genet : miR-9 (TRMU, GTPBP3) et miR-9* (MTO1), cybrides MELAS	10.1093/hmg/ddu427
+mirna_canonique	MIR9-3	TRMU	arnm	repression_graine	.	experimentale_humaine	Meseguer 2015 Hum Mol Genet : miR-9 (TRMU, GTPBP3) et miR-9* (MTO1), cybrides MELAS	10.1093/hmg/ddu427
+mirna_canonique	MIR9-3	GTPBP3	arnm	repression_graine	.	experimentale_humaine	Meseguer 2015 Hum Mol Genet : miR-9 (TRMU, GTPBP3) et miR-9* (MTO1), cybrides MELAS	10.1093/hmg/ddu427
+mirna_canonique	MIR9-3	MTO1	arnm	repression_graine	.	experimentale_humaine	Meseguer 2015 Hum Mol Genet : miR-9 (TRMU, GTPBP3) et miR-9* (MTO1), cybrides MELAS	10.1093/hmg/ddu427
+mirna_canonique	MIR181A1	NRF1	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181A1	COX11	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181A1	COQ10B	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181A1	PRDX3	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181A2	NRF1	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181A2	COX11	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181A2	COQ10B	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181A2	PRDX3	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181B1	NRF1	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181B1	COX11	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181B1	COQ10B	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181B1	PRDX3	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181B2	NRF1	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181B2	COX11	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181B2	COQ10B	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734
+mirna_canonique	MIR181B2	PRDX3	arnm	repression_graine	.	experimentale_animale	Indrieri 2019 EMBO Mol Med : cibles directes de miR-181a/b (luciférase, mutation du site)	10.15252/emmm.201708734

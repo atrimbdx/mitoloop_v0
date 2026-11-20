@@ -1,0 +1,4 @@
+# EXTRAIT SYNTHETIQUE ETIQUETE (format type tRFtarget / piRBase : colonnes element, cible, position) - ne pas utiliser comme donnée
+tdr_id	gene_cible	site	etude
+SYNTH-tRF-1	SDHB	3UTR:120-140	SYNTHETIQUE
+SYNTH-tRF-2	NDUFS1	.	SYNTHETIQUE
