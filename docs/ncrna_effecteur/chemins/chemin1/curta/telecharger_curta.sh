@@ -38,7 +38,7 @@ tele https://www.mirbase.org/download/hairpin.fa "$D/mirbase/hairpin.fa"
 # 4. MitoCarta3.0 (officiel) ; PanelApp « Mitochondrial disorders » : reprendre la liste déjà présente sur Curta
 #    (/scratch/atrimouille/MITODARK/data/panelapp_genes.txt et sa provenance JSON). A VERIFIER : URL Broad et numéro de la feuille « A Human MitoCarta3.0 » (sheet_name=1 supposé).
 tele https://personal.broadinstitute.org/scalvo/MitoCarta3.0/Human.MitoCarta3.0.xls "$MITOCARTA_XLS"
-python3 -c "import pandas as pd, sys; pd.read_excel(sys.argv[1], sheet_name="A Human MitoCarta3.0").to_csv(sys.argv[2], sep='\t', index=False)" "$MITOCARTA_XLS" "$D/mitocarta/Human.MitoCarta3.0.tsv"
+python3 -c "import pandas as pd, sys; pd.read_excel(sys.argv[1], sheet_name='A Human MitoCarta3.0').to_csv(sys.argv[2], sep='\t', index=False)" "$MITOCARTA_XLS" "$D/mitocarta/Human.MitoCarta3.0.tsv"
 python3 "$ICI/prep_chemin1.py" mito --hgnc "$D/hgnc/hgnc_complete_set.txt" --mitocarta "$D/mitocarta/Human.MitoCarta3.0.tsv" --panelapp "$PANELAPP" --out "$P/genes_mito.tsv"
 
 # 5. Tables du paquet
