@@ -4,6 +4,7 @@ des peptides, règles de niveau mito et de conséquence, toutes fixées a priori
 Aucune dépendance hors bibliothèque standard (la VM est hors ligne).
 Coordonnées internes : 0-based, demi-ouvertes [début, fin), comme le BED.
 """
+import re
 import csv
 import gzip
 import os
@@ -129,7 +130,11 @@ def lire_phaseI(bed, fasta, source="riboseq_phaseI_entree"):
 
 
 def gene_depuis_nom(nom):
-    """Les noms de la phase I commencent par le symbole hôte (GENE_..., GENE:...)."""
+    """Phase II du catalogue GENCODE (c1riboseqorf2598:LINC00467:lncRNA) : gène hôte en 2e champ ;
+    phase I : le nom commence par le symbole hôte (GENE_..., GENE:...)."""
+    m = re.match(r"^c[0-9XYM]+riboseqorf\d+:([^:]+):", nom)
+    if m:
+        return m.group(1)
     n = nom.split("--")[0]
     for sep in (":", "_"):
         if sep in n:

@@ -129,6 +129,16 @@ Quand le catalogue GENCODE final (BED12) et OpenProt (BED12 + FASTA) sont là, l
 fichiers n'a pas pu être vu** : vérifier qu'il s'agit bien de BED12 0-based avec le CDS en
 thickStart/thickEnd, sinon adapter `lire_bed12`.
 
+**Catalogue GENCODE phase 2 « primary » (vérifié le 23/11/2026)** : `Ribo-seq_ORFs.primary.bed` (BED12
+0-based, CDS = thickStart/thickEnd, codon stop compris, hg38) et `Ribo-seq_ORFs.primary.faa` (même nom
+d'ORF que la colonne 4, `c1riboseqorf2598:LINC00467:lncRNA` ; gène hôte = 2e champ), 10 127 ORF (uORF 6 437,
+lncRNA 2 108, dORF 657, PT 538, uoORF 267, intORF 107, doORF 13), déposés dans `reannot/donnees/`. ASAP
+(LINC00467, 94 aa) y est (c1riboseqorf2598). Commande sur Curta (chemins de la préparation du 20/11) :
+
+```
+python3 scripts/preparer_sorf.py --phaseI-bed /scratch/$USER/chemin3_donnees/riboseq/gencode-riboseqORFs/phaseI/sORFs_genomic_hg38.prot.20210329.bed --phaseI-fa /scratch/$USER/chemin3_donnees/riboseq/gencode-riboseqORFs/phaseI/sORFs_genomic_hg38.prot.20210329.fa --bed12 $HOME/reannot_ncrna/donnees/Ribo-seq_ORFs.primary.bed --bed12-fa $HOME/reannot_ncrna/donnees/Ribo-seq_ORFs.primary.faa --bed12-source gencode_riboseq_primary --genome $HOME/mitoloop_v0/data/GRCh38.fa --gencode-gtf $HOME/mitoloop_v0/data/gencode.gtf.gz --mitocarta /scratch/$USER/chemin1_donnees/mitocarta/Human.MitoCarta3.0.tsv --fasta-peptides /scratch/$USER/chemin3_donnees/peptides_chemin3.fa --sortie /scratch/$USER/chemin3_donnees/chemin3
+```
+
 Prédicteurs, lancés sur `peptides_chemin3.fa` (noms de peptides = empreinte stable de la séquence) :
 
 ```
