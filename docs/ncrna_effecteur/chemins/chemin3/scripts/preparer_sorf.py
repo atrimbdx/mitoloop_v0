@@ -133,6 +133,39 @@ def gtf_cds_canoniques(gtf, symboles):
     return out
 
 
+def hote_par_chevauchement(orfs, gtf):
+    """sORF sans gène hôte (OpenProt) : gène du GTF qui contient son 1er exon, même brin d'abord, sinon brin
+    opposé (noté « antisens:GENE ») ; le plus court s'il y en a plusieurs."""
+    sans = [o for o in orfs if not o.get("gene_hote")]
+    if not sans:
+        return 0
+    genes = defaultdict(list)
+    with L.ouvrir(gtf) as f:
+        for l in f:
+            if l.startswith("#"):
+                continue
+            c = l.rstrip("\n").split("\t")
+            if len(c) < 9 or c[2] != "gene":
+                continue
+            g = re.search(r'gene_name "([^"]+)"', c[8])
+            if g:
+                genes[L.norm_chrom(c[0])].append((int(c[3]) - 1, int(c[4]), c[6], g.group(1)))
+    n = 0
+    for o in sans:
+        a, b = o["exons"][0]
+        cands = [x for x in genes.get(o["chrom"], ()) if x[0] <= a and b <= x[1]]
+        meme = sorted((x for x in cands if x[2] == o["strand"]), key=lambda x: x[1] - x[0])
+        opp = sorted((x for x in cands if x[2] != o["strand"]), key=lambda x: x[1] - x[0])
+        if meme:
+            o["gene_hote"] = meme[0][3]
+        elif opp:
+            o["gene_hote"] = "antisens:" + opp[0][3]
+        else:
+            continue
+        n += 1
+    return n
+
+
 def fusion(ex):
     out = []
     for a, b in ex:
@@ -266,6 +299,8 @@ def main():
     ap.add_argument("--bed12", action="append", default=[], help="BED12 de sORF (GENCODE Ribo-seq ORFs, OpenProt)")
     ap.add_argument("--bed12-fa", action="append", default=[], help="FASTA protéique associé (même ordre)")
     ap.add_argument("--bed12-source", action="append", default=[])
+    ap.add_argument("--bed12-garder", action="append", default=[],
+                    help="regex sur le nom (même ordre que --bed12 ; « - » = tout) : OpenProt '^IP_' = altprots seuls")
     ap.add_argument("--genome", help="FASTA hg38 (indexé .fai de préférence)")
     ap.add_argument("--gencode-gtf", help="GTF GENCODE pour les micropeptides déjà annotés codants")
     ap.add_argument("--manuel", default=L.ici("..", "micropeptides_mito_etablis.tsv"))
@@ -286,7 +321,8 @@ def main():
     for i, b in enumerate(a.bed12):
         fa = a.bed12_fa[i] if i < len(a.bed12_fa) else None
         src = a.bed12_source[i] if i < len(a.bed12_source) else "bed12"
-        orfs += L.lire_bed12(b, fa, src)
+        g = a.bed12_garder[i] if i < len(a.bed12_garder) and a.bed12_garder[i] != "-" else None
+        orfs += L.lire_bed12(b, fa, src, g)
     manuel = lire_manuel(a.manuel)
     if a.gencode_gtf:
         symb = set()
@@ -302,6 +338,9 @@ def main():
     log.append("sORF lus : %d ; après exclusion chrM et vides : %d" % (n0, len(orfs)))
     orfs = dedoublonner(orfs)
     log.append("après dédoublonnage par coordonnées : %d" % len(orfs))
+    if a.gencode_gtf:
+        n = hote_par_chevauchement(orfs, a.gencode_gtf)
+        log.append("gène hôte attribué par chevauchement avec le GTF (même brin, sinon brin opposé) : %d" % n)
 
     genome = L.Genome(a.genome) if a.genome else None
     discord = 0

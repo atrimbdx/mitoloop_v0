@@ -100,7 +100,7 @@ def lire_fasta(chemin):
             if not l:
                 continue
             if l.startswith(">"):
-                cle = l[1:].split()[0]
+                cle = l[1:].split()[0].split("|")[0]   # OpenProt : >IP_123|... ; GENCODE : nom--étude
                 seqs[cle] = []
             elif cle is not None:
                 seqs[cle].append(l)
@@ -131,7 +131,10 @@ def lire_phaseI(bed, fasta, source="riboseq_phaseI_entree"):
 
 def gene_depuis_nom(nom):
     """Phase II du catalogue GENCODE (c1riboseqorf2598:LINC00467:lncRNA) : gène hôte en 2e champ ;
-    phase I : le nom commence par le symbole hôte (GENE_..., GENE:...)."""
+    phase I : le nom commence par le symbole hôte (GENE_..., GENE:...). Accessions OpenProt (IP_, II_)
+    sans gène : hôte attribué ensuite par chevauchement avec le GTF (preparer_sorf --gencode-gtf)."""
+    if re.match(r"^(IP|II)_\d+", nom):
+        return ""
     m = re.match(r"^c[0-9XYM]+riboseqorf\d+:([^:]+):", nom)
     if m:
         return m.group(1)
@@ -142,7 +145,7 @@ def gene_depuis_nom(nom):
     return ""
 
 
-def lire_bed12(bed, fasta=None, source="bed12"):
+def lire_bed12(bed, fasta=None, source="bed12", garder=None):
     """BED12 standard (0-based) ; thickStart/thickEnd = CDS du sORF (stop compris
     si présent). Le nom (col. 4) sert d'identifiant ; si la colonne 13 existe, elle
     est prise comme gène hôte."""
@@ -154,6 +157,8 @@ def lire_bed12(bed, fasta=None, source="bed12"):
                 continue
             c = l.rstrip("\n").split("\t")
             st, n = int(c[1]), c[3]
+            if garder and not re.search(garder, n):
+                continue
             ts, te = int(c[6]), int(c[7])
             tailles = [int(x) for x in c[10].strip(",").split(",")]
             debuts = [int(x) for x in c[11].strip(",").split(",")]
