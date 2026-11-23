@@ -139,6 +139,12 @@ lncRNA 2 108, dORF 657, PT 538, uoORF 267, intORF 107, doORF 13), déposés dans
 python3 scripts/preparer_sorf.py --phaseI-bed /scratch/$USER/chemin3_donnees/riboseq/gencode-riboseqORFs/phaseI/sORFs_genomic_hg38.prot.20210329.bed --phaseI-fa /scratch/$USER/chemin3_donnees/riboseq/gencode-riboseqORFs/phaseI/sORFs_genomic_hg38.prot.20210329.fa --bed12 $HOME/reannot_ncrna/donnees/Ribo-seq_ORFs.primary.bed --bed12-fa $HOME/reannot_ncrna/donnees/Ribo-seq_ORFs.primary.faa --bed12-source gencode_riboseq_primary --genome $HOME/mitoloop_v0/data/GRCh38.fa --gencode-gtf $HOME/mitoloop_v0/data/gencode.gtf.gz --mitocarta /scratch/$USER/chemin1_donnees/mitocarta/Human.MitoCarta3.0.tsv --fasta-peptides /scratch/$USER/chemin3_donnees/peptides_chemin3.fa --sortie /scratch/$USER/chemin3_donnees/chemin3
 ```
 
+**OpenProt 2.2 (« min_2_pep », au moins deux peptides uniques, GRCh38, Ensembl 106)** : déposé sur Curta
+(fichier trop lourd pour GitHub) dans `/scratch/atrimouille/nc_sources/` :
+`human-openprot-2_2-altprots+isoforms-min_2_pep-GRCh38.106.bed.zip` et `…fasta.zip`. Format à vérifier
+avant usage (BED12 ? noms identiques entre BED et FASTA ?) : `unzip -p FICHIER | head`. Il s'ajoutera par
+`--bed12 … --bed12-fa … --bed12-source openprot_min2pep` une fois décompressé.
+
 Prédicteurs, lancés sur `peptides_chemin3.fa` (noms de peptides = empreinte stable de la séquence) :
 
 ```
