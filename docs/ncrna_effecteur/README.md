@@ -38,4 +38,5 @@ Comment les chercher chez les patients non résolus après WGS ?
   AlphaFold 3.
 - Aucune donnée patient vers un service externe.
 - OMIM jamais redistribué.
+- Fichiers bruts d'éditeurs (données supplémentaires d'articles, dans `reannot/donnees/`) et tables qui en dérivent : usage interne seulement ; avant toute diffusion d'un dépôt hors de l'équipe, vérifier leur licence ou les retirer du dépôt et de son historique (règle détaillée : `reannot/donnees/LISEZMOI_editeurs.md`).
 - Pour les travaux en agents multiples : effort moyen, et peu d'agents, à cause des limites d'usage.
