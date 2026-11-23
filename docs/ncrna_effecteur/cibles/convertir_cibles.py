@@ -380,16 +380,20 @@ def cmd_lncrna_cis(args):
 
 # ---------------------------------------------------------------- miRTarBase
 def symbole_mir(precurseur):
-    """hsa-mir-181a-1 -> MIR181A1 ; hsa-let-7a-1 -> MIRLET7A1 (règle HGNC)."""
+    """hsa-mir-181a-1 -> MIR181A1 ; hsa-mir-1-1 -> MIR1-1 ; hsa-let-7a-1 -> MIRLET7A1 (règle HGNC : le tiret
+    avant le numéro de copie est gardé seulement après un chiffre)."""
     p = precurseur.lower()
     if not p.startswith("hsa-"):
         return None
     p = p[4:]
     if p.startswith("mir-"):
-        return "MIR" + p[4:].replace("-", "").upper()
-    if p.startswith("let-"):
-        return "MIRLET" + p[4:].replace("-", "").upper()
-    return None
+        pre, reste = "MIR", p[4:]
+    elif p.startswith("let-"):
+        pre, reste = "MIRLET", p[4:]
+    else:
+        return None
+    reste = re.sub(r"(?<=[a-z])-(?=\d+$)", "", reste)
+    return pre + reste.upper()
 
 
 def precurseurs_de(mature, hairpins):
@@ -398,38 +402,63 @@ def precurseurs_de(mature, hairpins):
     return [h for h in hairpins if h == b or re.match(re.escape(b) + r"-\d+$", h)]
 
 
+def est_humain(v):
+    return v.strip() in ("hsa", "Homo sapiens")
+
+
 def cmd_mirtarbase(args):
+    """miRTarBase (CSV ou TSV, gz accepté) : paires miARN humain - gène humain, dédoublonnées (une ligne par
+    expérience dans la source). preuve = experimentale_humaine si au moins un « Functional MTI » non « Weak »,
+    sinon base_de_donnees. --fonctionnelles-seulement écarte les paires « Weak » (CLIP, séquençage seuls)."""
     hairpins = set()
     with ouvrir(args.hairpin) as f:
         for l in f:
             if l.startswith(">hsa-"):
                 hairpins.add(l[1:].split()[0].lower())
     par_symbole, alias = lire_hgnc(args.hgnc)
-    sortie, perdus = [], 0
+    paires, lues = {}, 0
     with ouvrir(args.fichier) as f:
         dialecte = "\t" if args.fichier.endswith((".tsv", ".tsv.gz", ".txt")) else ","
         for d in csv.DictReader(f, delimiter=dialecte):
-            if d.get("Species (miRNA)", "Homo sapiens") != "Homo sapiens":
+            lues += 1
+            if not est_humain(d.get("Species (miRNA)", "hsa")) or not est_humain(d.get("Species (Target Gene)", "hsa")):
                 continue
-            mature = d["miRNA"]
-            cible = d["Target Gene"]
-            cible = cible if cible in par_symbole else alias.get(cible, cible)
-            support = d.get("Support Type", "")
-            preuve = "experimentale_humaine" if "Functional MTI" in support and "Weak" not in support else "base_de_donnees"
-            elems = [s for s in (symbole_mir(h) for h in precurseurs_de(mature, hairpins))
-                     if s and s in par_symbole]
-            if not elems:
-                perdus += 1
-                continue
-            for e in elems:
-                sortie.append(ligne(type_id="mirna_canonique", element=e, cible=cible,
-                                    type_cible="arnm", nature="repression_graine",
-                                    preuve=preuve,
-                                    source=f"miRTarBase {d.get('miRTarBase ID', '.')} {mature} ; {support} ; "
-                                           f"{d.get('Experiments', '.')[:80]}".replace("\t", " "),
-                                    reference=f"miRTarBase {args.version} ; PMID {d.get('References (PMID)', '.')}"))
+            cle = (d["miRNA"].strip(), d["Target Gene"].strip())
+            p = paires.setdefault(cle, {"fort": False, "support": set(), "exp": set(), "pmid": set(), "id": set()})
+            sup = d.get("Support Type", "").strip()
+            p["fort"] |= "Functional MTI" in sup and "Weak" not in sup
+            p["support"].add(sup)
+            p["exp"].update(x for x in d.get("Experiments", "").split("//") if x)
+            p["pmid"].add(d.get("References (PMID)", ".").strip())
+            p["id"].add(d.get("miRTarBase ID", ".").strip())
+    sortie, sans_hgnc, faibles = [], set(), 0
+    cache = {}
+    for (mature, cible), p in paires.items():
+        if args.fonctionnelles_seulement and not p["fort"]:
+            faibles += 1
+            continue
+        if mature not in cache:
+            cache[mature] = [s for s in (symbole_mir(h) for h in precurseurs_de(mature, hairpins))
+                             if s and s in par_symbole]
+        elems = cache[mature]
+        if not elems:
+            sans_hgnc.add(mature)
+            continue
+        cible = cible if cible in par_symbole else alias.get(cible, cible)
+        exp = sorted(p["exp"])
+        src = (f"miRTarBase {','.join(sorted(p['id'])[:3])} {mature} ; {' / '.join(sorted(p['support']))} ; "
+               f"{len(exp)} méthode(s) : {'//'.join(exp)[:80]}").replace("\t", " ")
+        pm = sorted(p["pmid"])
+        ref = f"miRTarBase {args.version} ; PMID {','.join(pm[:5])}" + (f" (+{len(pm) - 5})" if len(pm) > 5 else "")
+        for e in elems:
+            sortie.append(ligne(type_id="mirna_canonique", element=e, cible=cible, type_cible="arnm",
+                                nature="repression_graine",
+                                preuve="experimentale_humaine" if p["fort"] else "base_de_donnees",
+                                source=src, reference=ref))
     ecrire(sortie)
-    print(f"[mirtarbase] {len(sortie)} lignes ; {perdus} miARN sans symbole HGNC", file=sys.stderr)
+    print(f"[mirtarbase] {lues} lignes lues ; {len(paires)} paires humaines ; {len(sortie)} lignes écrites ; "
+          f"{faibles} paires Weak écartées ; {len(sans_hgnc)} miARN matures sans précurseur HGNC "
+          f"(ex. {', '.join(sorted(sans_hgnc)[:5])})", file=sys.stderr)
 
 
 # ---------------------------------------------------------------- générique
@@ -497,6 +526,8 @@ def main():
     p.add_argument("--hairpin", required=True)
     p.add_argument("--hgnc", required=True)
     p.add_argument("--version", default="(version à noter)")
+    p.add_argument("--fonctionnelles-seulement", action="store_true",
+                   help="garder seulement les paires « Functional MTI » (non Weak)")
     p = sp.add_parser("generique")
     p.add_argument("fichier")
     p.add_argument("--sep", default="\t")

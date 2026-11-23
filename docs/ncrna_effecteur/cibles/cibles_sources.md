@@ -36,7 +36,7 @@ Conventions :
 | snorna_orphelin_15q11_14q32 | 201 | snoDB v2.0 (interactions haut débit seulement, pas de site de modification) |
 | snorna_u3_u8_u13 | 104 | snoDB v2.0 |
 | sdrna | 1 | Ender 2008 (ACA45 = SCARNA15 → CDK19) |
-| mirna_canonique | 46 | catalogue (articles vérifiés) ; miRTarBase à ajouter sur Curta |
+| mirna_canonique | 46 | catalogue (articles vérifiés) ; miRTarBase 11.0 ajouté sur Curta par reannot `nc_sources` (NC_MIRTARBASE ; « Functional MTI » seulement par défaut, paires dédoublonnées, preuve experimentale_humaine si au moins un Functional MTI non Weak) |
 | svrna | 1 | Persson 2009 (svRNAb → CYP3A4) |
 | vault_rna | 5 | Horos 2019, Kong 2000, Kickhoefer 2002 |
 | vault_nc886 | 1 | Lee 2011 (PKR) |
