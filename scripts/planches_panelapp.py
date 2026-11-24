@@ -11,7 +11,9 @@ by default), in one tissue (--tissu, the name shared by loops_par_tissu.py and
 the AG2 campaign: muscle, cardiomyocyte, neurone, rein):
   - Hi-C library: the deepest kept library of <dir>/<tissu>/libraries.tsv, its
     .hic read at a distance from the URL of --bibliotheque (the library table
-    that holds s3_url / download_url; the per-tissue table has no URL);
+    that holds s3_url / download_url; the per-tissue table has no URL); without
+    --bibliotheque, the first such .tsv under the current folder that names
+    the library;
   - window: as choisir_locus.py, max(300 kb, farthest loop of the gene in the
     tissue + 150 kb), 500 kb for a gene without loop; capped at 1 Mb;
   - a gene without AG2 zoom (not in the campaign, nothing scanned in the
@@ -99,6 +101,27 @@ def fenetres(d, tissu, plafond):
     return {g: min(plafond, max(300_000, x + 150_000)) for g, x in far.items()}
 
 
+def trouver_bibliotheque(racine, acc):
+    """first .tsv under racine (results/ and data/ first) whose header has s3_url or
+    download_url and that names the library acc (the per-tissue tables have no URL)"""
+    vus = []
+    for sous in ("data", "results", "."):
+        base = racine / sous
+        if base.is_dir():
+            vus += sorted(base.rglob("*.tsv")) if sous != "." else sorted(base.glob("*.tsv"))
+    for f in vus:
+        try:
+            with open(f) as fh:
+                tete = fh.readline()
+                if "s3_url" not in tete and "download_url" not in tete:
+                    continue
+                if any(acc in line for line in fh):
+                    return str(f)
+        except (OSError, UnicodeDecodeError):
+            continue
+    return ""
+
+
 def planche(macro, zoom, out):
     """macro on the left, zoom on the right, top-aligned, white background"""
     from PIL import Image
@@ -123,7 +146,7 @@ def main():
     p.add_argument("--genes", default="", help="restrict to these genes (comma-separated)")
     p.add_argument("--tissu", required=True)
     p.add_argument("--dir", default="results/loops_tissus")
-    p.add_argument("--bibliotheque", default="", help="library table with the .hic URL (s3_url)")
+    p.add_argument("--bibliotheque", default="", help="library table with the .hic URL (s3_url); found under the current folder when not given")
     p.add_argument("--gtf", default="data/gencode.gtf.gz")
     p.add_argument("--elements", default="")
     p.add_argument("--elements-frac", default="0.8")
@@ -150,9 +173,15 @@ def main():
         for g, n in genes:
             print(f"{g}\t{n}\t{'oui' if g in fen else 'non'}")
         return
-    if not a.bibliotheque:
-        sys.exit("--bibliotheque : table des librairies avec l'URL du .hic (colonne s3_url)")
     acc = librairie(d, a.tissu)
+    if not a.bibliotheque:
+        a.bibliotheque = trouver_bibliotheque(Path.cwd(), acc)
+        if not a.bibliotheque:
+            sys.exit(f"aucune table .tsv avec une colonne s3_url ou download_url et la librairie {acc} "
+                     f"sous {Path.cwd()} : la donner avec --bibliotheque")
+        print(f"table des librairies (URL du .hic) : {a.bibliotheque}", file=sys.stderr)
+    elif not Path(a.bibliotheque).exists():
+        sys.exit(f"--bibliotheque : {a.bibliotheque} n'existe pas")
     zoom_py = Path(a.reannot) / "mcia" / "ag2_figure_locus.py"
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

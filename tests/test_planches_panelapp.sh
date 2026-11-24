@@ -39,9 +39,19 @@ assert ab.size == (a.width + b.width + 20, a.height), (a.size, b.size, ab.size)
 pp.planche(T / "a.png", None, T / "a2.png")
 assert Image.open(T / "a2.png").size == a.size
 PY
-# sans .hic : chaque gène en échec, consigné, la boucle continue ; --bibliotheque exigé
-! python3 $S --panelapp "$T/panel.tsv" --tissu muscle --dir "$T/L" --out "$T/o" 2> /dev/null || fail "--bibliotheque exigé"
+# sans .hic : chaque gène en échec, consigné, la boucle continue ; table des URL absente ou trouvée seule
+! (cd "$T" && python3 "$OLDPWD/$S" --panelapp panel.tsv --tissu muscle --dir L --out o 2> /dev/null) || fail "table introuvable"
+! python3 $S --panelapp "$T/panel.tsv" --tissu muscle --dir "$T/L" --bibliotheque TABLE --out "$T/o" 2> /dev/null || fail "--bibliotheque absente"
 printf 'accession\ts3_url\nLIB2\t\n' > "$T/bib.tsv"
+mkdir -p "$T/data" && cp "$T/bib.tsv" "$T/data/libs.tsv"
+python3 - "$T" <<'PY'
+import sys; sys.path.insert(0, "scripts")
+from pathlib import Path
+import planches_panelapp as pp
+T = Path(sys.argv[1])
+assert pp.trouver_bibliotheque(T, "LIB2").endswith("data/libs.tsv")
+assert pp.trouver_bibliotheque(T, "LIBX") == ""
+PY
 python3 $S --panelapp "$T/panel.tsv" --renommes "$T/ren.tsv" --tissu muscle --dir "$T/L" --bibliotheque "$T/bib.tsv" \
     --gtf "$T/absent.gtf" --out "$T/o" 2> "$T/r.log" || { cat "$T/r.log"; fail "boucle"; }
 [ "$(awk -F'\t' 'NR>1{print $1, $4}' "$T/o/index.tsv" | tr '\n' ';')" = "GA echec;GB echec;" ] || { cat "$T/o/index.tsv" "$T/r.log"; fail index; }
