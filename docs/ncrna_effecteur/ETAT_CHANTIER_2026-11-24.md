@@ -122,6 +122,19 @@ Environnement `/scratch/$USER/envs/ncrna`. Variables : `NC_BED_DIR=/scratch/$USE
   (cas probable de SLC35A4-MP) ; coordonnées des candidats au rapport sinon. Non testé sur données réelles.
 - mitoloop `84b4da3` : SLC35A4-MP apparié sur sa longueur publiée (103 aa) dans le chemin 3.
 
+## 6 bis. Résultat de nc_eff 21527053 et correction suivante
+
+- `nc_eff` 21527053 COMPLETED en 2 h 28 (nc_elements, nc_chemin1, nc_chemin2, nc_paquet : status 0) ;
+  témoins 130/132 (RNA45SN1 et RNY5 absents du GTF) ; éléments à cible mito directe 2 614 (2 057 le 20/11,
+  apport de miRTarBase), cascade 45 ; régions d'effet 612 (graines 335, guides 277) ; cibles jointes
+  31 293/33 100 (sans élément : lncrna_general 1 529, snorna_cd 216, snorna_haca 35, humanine 13…).
+- Peptides de type humanine : 0 élément car MTRNR2L1-13 sont **absents d'Ensembl** (aucun ENSG dans HGNC).
+  Corrigé (reannot `1586082`) : `sources_nc humanin` les place depuis NCBI Gene
+  (esummary, contrôle du chromosome RefSeq GRCh38) → `humanin_mtrnr2l.bed` nommé `HGNC:id|symbole` ;
+  `elements_nc` reprend l'identifiant HGNC, la cible MT-RNR2 est jointe. Non exécuté sur Curta.
+- **Pas de passage sur la VM à ce stade** (décision utilisateur du 24/11) : reannot sera d'abord retravaillé
+  et fusionné avec les résultats de l'autre conversation sur les éléments régulateurs.
+
 ## 7. Points ouverts (à auditer)
 
 1. Résultat de `nc_eff` 21527053 (statut, nombre de témoins retrouvés, éléments à cible mito).
@@ -130,7 +143,8 @@ Environnement `/scratch/$USER/envs/ncrna`. Variables : `NC_BED_DIR=/scratch/$USE
 3. SPA1 sans snoRNA en 5' (attendu SNORD107, de mémoire) : vérifier le voisinage hg38 dans le GTF.
 4. MP31 : longueur 31 aa déduite du nom (texte intégral non accessible) — à confirmer.
 5. Table S1 de Wu 2016 : convention de coordonnées mixte (3/9 lignes 1-based inclusives), écart ≤ 1 nt, laissé tel quel.
-6. Relancement complet après les corrections du §6, puis étape `paquet` et transfert VM.
+6. Relancement complet après les corrections des §6 et 6 bis (pas de VM avant la refonte de reannot).
+10. 216 lignes de cibles snoRNA C/D (35 H/ACA) sans élément correspondant : snoRNA de snoDB non reliés par ENSG/HGNC, à examiner.
 7. Décision PR vers `main` (§2).
 8. Proposition non demandée en attente : relais des ARN de voûte ; tige-boucle apicale de nc886.
 9. Diffusion : fichiers d'éditeurs à vérifier ou retirer de l'historique avant toute diffusion externe.
