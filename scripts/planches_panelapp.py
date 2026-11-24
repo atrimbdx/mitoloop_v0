@@ -15,7 +15,8 @@ the AG2 campaign: muscle, cardiomyocyte, neurone, rein):
     --bibliotheque, the first such .tsv under the current folder that names
     the library;
   - window: as choisir_locus.py, max(300 kb, farthest loop of the gene in the
-    tissue + 150 kb), 500 kb for a gene without loop; capped at 1 Mb;
+    tissue + 150 kb), 500 kb for a gene without loop, widened to reach the
+    farthest AG2 element of the gene (off-anchor element included); capped at 1 Mb;
   - a gene without AG2 zoom (not in the campaign, nothing scanned in the
     tissue) keeps its locus figure alone (statut macro_seul).
 Only the plate is kept (PNG, --dpi 150 by default, a few hundred kB); the
@@ -125,6 +126,23 @@ def trouver_bibliotheque(racine, acc):
     return ""
 
 
+def fenetres_elements(ag2_dir, tissu):
+    """gene -> distance (bp) from the TSS to the farthest AG2 element of the gene in the
+    tissue (cibles.tsv), so that the window shows the off-anchor element too"""
+    f = Path(ag2_dir) / "cibles.tsv" if ag2_dir else None
+    out = {}
+    if not f or not f.exists():
+        return out
+    for r in read_tsv(f):
+        if r.get("type") == tissu and r.get("classe", "").startswith("element"):
+            try:
+                x = abs((int(r["debut"]) + int(r["fin"])) // 2 - int(r["tss"]))
+            except (KeyError, ValueError):
+                continue
+            out[r["gene"]] = max(out.get(r["gene"], 0), x)
+    return out
+
+
 def planche(macro, zoom, out):
     """macro on the left, zoom on the right, top-aligned, white background"""
     from PIL import Image
@@ -188,12 +206,15 @@ def main():
         k, n = (int(x) for x in a.tranche.split("/"))
         genes = genes[k::n]
     fen = fenetres(d, a.tissu, a.fenetre_max)
-    avec = sum(1 for g, _ in genes if g in fen)
+    boucle = set(fen)
+    for g, x in fenetres_elements(a.ag2_dir, a.tissu).items():    # l'élément hors ancre dans la fenêtre
+        fen[g] = min(a.fenetre_max, max(fen.get(g, 500_000), x + 50_000))
+    avec = sum(1 for g, _ in genes if g in boucle)
     print(f"{len(genes)} gènes PanelApp (niveaux {a.niveaux}) ; {avec} avec boucle dans {a.tissu}",
           file=sys.stderr)
     if a.liste:
         for g, n in genes:
-            print(f"{g}\t{n}\t{'oui' if g in fen else 'non'}")
+            print(f"{g}\t{n}\t{'oui' if g in boucle else 'non'}")
         return
     acc = librairie(d, a.tissu)
     if not a.bibliotheque:
@@ -252,7 +273,7 @@ def main():
                 planche(macro, zoom, png)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
-        rows.append({"gene": g, "niveau": niv, "boucle": "oui" if g in fen else "non", "statut": statut,
+        rows.append({"gene": g, "niveau": niv, "boucle": "oui" if g in boucle else "non", "statut": statut,
                      "raison": raison, "planche": png.name if statut != "echec" else ""})
         el = time.time() - t0
         print(f"[{i}/{len(genes)}] {g} : {statut}{' (' + raison + ')' if raison else ''} ; "
