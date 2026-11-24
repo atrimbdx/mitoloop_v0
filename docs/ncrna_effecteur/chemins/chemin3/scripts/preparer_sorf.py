@@ -215,6 +215,9 @@ def apparier_manuel(orfs, manuel, log):
                     "candidat ambigu pour %s (table manuelle)" % m["peptide"])
 
 
+RANG_SOURCE = {"gencode_cds_canonique": 0, "gencode_riboseq_primary": 1}
+
+
 def dedoublonner(orfs):
     vus = {}
     for o in orfs:
@@ -223,8 +226,15 @@ def dedoublonner(orfs):
             p = vus[k]
             if o.get("etude") and o["etude"] not in p["etude"].split(";"):
                 p["etude"] = ";".join(x for x in (p["etude"], o["etude"]) if x)
-            if o["source"] == "gencode_cds_canonique":
-                p["source"], p["orf_id"] = o["source"], o["orf_id"]
+            # même ORF dans plusieurs catalogues : nom, source et gène hôte du plus curé (CDS GENCODE, puis
+            # catalogue GENCODE Ribo-seq phase 2, puis les autres) ; les noms de la phase I ne donnent pas
+            # toujours le gène hôte
+            if RANG_SOURCE.get(o["source"], 9) < RANG_SOURCE.get(p["source"], 9):
+                for k in ("source", "orf_id", "gene_hote"):
+                    p[k] = o[k] or p[k]
+                p["peptide"] = o.get("peptide") or p.get("peptide", "")
+            elif not p.get("gene_hote") and o.get("gene_hote"):
+                p["gene_hote"] = o["gene_hote"]
         else:
             vus[k] = o
     return list(vus.values())
