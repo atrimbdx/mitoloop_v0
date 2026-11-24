@@ -723,13 +723,9 @@ def main():
             for r in read_tsv(a.loops):
                 if r.get("gene") == a.gene and same_chrom(r.get("chrom", ""), chrom):
                     try:
-                        sm = float(r["summit"])
+                        summits.append(float(r["summit"]))
                     except (KeyError, ValueError):
-                        continue
-                    try:                    # peakC region (start-end), summit included
-                        summits.append((min(float(r["start"]), sm), max(float(r["end"]), sm)))
-                    except (KeyError, ValueError):
-                        summits.append((sm, sm))
+                        pass
         def mine(ct):
             return (ri is None or ri.search(ct)) and not (rx and rx.search(ct))
         tissue_files, cand = set(), []
@@ -758,10 +754,10 @@ def main():
         for s_, e_, n_b in cand:
             if n_b < need:
                 continue
-            # on the anchor: overlaps the loop region widened by one bin (--anchor-half,
+            # on the anchor: overlaps the peakC window, summit +/- 1.5 bins (wsize 3 of
             # 10 kb), the rule of choisir_locus.py and of the reannot AG2 campaign
-            on = any(s_ < hi + a.anchor_half and lo - a.anchor_half < e_
-                     for lo, hi in summits)
+            demi = 3 * res / 2
+            on = any(s_ < sm + demi and sm - demi < e_ for sm in summits)
             elems.append((s_, e_, n_b, on))
         print(f"  {len(elems)} rE2G elements of {a.gene} in the window"
               + (f" ({a.elements_tissu})" if a.elements_tissu else "")

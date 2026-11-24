@@ -43,7 +43,7 @@ first, columns:
   score, commande  (the locus_figure.py call that draws it)
 
 Ranking (by gene, its best loop; stated, not tuned on anything)
-  required   the loop anchor (peakC region start-end widened by --tol) holds an element linked to the
+  required   the loop anchor (summit +/- 1.5 bins, the peakC window) holds an element linked to the
              gene in >= --frac-tissu of the tissue's biosamples
   score      presence (n_presents / n_fichiers, 1 when not measured)
              + share of the tissue's biosamples linking the element
@@ -119,21 +119,13 @@ def lire_elements(path):
     return el, taille
 
 
-def sur_ancre(elements, chrom, summit, tol, start=None, end=None):
-    """elements of the gene on the loop anchor: overlapping the peakC region of the loop
-    (start-end, summit included) widened by tol (one bin, the resolution of the call) on
-    each side; the rule of the reannot AG2 campaign (ag2_balayage.py ancre_region)"""
-    lo = min(summit, start) if start is not None else summit
-    hi = max(summit, end) if end is not None else summit
-    return [e for e in elements if e[0] == chrom and e[1] < hi + tol and lo - tol < e[2]]
-
-
-def region(r):
-    """(start, end) of a loop row, None when absent"""
-    s, e = num(r.get("start")), num(r.get("end"))
-    if math.isnan(s) or math.isnan(e):
-        return None, None
-    return int(s), int(e)
+def sur_ancre(elements, chrom, summit, tol):
+    """elements of the gene on the loop anchor: overlapping the peakC window centred on the
+    summit, summit +/- 1.5 bins (wsize 3 bins of --tol = 10 kb: +/- 15 kb); the rule of the
+    reannot AG2 campaign (ag2_balayage.py ancre_region). The start-end region, spread by the
+    same smoothing, is not the anchor."""
+    demi = tol * 3 // 2
+    return [e for e in elements if e[0] == chrom and e[1] < summit + demi and summit - demi < e[2]]
 
 
 def boucles(d, tissu, interet):
@@ -178,7 +170,7 @@ def main():
     p.add_argument("--class-low", type=float, default=0.3)
     p.add_argument("--frac-tissu", type=float, default=0.8)
     p.add_argument("--tol", type=int, default=10_000,
-                   help="bp added on each side of the loop region (one bin, the call resolution)")
+                   help="bin of the loop call (bp); anchor = summit +/- 1.5 bins (peakC wsize 3)")
     p.add_argument("--dmin", type=int, default=50_000)
     p.add_argument("--dmax", type=int, default=500_000)
     p.add_argument("--fenetre", type=int, default=0,
@@ -214,7 +206,7 @@ def main():
         for r in rows:
             s = int(num(r["summit"], 0))
             if any(de_tissu(e[3], t) >= seuil[t]
-                   for e in sur_ancre(el.get(r["gene"], []), r["chrom"], s, a.tol, *region(r))):
+                   for e in sur_ancre(el.get(r["gene"], []), r["chrom"], s, a.tol)):
                 avec[r["gene"]].add(t)
     rat = ratios(d, a.tissu)
     rows = loops[a.tissu]
@@ -227,7 +219,7 @@ def main():
         for r in rs:
             vp, s = int(num(r["vp_pos"], 0)), int(num(r["summit"], 0))
             dist = abs(s - vp)
-            on = sur_ancre(el.get(g, []), r["chrom"], s, a.tol, *region(r))
+            on = sur_ancre(el.get(g, []), r["chrom"], s, a.tol)
             n_t = max((de_tissu(e[3], a.tissu) for e in on), default=0)
             if n_t < seuil[a.tissu]:
                 continue
