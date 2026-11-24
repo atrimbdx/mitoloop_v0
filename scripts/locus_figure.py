@@ -15,6 +15,9 @@ Purpose
       an optional track of the ENCODE-rE2G elements linked to the gene
       (--elements), those of one tissue's biosamples with --elements-tissu;
       an element on a called loop anchor is drawn in gold
+      optional AlphaGenome 2 campaign tracks (--ag2-dir, --ag2-type): effect on the
+      gene's RNA of the whole deletion of each element and 10-kb anchor, and the
+      predicted contact loss (reannot ag2_balayage.py multi and lecture_multi)
       an optional gene track read from a GTF
       the virtual 4C profile of the viewpoint, with the called loops marked
 
@@ -337,6 +340,62 @@ def observed_over_expected(m):
     return out
 
 
+def ag2_regions(d, gene, typ, chrom):
+    """résultats de la campagne AlphaGenome 2 (dossier ag2_balayage.py) pour un gène et un type :
+    [(début, fin, classe, effet ARN log2 de la délétion entière ou None, perte de contact ou None)]
+    pour ses éléments (cibles.tsv) et ses ancres de 10 kb (multi). Effet ARN : moyenne des pistes de
+    la sortie d'expression du type, unité de convention_ag2.tsv convertie en log2. Contact
+    (lecture_multi, delta de log O/E) : élément, pixel 3x3 promoteur-sommet ; ancre, contact le plus
+    bas vers les flancs de la délétion (son sommet est supprimé)."""
+    import math
+    d = Path(d)
+    conv = {r["cle"]: r["valeur"] for r in read_tsv(d / "convention_ag2.tsv")} \
+        if (d / "convention_ag2.tsv").exists() else {}
+    k = 1 / math.log(2) if conv.get("unite_arn") == "ln" else 1.0
+    expr = {r["type"]: r["expression"] for r in read_tsv(d / "choix_conditions.tsv")}.get(typ)
+    types = {r["type"] for r in read_tsv(d / "choix_conditions.tsv")}
+
+    def tous(base):
+        rows = []
+        for f in sorted(d.glob(f"{base}*.tsv")):
+            if f.name == f"{base}.tsv" or f.name[len(base) + 1:-4] in types:
+                rows += read_tsv(f)
+        return rows
+    reg = {}
+    for r in read_tsv(d / "cibles.tsv"):
+        if r["gene"] == gene and r["type"] == typ and r["classe"].startswith("element") \
+                and same_chrom(r["chrom"], chrom):
+            reg[r["cible"]] = [int(r["debut"]), int(r["fin"]), r["classe"], [], []]
+    for r in tous("multi"):
+        if r.get("gene") != gene or r.get("type") != typ or r.get("sortie") != expr \
+                or r.get("gene_arn", gene) != gene or r.get("echelle") not in ("element", "ancre_10kb"):
+            continue
+        if r["echelle"] == "ancre_10kb" and r["cible"] not in reg:
+            reg[r["cible"]] = [int(r["debut"]), int(r["fin"]), "ancre", [], []]
+        if r["cible"] in reg:
+            try:
+                reg[r["cible"]][3].append(float(r["raw_score"]) * k)
+            except ValueError:
+                pass
+    for r in tous("lecture_multi"):
+        if r.get("gene") != gene or r.get("type") != typ or r.get("cible") not in reg:
+            continue
+        m, ech = r.get("mesure", ""), r.get("echelle", "")
+        ok = (ech == "element" and m.endswith("_3x3")) or \
+             (ech == "ancre_10kb" and (m.endswith("_flanc_g") or m.endswith("_flanc_d")))
+        if ok:
+            try:
+                v = float(r["delta"])
+            except (KeyError, ValueError):
+                continue
+            if v == v:
+                reg[r["cible"]][4].append(v)
+    out = []
+    for c, (s_, e_, cl, arn, con) in reg.items():
+        out.append((s_, e_, cl, sum(arn) / len(arn) if arn else None, min(con) if con else None))
+    return out
+
+
 def main():
     p = argparse.ArgumentParser(
         description=__doc__,
@@ -424,6 +483,11 @@ def main():
     p.add_argument("--elements-frac", type=float, default=0,
                    help="at least this share of the tissue's biosamples linking "
                         "it (biosamples column; 0: --elements-min only)")
+    p.add_argument("--ag2-dir", default="",
+                   help="dossier de la campagne AlphaGenome 2 (reannot results/ag2_v2) : ajoute deux "
+                        "pistes, effet sur l'ARN de la délétion entière de chaque élément et ancre, et "
+                        "perte de contact prédite (avec --gene et --ag2-type)")
+    p.add_argument("--ag2-type", default="", help="type cellulaire de la campagne (muscle, cardiomyocyte...)")
     p.add_argument("--genes-track", action="store_true",
                    help="draw the genes of the window under the map; needs "
                         "--gtf")
@@ -698,16 +762,28 @@ def main():
               + f", {sum(1 for x in elems if x[3])} on a called loop anchor")
     elem_h = 0.32 if a.elements else 0
 
+    ag2 = []
+    if a.ag2_dir:
+        if not (a.gene and a.ag2_type):
+            sys.exit("--ag2-dir needs --gene and --ag2-type")
+        ag2 = [x for x in ag2_regions(a.ag2_dir, a.gene, a.ag2_type, chrom)
+               if x[1] >= start and x[0] <= end]
+        print(f"  AG2 ({a.ag2_type}) : {sum(1 for x in ag2 if x[2] != 'ancre')} éléments, "
+              f"{sum(1 for x in ag2 if x[2] == 'ancre')} ancres dans la fenêtre")
+    ag2_h = 0.75 if a.ag2_dir else 0
+
     gx = None
     ax2 = None
     ex = None
-    if m is None and not n_rows and not arcs and not elem_h:
+    rx = cx = None
+    if m is None and not n_rows and not arcs and not elem_h and not ag2_h:
         fig, bx = plt.subplots(1, 1, figsize=(fig_w, prof_h + 0.95))
         ax = None
     else:
         heights = ([map_h] if m is not None else []) + \
                   ([arcs_h] if arcs else []) + \
                   ([elem_h] if elem_h else []) + \
+                  ([ag2_h, ag2_h] if ag2_h else []) + \
                   ([gene_h] if n_rows else []) + [prof_h]
         fig, axes = plt.subplots(
             len(heights), 1, figsize=(fig_w, sum(heights) + 0.95), sharex=True,
@@ -716,6 +792,8 @@ def main():
         ax = axes.pop(0) if m is not None else None
         ax2 = axes.pop(0) if arcs else None
         ex = axes.pop(0) if elem_h else None
+        rx = axes.pop(0) if ag2_h else None
+        cx = axes.pop(0) if ag2_h else None
         gx = axes.pop(0) if n_rows else None
         bx = axes.pop(0)
 
@@ -773,7 +851,7 @@ def main():
                      ("balanced contacts" if a.norm.upper() != "NONE"
                       else "contacts"), fontsize=fs(7))
     else:
-        first = next(x for x in (ax2, ex, gx, bx) if x is not None)
+        first = next(x for x in (ax2, ex, rx, cx, gx, bx) if x is not None)
         first.set_title(title, fontsize=fs(9), loc="left")
 
     if ax2 is not None:
@@ -823,6 +901,36 @@ def main():
                                    color=GOLD if on else GREY, lw=0,
                                    alpha=0.35 + 0.65 * n_b / top_b))
         ex.axvline(vp, color="black", lw=0.7, ls=(0, (1, 2)), zorder=0)
+
+    for axx, j, lab in ((rx, 3, "AG2 ARN\n(log2)"), (cx, 4, "AG2 contact\n(Δ log O/E)")):
+        if axx is None:
+            continue
+        from matplotlib.patches import Rectangle
+        axx.set_xlim(edges[0], edges[-1])
+        vals = [x[j] for x in ag2 if x[j] is not None]
+        lim = max([abs(v) for v in vals] + [0.25]) * 1.15
+        axx.set_ylim(-lim, lim * 0.35)
+        axx.axhline(0, color=GREY, lw=0.6)
+        axx.set_ylabel(lab, fontsize=fs(6.5), rotation=0, ha="right", va="center", labelpad=2)
+        for sp in ("top", "right", "bottom"):
+            axx.spines[sp].set_visible(False)
+        axx.tick_params(axis="y", labelsize=fs(6))
+        axx.tick_params(axis="x", length=0)
+        axx.axvline(vp, color="black", lw=0.7, ls=(0, (1, 2)), zorder=0)
+        for s_, e_, cl, *v in ag2:
+            val = v[j - 3]
+            if val is None:
+                continue
+            w = max(e_ - s_, res / 2)
+            col = BLUE if val < 0 else RED
+            axx.add_patch(Rectangle(((s_ + e_) / 2 - w / 2, min(0, val)), w, abs(val), color=col, lw=0,
+                                    alpha=0.45 if cl == "ancre" else 0.95,
+                                    hatch="///" if cl == "ancre" else None))
+    if rx is not None:
+        from matplotlib.patches import Patch
+        rx.legend(handles=[Patch(color=BLUE, label="élément"),
+                           Patch(color=BLUE, alpha=0.45, hatch="///", label="ancre 10 kb")],
+                  fontsize=fs(5.5), frameon=False, loc="lower right", ncol=2)
 
     if gx is not None:
         gx.set_xlim(edges[0], edges[-1])
@@ -915,7 +1023,7 @@ def main():
     fig.canvas.draw()
     if ax is not None:
         box = ax.get_position()
-        for other in (ax2, ex, gx, bx):
+        for other in (ax2, ex, rx, cx, gx, bx):
             if other is not None:
                 q = other.get_position()
                 other.set_position([box.x0, q.y0, box.width, q.height])
