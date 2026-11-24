@@ -285,7 +285,7 @@ def pack_rows(genes, span, n_rows):
     gene, so the space it takes is on that side."""
     rows_iv, rows = [], []
     for g in genes:
-        pad = max(span * 0.012 * (len(g[0]) + 2), span * 0.02)
+        pad = span * (0.016 * len(g[0]) + 0.03)   # italic 6-pt name + 5-pt offset, at the usual width
         strand = g[3] if len(g) > 3 else "+"
         iv = (g[1] - pad, g[2]) if strand == "-" else (g[1], g[2] + pad)
         for r, ivs in enumerate(rows_iv):
@@ -960,7 +960,8 @@ def main():
                         xytext=(5 if strand == "+" else -5, 0),
                         textcoords="offset points", fontsize=fs(6),
                         style="italic", color=col, va="center",
-                        ha="left" if strand == "+" else "right")
+                        ha="left" if strand == "+" else "right",
+                        annotation_clip=False, clip_on=True)   # no name over the track label
 
     bx.fill_between(centres, 0, np.nan_to_num(prof), step="mid",
                     color=RED, alpha=0.25, linewidth=0)
