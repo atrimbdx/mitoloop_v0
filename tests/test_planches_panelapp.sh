@@ -57,4 +57,13 @@ python3 $S --panelapp "$T/panel.tsv" --renommes "$T/ren.tsv" --tissu muscle --di
 [ "$(awk -F'\t' 'NR>1{print $1, $4}' "$T/o/index.tsv" | tr '\n' ';')" = "GA echec;GB echec;" ] || { cat "$T/o/index.tsv" "$T/r.log"; fail index; }
 grep -q "0 complètes, 0 sans zoom, 2 en échec" "$T/r.log" || { cat "$T/r.log"; fail bilan; }
 [ -z "$(ls "$T/o" | grep -v index.tsv)" ] || fail "fichiers intermédiaires laissés"
+# tranches (tableau SLURM) puis fusion des index
+for k in 0 1; do
+    python3 $S --panelapp "$T/panel.tsv" --renommes "$T/ren.tsv" --tissu muscle --dir "$T/L" --bibliotheque "$T/bib.tsv" \
+        --gtf "$T/absent.gtf" --tranche $k/2 --out "$T/t" 2> "$T/t$k.log" || { cat "$T/t$k.log"; fail "tranche $k"; }
+done
+[ "$(awk -F'\t' 'NR>1{print $1}' "$T/t/index_0.tsv")" = "GA" ] && [ "$(awk -F'\t' 'NR>1{print $1}' "$T/t/index_1.tsv")" = "GB" ] \
+    || { cat "$T"/t/index_*.tsv; fail "partage des tranches"; }
+python3 $S --tissu muscle --out "$T/t" --fusionner 2> "$T/f.log" || { cat "$T/f.log"; fail fusion; }
+[ "$(awk -F'\t' 'NR>1{print $1, $4}' "$T/t/index.tsv" | tr '\n' ';')" = "GA echec;GB echec;" ] || { cat "$T/t/index.tsv"; fail "index fusionné"; }
 echo "PASS test_planches_panelapp"

@@ -23,6 +23,9 @@ intermediate SVG/PNG/TSV are written in a temporary folder and removed.
 <out>/index.tsv: gene, PanelApp level, loop in the tissue, status, plate.
 --reprendre skips the genes whose plate exists, so a stopped run resumes.
 --liste prints the genes and the expected count, without drawing anything.
+--tranche K/N draws one share of the genes (one task of a SLURM array,
+slurm/planches_panelapp.sbatch), with its own index_K.tsv; --fusionner then
+writes index.tsv from them.
 
 PanelApp symbols are old HGNC symbols in places (ATP5A1): they are renamed with
 --renommes (genes_renamed.tsv of fetch_regulome.py, old -> GTF symbol).
@@ -158,13 +161,32 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--reprendre", action="store_true")
     p.add_argument("--liste", action="store_true", help="list the genes, draw nothing")
+    p.add_argument("--tranche", default="", help="K/N : only the genes of rank K, K+N, K+2N... (K from 0), "
+                   "for a SLURM array; index written to index_K.tsv (merged by --fusionner)")
+    p.add_argument("--fusionner", action="store_true", help="merge the index_K.tsv of --out into index.tsv")
     a = p.parse_args()
 
+    if a.fusionner:
+        out = Path(a.out)
+        parts = sorted(out.glob("index_*.tsv"), key=lambda f: int(f.stem.split("_")[1]))
+        rows = [r for f in parts for r in read_tsv(f)]
+        cols = ["gene", "niveau", "boucle", "statut", "raison", "planche"]
+        with open(out / "index.tsv", "w") as fo:
+            fo.write("\t".join(cols) + "\n")
+            for x in sorted(rows, key=lambda r: r["gene"]):
+                fo.write("\t".join(x.get(c, "") for c in cols) + "\n")
+        n = {st: sum(1 for x in rows if x.get("statut") == st) for st in ("ok", "macro_seul", "echec")}
+        print(f"{len(parts)} tranches, {len(rows)} gènes : {n['ok']} complètes, {n['macro_seul']} sans zoom, "
+              f"{n['echec']} en échec → {out / 'index.tsv'}", file=sys.stderr)
+        return
     d = Path(a.dir)
     genes = genes_panel(a.panelapp, set(a.niveaux.split(",")), a.renommes)
     if a.genes:
         garder = set(a.genes.split(","))
         genes = [x for x in genes if x[0] in garder]
+    if a.tranche:
+        k, n = (int(x) for x in a.tranche.split("/"))
+        genes = genes[k::n]
     fen = fenetres(d, a.tissu, a.fenetre_max)
     avec = sum(1 for g, _ in genes if g in fen)
     print(f"{len(genes)} gènes PanelApp (niveaux {a.niveaux}) ; {avec} avec boucle dans {a.tissu}",
@@ -185,7 +207,7 @@ def main():
     zoom_py = Path(a.reannot) / "mcia" / "ag2_figure_locus.py"
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    index = out / "index.tsv"
+    index = out / (f"index_{a.tranche.split('/')[0]}.tsv" if a.tranche else "index.tsv")
     deja = {}
     if a.reprendre and index.exists():
         deja = {r["gene"]: r for r in read_tsv(index)}
