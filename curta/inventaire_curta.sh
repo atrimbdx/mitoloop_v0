@@ -103,7 +103,7 @@ for l, t in links:
     if not any(tt == r or tt.startswith(r + "/") for r in roots):
         n_out += 1
         if n_out <= 40:
-            res.append(f"   {l} -> {t}")
+            res.append(f"   {l} → {t}")
 res.append(f"   ({n_out} liens sortants, {len(links)} liens en tout ; liste complète : liens.tsv)")
 
 # key files

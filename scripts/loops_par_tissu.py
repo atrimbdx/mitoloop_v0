@@ -95,7 +95,7 @@ def cmd_librairies(a):
         terms = sorted({r["term_encode"] for r in n[g]})
         print(f"{g:14s} {len(n[g])} librairies"
               + (f" ({', '.join(terms)})" if terms else " : aucune")
-              + (" -> appel sur une seule librairie (single.analysis)" if len(n[g]) == 1 else ""),
+              + (" → appel sur une seule librairie (single.analysis)" if len(n[g]) == 1 else ""),
               file=sys.stderr)
         if not n[g]:
             continue
@@ -104,7 +104,7 @@ def cmd_librairies(a):
             fo.write("\t".join(cols) + "\n")
             for r in n[g]:
                 fo.write("\t".join(str(r.get(c, "")) for c in cols) + "\n")
-    print(f"-> {out}/<tissu>/libraries.tsv (un appel call + reciprocal par tissu)", file=sys.stderr)
+    print(f"→ {out}/<tissu>/libraries.tsv (un appel call + reciprocal par tissu)", file=sys.stderr)
 
 
 def export_names(path):
@@ -141,7 +141,7 @@ def cmd_partenaires(a):
             fo.write(f"{p['name']}\t{p['chrom']}\t{p['pos']}\t{p.get('set', 'partner')}\n")
     print(f"{len(parts)} partenaires (tous tissus{', gènes de --genes' if want else ''}), "
           f"{len(parts) - len(miss)} déjà dans {a.export}, "
-          f"{len(miss)} à extraire -> {a.out}", file=sys.stderr)
+          f"{len(miss)} à extraire → {a.out}", file=sys.stderr)
 
 
 def cmd_fusionner(a):
@@ -167,7 +167,7 @@ def cmd_fusionner(a):
     for f in (d1 / "decay.tsv", d2 / "decay.tsv"):
         if f.exists() and not (out / "decay.tsv").exists():
             (out / "decay.tsv").write_text(f.read_text())
-    print(f"{n} librairies fusionnées -> {out}", file=sys.stderr)
+    print(f"{n} librairies fusionnées → {out}", file=sys.stderr)
 
 
 def cmd_separer(a):

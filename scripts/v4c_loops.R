@@ -574,7 +574,7 @@ cmd_call_lib <- function(opt) {
   dir.create(opt$out, showWarnings = FALSE, recursive = TRUE)
   if (nrow(peaks) == 0) die("no peak called in any library; nothing written")
   fwrite(peaks, file.path(opt$out, "peaks_lib.tsv"), sep = "\t")
-  cat(sprintf("%d peak regions in %d libraries -> %s\n", nrow(peaks),
+  cat(sprintf("%d peak regions in %d libraries → %s\n", nrow(peaks),
               uniqueN(peaks$accession), file.path(opt$out, "peaks_lib.tsv")))
   print(peaks[, .(regions = .N, viewpoints = uniqueN(gene)), by = .(term)])
 }

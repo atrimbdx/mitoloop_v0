@@ -163,7 +163,7 @@ def main():
     al = [r["r_oe_moyen"] for r in rows if str(r["condition"]).startswith("ALEATOIRE")]
     if al:
         print(f"\nALEATOIRE : r_oe de {min(al):.3f} à {max(al):.3f} ({len(al)} groupes)")
-    print(f"-> {d / 'evaluation_4c.tsv'}")
+    print(f"→ {d / 'evaluation_4c.tsv'}")
 
 
 if __name__ == "__main__":

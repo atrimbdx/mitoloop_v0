@@ -308,7 +308,7 @@ def main() -> None:
     pool = genes[~is_mito].copy()
     before = len(pool)
     pool = exclude_near(pool, mito, args.exclusion)
-    print(f"control pool {before:,} -> {len(pool):,} after removing genes "
+    print(f"control pool {before:,} → {len(pool):,} after removing genes "
           f"within {args.exclusion/1000:g} kb of a gene-set TSS")
     if len(pool) < THIN_POOL_FACTOR * args.controls * len(mito):
         print("  !! pool is thin relative to the number of controls requested")
@@ -322,7 +322,7 @@ def main() -> None:
     Path(args.out).write_text("\n".join(ctrl) + "\n")
 
     unmatched = int((pairs["control_gene"] == "").sum())
-    print(f"\n{len(ctrl):,} control genes -> {args.out}")
+    print(f"\n{len(ctrl):,} control genes → {args.out}")
     if unmatched:
         print(f"  {unmatched} gene-set genes short of {args.controls} "
               f"controls; the pool ran out")

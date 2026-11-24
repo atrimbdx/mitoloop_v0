@@ -259,7 +259,7 @@ def main():
         for _, x in meilleurs:
             fo.write("\t".join(map(str, x)) + "\n")
     print(f"{a.tissu} : {len(par_gene)} promoteurs avec boucle, {len(meilleurs)} dont une "
-          f"boucle finit sur un élément rE2G du même tissu -> {out}", file=sys.stderr)
+          f"boucle finit sur un élément rE2G du même tissu → {out}", file=sys.stderr)
     print("gene\tL1\tdist_kb\tpresents\tratio\tbios_tissu\tboucles\tfenetre\ttissus\tscore", file=sys.stderr)
     for _, x in meilleurs[:a.top]:
         print("\t".join(map(str, [x[0], x[1], x[6], f"{x[8]}/{x[7]}", x[9], x[10], x[12],

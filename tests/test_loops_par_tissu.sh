@@ -34,7 +34,7 @@ python3 "$S/loops_par_tissu.py" librairies --libraries libs.tsv --out T 2> l.log
 [ "$(cut -f2 T/cardiomyocyte/libraries.tsv | tail -n +2 | sort -u)" = "cardiomyocyte" ] || fail "term = tissue"
 head -1 T/muscle/libraries.tsv | grep -q "term_encode" || fail "term_encode column"
 [ ! -e T/neurone ] || fail "no folder without library"
-grep -q "rein           1 librairies (kidney) -> appel sur une seule librairie" l.log || { cat l.log; fail "single library flag"; }
+grep -q "rein           1 librairies (kidney) → appel sur une seule librairie" l.log || { cat l.log; fail "single library flag"; }
 
 # partner anchors: P_chr1_300000 already exported, P_chr2_900000 new
 printf 'name\tchrom\tpos\tset\nP_chr1_300000\tchr1\t300000\tpartner\n' > T/muscle/partners.tsv
