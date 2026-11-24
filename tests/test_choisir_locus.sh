@@ -54,4 +54,15 @@ python3 "$S/locus_figure.py" --npz M1.npz --gene GA --loops T/muscle/loops.tsv -
     --elements el.tsv --elements-tissu muscle --elements-frac 0.8 --window 500000 --out fig/GA8 > f8.log 2>&1 || { cat f8.log; fail "figure frac"; }
 grep -q "an element needs 2" f8.log && grep -q "1 rE2G elements of GA in the window (muscle), 1 on a called loop anchor" f8.log \
     || { cat f8.log; fail "element track frac"; }
+# anchor rule shared with the reannot AG2 campaign: the peakC region (start-end) widened by one
+# bin; an element 6 kb past the summit is on the anchor, one 15 kb past the region end is not
+python3 - "$S" <<'PY' || fail "anchor rule"
+import sys
+sys.path.insert(0, sys.argv[1])
+import choisir_locus as c
+el = [("chr1", 36000, 36100, {}), ("chr1", 45000, 45100, {})]
+assert c.sur_ancre(el, "chr1", 30200, 10000, 30000, 30400) == [el[0]]
+assert c.sur_ancre(el, "chr1", 30200, 10000, *c.region({})) == [el[0]]       # summit +/- one bin
+assert c.region({"start": "", "end": ""}) == (None, None)
+PY
 echo "PASS test_choisir_locus"
