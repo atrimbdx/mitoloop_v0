@@ -10,7 +10,7 @@ Hi-C and in situ Hi-C by default) and whose biosample term matches --biosamples 
 nothing; without it the table is written with one row per file of --output-type (one output type
 per library, so that a library is not counted twice).
 
-Output columns: accession, term_name, classification, assay, output_type, file_size, dataset,
+Output columns: accession, term_name, classification, assay, output_type, lab, file_size, dataset,
 s3_url, download_url, gtex_tissue, mtcn, kept. gtex_tissue and mtcn are carried along by
 v4c_pipeline.py (select drops libraries without a finite mtcn): --gtex-tissu and --mtcn fill them
 for the whole table (mtcn is not used to call loops).
@@ -34,7 +34,7 @@ from pathlib import Path
 PORTAL = "https://www.encodeproject.org"
 FIELDS = ["accession", "file_format", "output_type", "assembly", "status", "href", "file_size",
           "cloud_metadata.url", "biosample_ontology.term_name", "biosample_ontology.classification",
-          "assay_title", "dataset"]
+          "assay_title", "dataset", "lab.title", "lab"]
 
 
 def get(path, **params):
@@ -44,7 +44,13 @@ def get(path, **params):
         return json.load(r)
 
 
-def filtrer(graph, biosamples, exclure, assay, output_type=""):
+def labo(f):
+    """lab of a File object: title when embedded, else the @id (/labs/erez-aiden/)"""
+    lb = f.get("lab") or ""
+    return (lb.get("title") or lb.get("@id") or "") if isinstance(lb, dict) else str(lb)
+
+
+def filtrer(graph, biosamples, exclure, assay, output_type="", lab=""):
     """rows of the File objects kept (dict per file)"""
     rx, rx_ex, rx_a = re.compile(biosamples, re.I), re.compile(exclure, re.I) if exclure else None, \
         re.compile(assay, re.I)
@@ -56,12 +62,14 @@ def filtrer(graph, biosamples, exclure, assay, output_type=""):
         if (f.get("file_format") != "hic" or f.get("status") != "released"
                 or f.get("assembly", "GRCh38") != "GRCh38" or not rx.search(term)
                 or (rx_ex and rx_ex.search(term)) or not rx_a.search(f.get("assay_title", ""))
-                or (output_type and f.get("output_type") != output_type)):
+                or (output_type and f.get("output_type") != output_type)
+                or (lab and not re.search(lab, labo(f), re.I))):
             continue
         out.append({"accession": f.get("accession", ""), "term_name": term,
                     "classification": bo.get("classification", "") if isinstance(bo, dict) else "",
                     "assay": f.get("assay_title", ""), "output_type": f.get("output_type", ""),
                     "file_size": str(f.get("file_size", "")), "dataset": f.get("dataset", ""),
+                    "lab": labo(f),
                     "s3_url": (f.get("cloud_metadata") or {}).get("url", ""),
                     "download_url": PORTAL + f["href"] if f.get("href") else ""})
     out.sort(key=lambda r: (r["term_name"], r["assay"], r["accession"]))
@@ -74,6 +82,7 @@ def main():
     p.add_argument("--exclure", default="", help="regex of biosample terms left out")
     p.add_argument("--assay", default=r"intact Hi-C|in situ Hi-C", help="regex on the assay title")
     p.add_argument("--output-type", default="", help="output type kept in the table (see --liste)")
+    p.add_argument("--lab", default="", help="regex on the lab (e.g. aiden: Erez Aiden, Baylor)")
     p.add_argument("--gtex-tissu", default="", help="gtex_tissue column")
     p.add_argument("--mtcn", default="1", help="mtcn column (not used to call loops)")
     p.add_argument("--liste", action="store_true", help="print the candidates, write nothing")
@@ -86,18 +95,18 @@ def main():
         print("recherche des fichiers .hic sur ENCODE (une à quelques minutes)...", file=sys.stderr, flush=True)
         graph = get("/search/", type="File", file_format="hic", assembly="GRCh38", status="released",
                     limit="all", format="json", field=FIELDS).get("@graph", [])
-    rows = filtrer(graph, a.biosamples, a.exclure, a.assay, "" if a.liste else a.output_type)
+    rows = filtrer(graph, a.biosamples, a.exclure, a.assay, "" if a.liste else a.output_type, a.lab)
     if a.liste or not a.output_type:
-        c = Counter((r["term_name"], r["classification"], r["assay"], r["output_type"]) for r in rows)
-        print("term_name\tclassification\tassay\toutput_type\tfichiers")
-        for (t, cl, asy, ot), n in sorted(c.items()):
-            print(f"{t}\t{cl}\t{asy}\t{ot}\t{n}")
+        c = Counter((r["term_name"], r["classification"], r["assay"], r["output_type"], r["lab"]) for r in rows)
+        print("term_name\tclassification\tassay\toutput_type\tlab\tfichiers")
+        for (t, cl, asy, ot, lb), n in sorted(c.items()):
+            print(f"{t}\t{cl}\t{asy}\t{ot}\t{lb}\t{n}")
         print(f"{len(rows)} fichiers .hic ; {len({r['term_name'] for r in rows})} biosamples"
               + ("" if a.liste else " ; --output-type pour écrire la table"), file=sys.stderr)
         return
     if not a.out:
         sys.exit("--out requis sans --liste")
-    cols = ["accession", "term_name", "classification", "assay", "output_type", "file_size", "dataset",
+    cols = ["accession", "term_name", "classification", "assay", "output_type", "lab", "file_size", "dataset",
             "s3_url", "download_url", "gtex_tissue", "mtcn", "kept"]
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     with open(a.out, "w") as fo:
