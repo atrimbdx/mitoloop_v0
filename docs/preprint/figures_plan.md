@@ -26,3 +26,5 @@ Paths: reannot results in `~/reannot_git/results/ag2_v2` (Curta), mitoloop_v0 lo
 Style: blue = decrease of RNA in all AG2 panels (as in `ag2_profils.py`); coding-exon and splice windows hatched; kidney contact maps flagged "imputed".
 
 Figure 7 (non-coding effector axis) uses no AlphaGenome output: it is drawn from the reannot non-coding effector run (`mcia/run_paquet.sh nc_effecteur`, results on Curta under `REANNOT_BASE`) and the mitoloop_v0 inventory.
+
+- **Supplementary Fig. S4** (enhancer threshold sensitivity): reannot `mcia/seuil_re2g.py --elements results/paquet/re2g_tous/re2g_elements.tsv --genes ~/mitoloop_v0/genes.txt --out results/seuil_re2g/seuil_re2g` → `seuil_re2g.png/.svg`, `seuil_re2g.tsv`, `seuil_re2g_fractions.tsv`. Status: done (25 Nov 2026), figure on Curta.
