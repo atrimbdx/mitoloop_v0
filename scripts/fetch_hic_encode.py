@@ -82,7 +82,8 @@ def main():
     p.add_argument("--exclure", default="", help="regex of biosample terms left out")
     p.add_argument("--assay", default=r"intact Hi-C|in situ Hi-C", help="regex on the assay title")
     p.add_argument("--output-type", default="", help="output type kept in the table (see --liste)")
-    p.add_argument("--lab", default="", help="regex on the lab (e.g. aiden: Erez Aiden, Baylor)")
+    p.add_argument("--lab", default="", help="regex on the lab of the experiment that produced the data "
+                   "(e.g. aiden: Erez Aiden, Baylor), not the lab that processed the file")
     p.add_argument("--gtex-tissu", default="", help="gtex_tissue column")
     p.add_argument("--mtcn", default="1", help="mtcn column (not used to call loops)")
     p.add_argument("--liste", action="store_true", help="print the candidates, write nothing")
@@ -95,6 +96,16 @@ def main():
         print("recherche des fichiers .hic sur ENCODE (une à quelques minutes)...", file=sys.stderr, flush=True)
         graph = get("/search/", type="File", file_format="hic", assembly="GRCh38", status="released",
                     limit="all", format="json", field=FIELDS).get("@graph", [])
+    if a.json:
+        labs_exp = {e.get("@id", ""): labo(e) for e in json.load(open(a.json)).get("experiments", [])}
+    else:
+        print("laboratoires des expériences (producteurs des données)...", file=sys.stderr, flush=True)
+        labs_exp = {e.get("@id", ""): labo(e) for e in get(
+            "/search/", type="Experiment", assay_title=["intact Hi-C", "in situ Hi-C"], limit="all",
+            format="json", field=["@id", "accession", "lab.title", "lab"]).get("@graph", [])}
+    for f in graph:                     # le laboratoire qui a produit les données est celui de l'expérience ;
+        f["lab_fichier"] = labo(f)      # celui du fichier est souvent « ENCODE Processing Pipeline »
+        f["lab"] = labs_exp.get(f.get("dataset", ""), f["lab_fichier"])
     rows = filtrer(graph, a.biosamples, a.exclure, a.assay, "" if a.liste else a.output_type, a.lab)
     if a.liste or not a.output_type:
         c = Counter((r["term_name"], r["classification"], r["assay"], r["output_type"], r["lab"]) for r in rows)

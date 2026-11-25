@@ -11,12 +11,15 @@ f = lambda acc, term, assay, ot, fmt="hic", st="released": {"accession": acc, "f
     "assembly": "GRCh38", "output_type": ot, "href": f"/files/{acc}/@@download/{acc}.hic", "file_size": 10,
     "cloud_metadata": {"url": f"https://s3/{acc}.hic"}, "assay_title": assay, "dataset": "/experiments/E1/",
     "biosample_ontology": {"term_name": term, "classification": "cell line"},
-    "lab": {"title": "Erez Aiden, Baylor" if acc != "A2" else "Other Lab, X"}}
+    "lab": {"title": "ENCODE Processing Pipeline"}}
 g = [f("A1", "GM12878", "intact Hi-C", "mapq"), f("A2", "GM12878", "intact Hi-C", "all"),
      f("A3", "K562", "intact Hi-C", "mapq"), f("A4", "IMR-90", "in situ Hi-C", "mapq"),
      f("A5", "GM12878", "Micro-C", "mapq"), f("A6", "GM12878", "intact Hi-C", "mapq", fmt="bed"),
      f("A7", "GM12878", "intact Hi-C", "mapq", st="archived")]
-json.dump({"@graph": g}, open(sys.argv[1], "w"))
+g[1]["dataset"] = "/experiments/E2/"
+exps = [{"@id": "/experiments/E1/", "lab": {"title": "Erez Aiden, Baylor"}},
+        {"@id": "/experiments/E2/", "lab": {"title": "Other Lab, X"}}]
+json.dump({"@graph": g, "experiments": exps}, open(sys.argv[1], "w"))
 PY
 python3 scripts/fetch_hic_encode.py --json "$T/r.json" --biosamples "GM12878|K562" --exclure K562 --liste > "$T/l.out" 2> "$T/l.log" || { cat "$T/l.log"; fail liste; }
 grep -qP "^GM12878\tcell line\tintact Hi-C\tall\tOther Lab, X\t1$" "$T/l.out" && grep -qP "^GM12878\tcell line\tintact Hi-C\tmapq\tErez Aiden, Baylor\t1$" "$T/l.out" \
