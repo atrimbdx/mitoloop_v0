@@ -925,7 +925,7 @@ def main():
                 continue
             w = max(e_ - s_, res / 2)
             col = BLUE if val < 0 else RED
-            hors = cl == "element_hors_ancre"          # élément hors ancre : contour noir
+            hors = cl in ("element_hors_ancre", "element_intronique")   # contour noir
             axx.add_patch(Rectangle(((s_ + e_) / 2 - w / 2, min(0, val)), w, abs(val), facecolor=col,
                                     edgecolor="black" if hors else col, lw=0.6 if hors else 0,
                                     alpha=0.45 if cl == "ancre" else 0.95,
@@ -933,7 +933,7 @@ def main():
     if rx is not None:
         from matplotlib.patches import Patch
         rx.legend(handles=[Patch(color=BLUE, label="élément sur ancre"),
-                           Patch(facecolor=BLUE, edgecolor="black", lw=0.6, label="élément hors ancre"),
+                           Patch(facecolor=BLUE, edgecolor="black", lw=0.6, label="élément hors ancre / intronique"),
                            Patch(color=BLUE, alpha=0.45, hatch="///", label="ancre 10 kb")],
                   fontsize=fs(5.5), frameon=False, loc="lower right", ncol=3)
 
