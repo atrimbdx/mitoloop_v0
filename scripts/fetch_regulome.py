@@ -337,7 +337,7 @@ def main():
     if mc:
         a.genes.write_text("\n".join(gs) + "\n")
     print(f"gene set: {len(mc)} MitoCarta3.0 + {len(panel - mc)} PanelApp "
-          f"outside MitoCarta = {len(gs)} genes -> {a.genes}")
+          f"outside MitoCarta = {len(gs)} genes → {a.genes}")
     with open(d / "MANIFEST.tsv", "w") as fh:
         fh.write("file\tbytes\tsource\n")
         for r in manifest:

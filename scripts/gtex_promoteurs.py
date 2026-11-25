@@ -357,7 +357,7 @@ def main():
         fo.write("\t".join(cols) + "\n")
         for r in rows:
             fo.write("\t".join(r) + "\n")
-    print(f"{len({r[0] for r in rows})} gènes -> {a.out}", file=sys.stderr)
+    print(f"{len({r[0] for r in rows})} gènes → {a.out}", file=sys.stderr)
     for (typ, x), n in sorted(n_alerte.items()):
         print(f"  {typ:14s} {x:26s} {n}", file=sys.stderr)
     if a.tss_dominants:
@@ -369,7 +369,7 @@ def main():
         for r in dominants:
             par_t[r[1]] += 1
         print(f"TSS dominants confirmés hors délétion : {len(dominants)} ("
-              + ", ".join(f"{t} {n}" for t, n in sorted(par_t.items())) + f") -> {a.tss_dominants}",
+              + ", ".join(f"{t} {n}" for t, n in sorted(par_t.items())) + f") → {a.tss_dominants}",
               file=sys.stderr)
 
 

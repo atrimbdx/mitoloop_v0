@@ -207,7 +207,7 @@ def main():
             path = os.path.join(out, f"{label}.cool")
             px = write_cool(path, lam, scale)
             print(f"{exp:8s} {state:5s} {int(px['count'].sum()):>12,d} "
-                  f"contacts -> {path}")
+                  f"contacts → {path}")
             rows.append((exp, state, label, path, "cool", args.genome, res))
             if args.hic_pairs:
                 write_juicer_pairs(os.path.join(out, f"{label}.pairs.txt"), px)

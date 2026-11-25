@@ -193,7 +193,7 @@ def main():
 
     print("\n== gardé")
     for c, k, n, _l in keep_rows:
-        print(f"   {c:7s} {hum(size_of(k)):>10s}  {k}" + (f"  -> {n}" if c in ("anr", "dev") else ""))
+        print(f"   {c:7s} {hum(size_of(k)):>10s}  {k}" + (f"  → {n}" if c in ("anr", "dev") else ""))
     for t, l in sorted(extra.items()):
         print(f"   lien    {hum(size_of(t)):>10s}  {t}   (cible de {l})")
     print(f"\n== à archiver : {len(units)} éléments, {hum(sum(sizes.values()))}")

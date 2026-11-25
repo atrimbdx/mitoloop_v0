@@ -146,7 +146,7 @@ def cmd_preparer(a):
     if a.hic:
         n = matrice_hic(a.hic, chrom, max(0, debut - a.marge), fin + a.marge, a.res, a.norm,
                         out / "matrice.tsv")
-        print(f"matrice : {n:,} cases ({a.res} pb) -> {out / 'matrice.tsv'}")
+        print(f"matrice : {n:,} cases ({a.res} pb) → {out / 'matrice.tsv'}")
 
     # sites CTCF orientés, puis les conditions de délétion
     pics = a.ctcf_pics
@@ -188,7 +188,7 @@ def cmd_preparer(a):
         msg = (f"  {cond:16s} {retires} site(s) CTCF retiré(s) sur {len(sites)}"
                + (f" : {', '.join(enleves)}" if enleves else ""))
         if not retires:
-            msg += ("  -> même entrée que SAUVAGE : la voie A ne peut prédire aucun changement "
+            msg += ("  → même entrée que SAUVAGE : la voie A ne peut prédire aucun changement "
                     "(différentiel nul par construction)")
         print(msg)
     with open(out / "conditions.tsv", "w") as fo:

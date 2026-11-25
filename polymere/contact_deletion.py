@@ -133,8 +133,8 @@ def main():
             fo.write("\t".join(f"{r[k]:.4g}" if isinstance(r[k], float) else str(r[k])
                                for k in cols) + "\n")
     for r in rows:
-        print(f"  {r['condition']:12s} {promo} <-> {r['ancre']:16s} "
-              f"{r['sauvage']:.3f} -> {r['deletion']:.3f}  log2 {r['log2_ratio']:+.2f} "
+        print(f"  {r['condition']:12s} {promo} ↔ {r['ancre']:16s} "
+              f"{r['sauvage']:.3f} → {r['deletion']:.3f}  log2 {r['log2_ratio']:+.2f} "
               f"[{r['ci_bas']:+.2f} ; {r['ci_haut']:+.2f}]  p_nul {r['p_nul']:.3g}"
               + ("  (nul par construction)" if r["nul_par_construction"] == "oui" else ""))
 
@@ -167,7 +167,7 @@ def main():
         ax.spines[s].set_visible(False)
     fig.savefig(d / "contacts_deletion.svg", bbox_inches="tight")
     fig.savefig(d / "contacts_deletion.png", dpi=300, bbox_inches="tight")
-    print(f"-> {d / 'contacts_deletion.tsv'}, .png, .svg")
+    print(f"→ {d / 'contacts_deletion.tsv'}, .png, .svg")
 
 
 if __name__ == "__main__":

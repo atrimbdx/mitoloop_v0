@@ -133,5 +133,5 @@ for cond, proche in (("UNIFORME", True), ("UNIF_SANSELEMENT", False)):
 PY
 SIMPOL_LOCI=L/loci.json python3 "$P/contact_deletion.py" --dir L --locus ga --reference UNIFORME --conditions conditions_uniforme.tsv --tirages 100 > cu.log 2>&1 \
     || { cat cu.log; fail "contact_deletion UNIFORME"; }
-grep -q "UNIF_SANSELEMENT promoteur_GA <-> element_1" cu.log || { cat cu.log; fail "uniforme reading"; }
+grep -q "UNIF_SANSELEMENT promoteur_GA ↔ element_1" cu.log || { cat cu.log; fail "uniforme reading"; }
 echo "PASS test_polymere"

@@ -415,7 +415,7 @@ def main():
             req = urllib.request.Request(ATTR_URL, headers={"User-Agent": "mitoloop_v0"})
             with urllib.request.urlopen(req, timeout=300) as r:
                 a.attributes.write_bytes(r.read())
-            log(rep, f"GTEx sample attributes -> {a.attributes}")
+            log(rep, f"GTEx sample attributes → {a.attributes}")
         except Exception as e:  # network errors of every kind
             log(rep, f"GTEx sample attributes not downloaded: {e}")
     names, coding = gtf_names(a.gtf)

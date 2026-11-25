@@ -790,7 +790,7 @@ def figure(per_gene, path, n_biosamples, window=WINDOW,
     fig.tight_layout()
     fig.savefig(path, format="svg")
     plt.close(fig)
-    print(f"  figure -> {path}")
+    print(f"  figure → {path}")
 
 
 # ---------------------------------------------------------------------------
@@ -1004,7 +1004,7 @@ def main():
     renamed = {k: v for k, v in mapping.items() if k != v}
     if renamed:
         print(f"  {len(renamed)} symbols renamed to their current form "
-              f"(e.g. {', '.join(f'{k}->{v}' for k, v in list(renamed.items())[:4])})")
+              f"(e.g. {', '.join(f'{k}→{v}' for k, v in list(renamed.items())[:4])})")
     # the set membership follows the canonical name
     mito = {mapping[g] for g in mito if g in mapping}
     ctrl = {mapping[g] for g in ctrl if g in mapping} - mito
@@ -1147,7 +1147,7 @@ def main():
         fh.write("gene\tset\tchrom\tstart\tend\tdistance\tprevalence\tcelltypes\tbiosamples\n")
         for r in elements:
             fh.write("\t".join(str(x) for x in r) + "\n")
-    print(f"{len(elements):,} gene-element pairs -> "
+    print(f"{len(elements):,} gene-element pairs → "
           f"{out / 're2g_elements.tsv'}")
 
     cols = list(rows[0])

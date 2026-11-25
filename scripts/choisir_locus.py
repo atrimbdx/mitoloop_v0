@@ -43,7 +43,7 @@ first, columns:
   score, commande  (the locus_figure.py call that draws it)
 
 Ranking (by gene, its best loop; stated, not tuned on anything)
-  required   the loop anchor (summit +/- --tol) holds an element linked to the
+  required   the loop anchor (summit +/- 1.5 bins, the peakC window) holds an element linked to the
              gene in >= --frac-tissu of the tissue's biosamples
   score      presence (n_presents / n_fichiers, 1 when not measured)
              + share of the tissue's biosamples linking the element
@@ -120,8 +120,12 @@ def lire_elements(path):
 
 
 def sur_ancre(elements, chrom, summit, tol):
-    """elements of the gene within tol of the summit"""
-    return [e for e in elements if e[0] == chrom and e[1] - tol <= summit <= e[2] + tol]
+    """elements of the gene on the loop anchor: overlapping the peakC window centred on the
+    summit, summit +/- 1.5 bins (wsize 3 bins of --tol = 10 kb: +/- 15 kb); the rule of the
+    reannot AG2 campaign (ag2_balayage.py ancre_region). The start-end region, spread by the
+    same smoothing, is not the anchor."""
+    demi = tol * 3 // 2
+    return [e for e in elements if e[0] == chrom and e[1] < summit + demi and summit - demi < e[2]]
 
 
 def boucles(d, tissu, interet):
@@ -165,7 +169,8 @@ def main():
     p.add_argument("--class-high", type=float, default=0.5)
     p.add_argument("--class-low", type=float, default=0.3)
     p.add_argument("--frac-tissu", type=float, default=0.8)
-    p.add_argument("--tol", type=int, default=10_000, help="bp around the summit (one bin)")
+    p.add_argument("--tol", type=int, default=10_000,
+                   help="bin of the loop call (bp); anchor = summit +/- 1.5 bins (peakC wsize 3)")
     p.add_argument("--dmin", type=int, default=50_000)
     p.add_argument("--dmax", type=int, default=500_000)
     p.add_argument("--fenetre", type=int, default=0,
@@ -259,7 +264,7 @@ def main():
         for _, x in meilleurs:
             fo.write("\t".join(map(str, x)) + "\n")
     print(f"{a.tissu} : {len(par_gene)} promoteurs avec boucle, {len(meilleurs)} dont une "
-          f"boucle finit sur un élément rE2G du même tissu -> {out}", file=sys.stderr)
+          f"boucle finit sur un élément rE2G du même tissu → {out}", file=sys.stderr)
     print("gene\tL1\tdist_kb\tpresents\tratio\tbios_tissu\tboucles\tfenetre\ttissus\tscore", file=sys.stderr)
     for _, x in meilleurs[:a.top]:
         print("\t".join(map(str, [x[0], x[1], x[6], f"{x[8]}/{x[7]}", x[9], x[10], x[12],
