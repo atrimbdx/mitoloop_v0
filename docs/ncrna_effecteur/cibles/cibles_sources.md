@@ -47,10 +47,11 @@ Conventions :
 | lncrna_mito | 7 | catalogue (GAS5, SAMMSON, TUG1) |
 | lncrna_general | 20 685 | GENCODE v27 (cis calculé) + 3 lignes d'articles |
 | pseudogene_eponge | 544 | HGNC (nom « X pseudogene N ») × GENCODE v27 (biotypes transcrits) |
+| pirna_cluster | 4 | PLD6 (Huang 2011), GPAT2 (Shiromoto 2013), TDRKH et PNLDC1 (Izumi 2016) : biogenèse des piARN à la surface mitochondriale, toute la classe (`*`), preuve animale |
 | micropeptide_lncrna_sorf | 2 | Ge 2021 (LINC00467/ASAP) ; le reste est dans chemin3 |
 | micropeptide_numt_humanin | 13 | HGNC (MTRNR2L1-13 → MT-RNR2) |
 
-Classes **sans** ligne (source à télécharger sur Curta) : mirtron, agotron, pirna_cluster, tdr_trf_tirna,
+Classes **sans** ligne (source à télécharger sur Curta) : mirtron, agotron, tdr_trf_tirna,
 trna_lookalike_mt, ysrna, circrna, sno_lncrna_spa. Classes sans cible au sens de cette table : snRNA (les cibles
 sont les introns, gérés par chemin1), ARNr 45S, ribozymes, TERRA, satellites, eRNA/PROMPT.
 
