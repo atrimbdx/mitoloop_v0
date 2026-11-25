@@ -16,8 +16,13 @@ Paths: reannot results in `~/reannot_git/results/ag2_v2` (Curta), mitoloop_v0 lo
 | 5a | Predicted effect vs gnomAD O/E | `mcia/ag2_profils.py --gnomad` | `ism_gnomad_resume.tsv` | rerun on 4 types |
 | 5b | Homozygotes vs Hardy-Weinberg | from `ism_gnomad_homozygotes.tsv` | | TODO |
 | 6 | Integrated plates (COX6A2, BOLA3, COQ9) | `scripts/planches_panelapp.py --tissu <t>`; zooms `mcia/ag2_figure_locus.py --gene` | `.hic`, loops, elements, `ag2_v2` | TODO |
+| 7a | Non-coding effector classes (47) by level of mitochondrial link and status | small new bar plot (no script yet) | `docs/ncrna_effecteur/inventaire/inventaire_ncrna_effecteurs.tsv` (column `niveau_lien_mito`); reannot `donnees/nc_types.tsv` (column `statut`) | TODO |
+| 7b | Three paths and the U12 cascade, with counts of the 24/11 run | schematic by hand (SVG) | counts from `ETAT_CHANTIER_2026-11-24.md`; `elements_nc.rapport.tsv`, `chemin1.rapport.tsv`, `chemin1_cibles.tsv`, `regions_effet.bed`, path 3 `chemin3` report (Curta, `results/nc_effecteur`) | TODO |
+| 7c | Base pairs per pre-filter level | small new bar plot (no script yet) | `prefiltre_mito.resume.tsv` from `mcia/elements_nc.py prefiltre` | TODO: rerun (pre-filter not yet run on real data) |
 | S1 | Muscle vs heart allele effects | new scatter from `ism_*.tsv` | | TODO |
 | S2 | Active elements by distance; contact loss vs RNA | from `elements_actifs.tsv`, `lecture_multi_<t>.tsv`, `bilan_genes.tsv` | | TODO |
 | S3 | Calibration | from `calibration.tsv` | | TODO |
 
 Style: blue = decrease of RNA in all AG2 panels (as in `ag2_profils.py`); coding-exon and splice windows hatched; kidney contact maps flagged "imputed".
+
+Figure 7 (non-coding effector axis) uses no AlphaGenome output: it is drawn from the reannot non-coding effector run (`mcia/run_paquet.sh nc_effecteur`, results on Curta under `REANNOT_BASE`) and the mitoloop_v0 inventory.
