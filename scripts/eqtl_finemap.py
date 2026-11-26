@@ -8,11 +8,11 @@ of variants, each variant with its posterior inclusion probability (PIP) and its
 The lead variant of an independent eQTL is not the causal one when it is in linkage
 disequilibrium with others; the credible set and the PIP say how sure the causal variant is.
 
-  liste    the GTEx gene-expression datasets of the catalogue (dataset_metadata.tsv of
-           eQTL-Catalogue-resources): dataset_id, sample_group, tissue_label, sample_size;
+  liste    the GTEx gene-expression datasets of the catalogue (tabix/tabix_ftp_paths.tsv of
+           eQTL-Catalogue-resources, which also gives the path of each credible-set file): dataset_id, sample_group, tissue_label, sample_size;
            to check the tissue of each campaign type before fetch
   fetch    one credible_sets.tsv.gz per type (--datasets type=QTD...;...) into --datadir
-           (https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/susie/<study>/<dataset>/)
+           (ftp_cs_path of the table, read over https from ftp.ebi.ac.uk)
   extraire the credible-set variants of --genes (symbols, matched to Ensembl ids by the GTF)
            from the fetched files: type, gene, dataset, cs_id, cs_size, variant, chrom, pos
            (1-based), pip, beta, se
@@ -38,7 +38,7 @@ import urllib.request
 from pathlib import Path
 
 META = ("https://raw.githubusercontent.com/eQTL-Catalogue/eQTL-Catalogue-resources/master/"
-        "data_tables/dataset_metadata.tsv")
+        "tabix/tabix_ftp_paths.tsv")       # study_id, dataset_id, ..., quant_method, ftp_cs_path
 SUSIE = "https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/susie/{study}/{ds}/{ds}.credible_sets.tsv.gz"
 csv.field_size_limit(10 ** 9)
 
@@ -73,7 +73,8 @@ def cmd_fetch(a):
         t, ds = (y.strip() for y in x.split("=", 1))
         if ds not in meta:
             sys.exit(f"{ds} absent du catalogue (voir liste)")
-        url = SUSIE.format(study=meta[ds]["study_id"], ds=ds)
+        url = (meta[ds].get("ftp_cs_path") or SUSIE.format(study=meta[ds]["study_id"], ds=ds)) \
+            .replace("ftp://", "https://", 1)
         f = d / f"{ds}.credible_sets.tsv.gz"
         if f.is_file() and f.stat().st_size > 0:
             print(f"  {t} : {f.name} déjà là")
