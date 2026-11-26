@@ -134,4 +134,19 @@ PY
 SIMPOL_LOCI=L/loci.json python3 "$P/contact_deletion.py" --dir L --locus ga --reference UNIFORME --conditions conditions_uniforme.tsv --tirages 100 > cu.log 2>&1 \
     || { cat cu.log; fail "contact_deletion UNIFORME"; }
 grep -q "UNIF_SANSELEMENT promoteur_GA ↔ element_1" cu.log || { cat cu.log; fail "uniforme reading"; }
+# 1D stage alone against 3D (extrusion_1d.py): regenerated 1D trajectories, files written
+SIMPOL_LOCI=L/loci.json python3 "$P/evaluer_4c.py" --dir L --locus ga > e2.log 2>&1 || { cat e2.log; fail "evaluer_4c (2)"; }
+SIMPOL_LOCI=L/loci.json python3 "$P/extrusion_1d.py" --dir L --locus ga --instants 20 --blocs 50 > x.log 2>&1 \
+    || { cat x.log; fail extrusion_1d; }
+python3 - <<'PY' || { cat x.log L/extrusion_1d.tsv; fail "extrusion_1d content"; }
+import csv
+r = {(x["condition"], x["jeu"]): x for x in csv.DictReader(open("L/extrusion_1d.tsv"), delimiter="\t")}
+assert ("SAUVAGE", "5") in r and ("UNIF_SANSELEMENT", "5") in r, r.keys()
+s = r[("SAUVAGE", "5")]
+assert 0 <= float(s["pont_promoteur_GA__element_1"]) <= 1
+assert float(s["oe1d_promoteur_GA__element_1"]) > 0
+assert float(s["oe3d_promoteur_GA__element_1"]) > 0
+res = {(x["mesure"], x["score_1d"]): x for x in csv.DictReader(open("L/extrusion_1d_resume.tsv"), delimiter="\t")}
+assert ("verdict", ".") in res
+PY
 echo "PASS test_polymere"
