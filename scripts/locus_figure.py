@@ -488,6 +488,11 @@ def main():
                         "pistes, effet sur l'ARN de la délétion entière de chaque élément et ancre, et "
                         "perte de contact prédite (avec --gene et --ag2-type)")
     p.add_argument("--ag2-type", default="", help="type cellulaire de la campagne (muscle, cardiomyocyte...)")
+    p.add_argument("--eqtl", default="",
+                   help="fine-mapped eQTLs (eqtl_finemap.py extraire): credible-set variants of the "
+                        "gene drawn as stems, height = beta, size and shade = PIP")
+    p.add_argument("--eqtl-type", default="",
+                   help="type column of --eqtl to draw (muscle, cardiomyocyte...); default: all")
     p.add_argument("--genes-track", action="store_true",
                    help="draw the genes of the window under the map; needs "
                         "--gtf")
@@ -774,11 +779,32 @@ def main():
               f"{sum(1 for x in ag2 if x[2] == 'ancre')} ancres dans la fenêtre")
     ag2_h = 0.75 if a.ag2_dir else 0
 
+    eqtl = []                    # (pos, beta, pip, credible set)
+    if a.eqtl:
+        if not a.gene:
+            sys.exit("--eqtl needs --gene")
+        for r in read_tsv(a.eqtl):
+            if r.get("gene") != a.gene or (a.eqtl_type and r.get("type") != a.eqtl_type):
+                continue
+            if not same_chrom(r.get("chrom", ""), chrom):
+                continue
+            try:
+                pos, b, pip = int(r["pos"]), float(r["beta"]), float(r["pip"])
+            except (KeyError, ValueError):
+                continue
+            if start <= pos <= end:
+                eqtl.append((pos, b, pip, f"{r.get('type', '')}:{r.get('cs_id', '')}"))
+        print(f"  {len(eqtl)} fine-mapped eQTL variants of {a.gene} in the window"
+              + (f" ({a.eqtl_type})" if a.eqtl_type else "")
+              + f", {sum(1 for x in eqtl if x[2] >= 0.5)} with PIP >= 0.5, "
+              f"{len({x[3] for x in eqtl})} credible sets")
+    eqtl_h = 0.7 if a.eqtl else 0
+
     gx = None
     ax2 = None
     ex = None
-    rx = cx = None
-    if m is None and not n_rows and not arcs and not elem_h and not ag2_h:
+    rx = cx = qx = None
+    if m is None and not n_rows and not arcs and not elem_h and not ag2_h and not eqtl_h:
         fig, bx = plt.subplots(1, 1, figsize=(fig_w, prof_h + 0.95))
         ax = None
     else:
@@ -786,6 +812,7 @@ def main():
                   ([arcs_h] if arcs else []) + \
                   ([elem_h] if elem_h else []) + \
                   ([ag2_h, ag2_h] if ag2_h else []) + \
+                  ([eqtl_h] if eqtl_h else []) + \
                   ([gene_h] if n_rows else []) + [prof_h]
         fig, axes = plt.subplots(
             len(heights), 1, figsize=(fig_w, sum(heights) + 0.95), sharex=True,
@@ -796,6 +823,7 @@ def main():
         ex = axes.pop(0) if elem_h else None
         rx = axes.pop(0) if ag2_h else None
         cx = axes.pop(0) if ag2_h else None
+        qx = axes.pop(0) if eqtl_h else None
         gx = axes.pop(0) if n_rows else None
         bx = axes.pop(0)
 
@@ -853,7 +881,7 @@ def main():
                      ("balanced contacts" if a.norm.upper() != "NONE"
                       else "contacts"), fontsize=fs(7))
     else:
-        first = next(x for x in (ax2, ex, rx, cx, gx, bx) if x is not None)
+        first = next(x for x in (ax2, ex, rx, cx, qx, gx, bx) if x is not None)
         first.set_title(title, fontsize=fs(9), loc="left")
 
     if ax2 is not None:
@@ -936,6 +964,34 @@ def main():
                            Patch(facecolor=BLUE, edgecolor="black", lw=0.6, label="élément hors ancre / intronique"),
                            Patch(color=BLUE, alpha=0.45, hatch="///", label="ancre 10 kb")],
                   fontsize=fs(5.5), frameon=False, loc="lower right", ncol=3)
+
+    if qx is not None:
+        qx.set_xlim(edges[0], edges[-1])
+        lim = max([abs(b) for _p, b, _q, _c in eqtl] + [0.25]) * 1.15
+        qx.set_ylim(-lim, lim)
+        qx.axhline(0, color=GREY, lw=0.6)
+        qx.set_ylabel("eQTL GTEx\n(β, SuSiE)", fontsize=fs(6.5), rotation=0, ha="right",
+                      va="center", labelpad=2)
+        for sp in ("top", "right", "bottom"):
+            qx.spines[sp].set_visible(False)
+        qx.tick_params(axis="y", labelsize=fs(6))
+        qx.tick_params(axis="x", length=0)
+        qx.axvline(vp, color="black", lw=0.7, ls=(0, (1, 2)), zorder=0)
+        cs_ids = sorted({c for *_x, c in eqtl})
+        pal = plt.get_cmap("tab10")
+        for pos, b, pip, c in sorted(eqtl, key=lambda x: x[2]):     # high PIP on top
+            col = pal(cs_ids.index(c) % 10)
+            al = 0.25 + 0.75 * min(max(pip, 0), 1)
+            qx.plot([pos, pos], [0, b], color=col, lw=0.8, alpha=al)
+            qx.plot([pos], [b], marker="o", ms=1.5 + 4.5 * pip, color=col, alpha=al,
+                    markeredgecolor="black" if pip >= 0.5 else col, markeredgewidth=0.5)
+        if not eqtl:
+            qx.text(0.5, 0.5, "aucun eQTL fine-mappé dans la fenêtre", transform=qx.transAxes,
+                    ha="center", va="center", fontsize=fs(6), color=GREY)
+        else:
+            qx.text(0.995, 0.97, f"{len(cs_ids)} credible set(s) ; taille et opacité = PIP ; "
+                    "contour noir = PIP ≥ 0,5", transform=qx.transAxes, ha="right", va="top",
+                    fontsize=fs(5.5), color=GREY)
 
     if gx is not None:
         gx.set_xlim(edges[0], edges[-1])
@@ -1029,7 +1085,7 @@ def main():
     fig.canvas.draw()
     if ax is not None:
         box = ax.get_position()
-        for other in (ax2, ex, rx, cx, gx, bx):
+        for other in (ax2, ex, rx, cx, qx, gx, bx):
             if other is not None:
                 q = other.get_position()
                 other.set_position([box.x0, q.y0, box.width, q.height])

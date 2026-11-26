@@ -172,6 +172,7 @@ def main():
     p.add_argument("--elements", default="")
     p.add_argument("--elements-frac", default="0.8")
     p.add_argument("--ag2-dir", default="")
+    p.add_argument("--eqtl", default="", help="fine-mapped eQTLs (eqtl_finemap.py extraire), drawn for the tissue")
     p.add_argument("--reannot", default=str(Path.home() / "reannot_git"),
                    help="reannot clone, for mcia/ag2_figure_locus.py")
     p.add_argument("--fenetre-max", type=int, default=1_000_000)
@@ -251,6 +252,8 @@ def main():
                 cmd += ["--elements", a.elements, "--elements-tissu", a.tissu, "--elements-frac", a.elements_frac]
             if a.ag2_dir:
                 cmd += ["--ag2-dir", a.ag2_dir, "--ag2-type", a.tissu]
+            if a.eqtl:
+                cmd += ["--eqtl", a.eqtl, "--eqtl-type", a.tissu]
             r = subprocess.run(cmd, capture_output=True, text=True)
             macro = tmp / "macro.png"
             if r.returncode or not macro.exists():

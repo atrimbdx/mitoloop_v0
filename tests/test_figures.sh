@@ -51,6 +51,28 @@ nonempty "$OUT/locus_cool".{svg,png,tsv}
 grep -q "2 called loops inside the window" "$TMP/last.log" \
     || fail "expected 2 called loops at GENEA"
 
+# fine-mapped eQTL track (eqtl_finemap.py extraire format), at the TSS of GENEA
+python3 - "$IN" <<'PY'
+import sys, csv
+d = sys.argv[1]
+tss = None
+for ln in open(f"{d}/genes.gtf"):
+    f = ln.split("\t")
+    if len(f) > 8 and f[2] == "gene" and 'gene_name "GENEA"' in f[8]:
+        tss, ch = (int(f[3]) if f[6] == "+" else int(f[4])), f[0]
+with open(f"{d}/eqtl.tsv", "w") as fo:
+    fo.write("type\tgene\tdataset\tcs_id\tcs_size\tvariant\tchrom\tpos\tpip\tbeta\tse\n")
+    for i, (dp, pip, b) in enumerate([(-20000, 0.95, -0.6), (-19000, 0.03, -0.5), (40000, 0.6, 0.3)]):
+        fo.write(f"muscle\tGENEA\tQTD0\tL{i // 2 + 1}\t2\tx\t{ch}\t{tss + dp}\t{pip}\t{b}\t0.1\n")
+    fo.write(f"rein\tGENEA\tQTD1\tL1\t1\tx\t{ch}\t{tss}\t0.9\t0.2\t0.1\n")
+PY
+run python3 "$SCRIPTS/locus_figure.py" --hic "$IN/synthetic.cool" \
+    --gene GENEA --gtf "$IN/genes.gtf" --loops "$IN/loops.tsv" \
+    --norm NONE --arcs --genes-track --eqtl "$IN/eqtl.tsv" --eqtl-type muscle --out "$OUT/locus_eqtl"
+nonempty "$OUT/locus_eqtl".{svg,png,tsv}
+grep -q "3 fine-mapped eQTL variants of GENEA in the window (muscle), 2 with PIP >= 0.5, 2 credible sets" "$TMP/last.log" \
+    || fail "eQTL track"
+
 # raw contacts, square map, options exposed for the drawing
 run python3 "$SCRIPTS/locus_figure.py" --hic "$IN/synthetic.cool" \
     --gene GENEB --gtf "$IN/genes.gtf" --loops "$IN/loops.tsv" --raw \
